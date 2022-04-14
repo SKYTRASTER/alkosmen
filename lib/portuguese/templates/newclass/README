@@ -1,0 +1,40 @@
+README - <bluej-home>/lib/<language>/templates/newclass/README
+--------------------------------------------------------------
+
+Esta pasta cont\u0439m modelos de classes do BlueJ.
+
+Este modelos aparecem como op\u0437\u0445es no di\u0431logo "Nova Classe" 
+do ambiente BlueJ
+
+
+Mudando modelos
+---------------
+Os modelos podem ser facilmente alterados editando esses arquivos.
+
+
+Adicionando novos modelos
+-------------------------
+Para adicionar um modelo, crie um novo arquivo nesta pasta com uma
+extens\u0433o ".tmpl" (por exemplo, "mainclass.tmpl").
+
+Nomes de applets, interfaces, classes abstratas, testes de unidades ou enumerações devem come\u0437ar com
+"applet", "interface" ou "abstract", "unittest" ou "enum" respectivamente. Todo o resto
+ser\u0431 tratado como uma classe padr\u0433o.
+
+Por default, este modelo ser\u0431 listado no di\u0431logo Nova Classe, ao final da
+lista de op\u0437\u0445es e com o nome base do arquivo ("mainclass").
+
+O nome que aparece no di\u0431logo pode ser definido pela propriedade
+"pkgmgr.newClass.<template-name>" no arquivo labels (o arquivo labels
+encontra-se em <bluej-home>/lib/<language>/labels). Por exemplo, definindo
+
+   pkgmgr.newClass.mainclass=Classe com Main
+
+resultar\u0431 em "Classe com Main" aparecendo no di\u0431logo como uma
+nova op\u0437\u0433o.
+
+A posi\u0437\u0433o na lista pode ser especificada adicionando este modelo ('template') \u0430
+lista especificada na propriedade "bluej.classTemplates" do arquivo de
+defini\u0437\u0445es do BlueJ (<bluej-home>/lib/bluej.defs). Todos os modelos
+listados ali aparecer\u0433o na ordem especificada. Outras modelos neste 
+pastas aparecer\u0433o na lista numa ordem aleat\u0443ria
