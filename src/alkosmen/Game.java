@@ -9,11 +9,11 @@ import java.awt.image.BufferStrategy;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URL;
-import java.util.Random;
 import java.awt.Toolkit;
 import javax.imageio.ImageIO;
-
+import java.awt.Graphics2D;
 import alkosmen.Interfaces.IGameObject;
+import alkosmen.Maps.MapLvl1;
 import alkosmen.Objects.GameMap;
 import alkosmen.Objects.Grass;
 
@@ -22,6 +22,8 @@ public final class Game extends Canvas implements Runnable {
     private GameMap map;
     private static boolean running;
     private IGameObject objects[];
+    private BufferStrategy strategy;
+    Graphics2D g2d;
 
     public void run() {
         init();
@@ -52,36 +54,24 @@ public final class Game extends Canvas implements Runnable {
 
     private void init() {
         running = true;
+
         createBufferStrategy(2);
         // requestFocus();
         BufferStrategy bs = getBufferStrategy();
-        Graphics g = bs.getDrawGraphics();
+        // Graphics2D graphics = (Graphics2D) strategy.getDrawGraphics();
+        // Graphics g = bs.getDrawGraphics();
+        Graphics2D g = (Graphics2D) bs.getDrawGraphics();
         g.setColor(Color.white);
         g.fillRect(0, 0, Constants.Width, Constants.Height);
-        g.setColor(Color.MAGENTA);
+        g.setColor(Color.black);
         g.setFont(new Font("Serif", 0, 36));
         g.drawString("Ебанина", 10, 35);
-        g.drawLine(1, 1, 50, 10);
         map = new GameMap();
         System.out.println((this.getWidth() / Constants.Size) + " " + this.getHeight() / Constants.Size);
         objects = new IGameObject[this.getWidth() * this.getHeight() / Constants.Size];
-        int objindex = 0;
 
-        for (int i = 0; i < this.getWidth() / Constants.Size; i++) {
-            for (int j = 0; j < this.getWidth() / Constants.Size; j++) {
-                Random random = new Random();
-                Point p = new Point(i, j);
-                if (random.nextBoolean()) {
-                    map.setGrassAt(p);
-                    objects[objindex] = new Grass(p);
-                    objects[objindex].draw(g);
-                }
-
-            }
-
-            objindex++;
-        }
-
+        MapLvl1.generateMap(this.getWidth(), this.getHeight(), g, objects, map);
+        g.drawLine(1, 1, this.getWidth(), 1);
         g.dispose();
         bs.show();
     }
@@ -98,12 +88,6 @@ public final class Game extends Canvas implements Runnable {
         Game.running = false;
     }
 
-    private Image getTextures() {
-
-        return null;
-
-    }
-
     private Image getImage(String path) {
         BufferedImage sourceImage = null;
 
@@ -118,10 +102,25 @@ public final class Game extends Canvas implements Runnable {
         return result;
     }
 
+    private Image getImage(String path, int x, int y, int width, int height) {
+        BufferedImage sourceImage = null;
+
+        try {
+            URL url = this.getClass().getClassLoader().getResource(path);
+            sourceImage = ImageIO.read(url);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        Image result = Toolkit.getDefaultToolkit()
+                .createImage(sourceImage.getSubimage(x, y, width, height).getSource());
+        return result;
+    }
+
     private Image[][] getAlkobotImages() {
         Image ar[][] = new Image[4][2];
-        ar[0][0] = getImage("pacman_u_o.png");
-        ar[0][1] = getImage("pacman_u_c.png");
+        ar[0][0] = getImage("alkup0.png");
+        ar[0][1] = getImage("alkup1.png");
         ar[1][0] = getImage("pacman_r_o.png");
         ar[1][1] = getImage("pacman_r_c.png");
         ar[2][0] = getImage("pacman_d_o.png");

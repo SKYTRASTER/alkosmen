@@ -28,7 +28,7 @@ public class Start {
         Properties aProperties = new Properties();
         try {
 
-            aProperties.load(Game.class.getResourceAsStream("config"));
+            aProperties.load(Start.class.getResourceAsStream("config"));
             Constants.Height = Integer.parseInt(aProperties.getProperty("Height"));
             Constants.Width = Integer.parseInt(aProperties.getProperty("Width"));
             Constants.Size = Integer.parseInt(aProperties.getProperty("Size"));
