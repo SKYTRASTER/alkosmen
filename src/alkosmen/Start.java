@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.awt.GridBagLayout;
 import java.awt.event.ActionListener;
+import java.awt.BorderLayout;
+import java.awt.Dimension;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -27,6 +29,10 @@ public class Start {
         try {
 
             aProperties.load(Game.class.getResourceAsStream("config"));
+            Constants.Height = Integer.parseInt(aProperties.getProperty("Height"));
+            Constants.Width = Integer.parseInt(aProperties.getProperty("Width"));
+            Constants.Size = Integer.parseInt(aProperties.getProperty("Size"));
+
             LOGGER.info("Ширина " + aProperties.getProperty("Width") + " ,высота " + aProperties.getProperty("Height"));
             Constants.Width = Integer.parseInt(aProperties.getProperty("Width"));
             Constants.Height = Integer.parseInt(aProperties.getProperty("Height"));
@@ -48,7 +54,7 @@ public class Start {
 
                 @Override
                 public void actionPerformed(java.awt.event.ActionEvent e) {
-                    // TODO Auto-generated method stub
+                    newGame();
 
                 }
             });
@@ -77,4 +83,18 @@ public class Start {
         frame.dispose();
     }
 
+    private static void newGame() {
+        JFrame frame = new JFrame(" ");
+        frame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        frame.setLayout(new BorderLayout());
+        frame.setSize(250, 250);
+        frame.setResizable(false);
+        frame.setVisible(true);
+
+        Game g = new Game();
+        g.setPreferredSize(new Dimension(Constants.Width, Constants.Height));
+        frame.add(g);
+        frame.pack();
+        g.start();
+    }
 }
