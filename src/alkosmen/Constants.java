@@ -10,4 +10,5 @@ public class Constants {
     public static int Width;
     public static int Height;
     public static int Size;
+    public static String Font;
 }

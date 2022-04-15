@@ -8,16 +8,26 @@ import alkosmen.Sprite;
 import alkosmen.Interfaces.IGameObject;
 
 public class Grass extends Texture implements IGameObject {
-    private Sprite sprite;
 
     public Grass(Point p, Image image) {
         super(p);
         sprite = new Sprite(image);
     }
 
+    public Grass(Point p, Image image, String text) {
+        super(p);
+        this.text = text;
+        sprite = new Sprite(image);
+    }
+
     @Override
     public void draw(Graphics g) {
-        sprite.draw(g, new Point(x, y));
+        if (this.text != null) {
+            sprite.draw(g, new Point(x, y), text);
+        } else {
+            sprite.draw(g, new Point(x, y));
+        }
+
     }
 
 }

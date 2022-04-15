@@ -13,7 +13,7 @@ import java.awt.Toolkit;
 import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
 import alkosmen.Interfaces.IGameObject;
-import alkosmen.Maps.MapLvl1;
+import alkosmen.Maps.Map_Level_1;
 import alkosmen.Objects.GameMap;
 import alkosmen.Objects.Grass;
 
@@ -63,15 +63,16 @@ public final class Game extends Canvas implements Runnable {
         Graphics2D g = (Graphics2D) bs.getDrawGraphics();
         g.setColor(Color.white);
         g.fillRect(0, 0, Constants.Width, Constants.Height);
-        g.setColor(Color.black);
-        g.setFont(new Font("Serif", 0, 36));
-        g.drawString("Ебанина", 10, 35);
-        map = new GameMap();
-        System.out.println((this.getWidth() / Constants.Size) + " " + this.getHeight() / Constants.Size);
-        objects = new IGameObject[this.getWidth() * this.getHeight() / Constants.Size];
 
-        MapLvl1.generateMap(this.getWidth(), this.getHeight(), g, objects, map);
-        g.drawLine(1, 1, this.getWidth(), 1);
+        System.out.println((this.getWidth() / Constants.Size) + " " + this.getHeight() / Constants.Size);
+        objects = new IGameObject[this.getWidth() * this.getHeight() / (Constants.Size * Constants.Size)];
+        g.setColor(Color.black);
+        g.setFont(new Font(Constants.Font, 0, Constants.Size));
+
+        g.drawString("Загрузка Map_Level_1", this.getWidth() / 2 - 200, this.getHeight() / 2 - Constants.Size);
+
+        bs.show();
+        Map_Level_1.generateMap(bs, this.getWidth(), this.getHeight(), g, objects, map);
         g.dispose();
         bs.show();
     }

@@ -2,9 +2,12 @@ package alkosmen.Objects;
 
 import alkosmen.Constants;
 import alkosmen.Point;
+import alkosmen.Sprite;
 
 public class Texture {
-    public int x, y;
+    protected int x, y;
+    protected Sprite sprite;
+    protected String text;
 
     public Texture(Point p) {
         x = p.x * Constants.Size;

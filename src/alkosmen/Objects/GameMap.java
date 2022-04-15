@@ -15,6 +15,8 @@ public class GameMap {
     private boolean[][] walls;
     private boolean[][] grass;
 
+    private int length;
+
     /**
      * Constructor for objects of class world.
      */
@@ -23,6 +25,7 @@ public class GameMap {
         // food = new boolean[][length];
         walls = new boolean[100][100];
         grass = new boolean[100][100];
+
         // heroes = new byte[length][length];
     }
 

@@ -32,7 +32,7 @@ public class Start {
             Constants.Height = Integer.parseInt(aProperties.getProperty("Height"));
             Constants.Width = Integer.parseInt(aProperties.getProperty("Width"));
             Constants.Size = Integer.parseInt(aProperties.getProperty("Size"));
-
+            Constants.Font = aProperties.getProperty("Font");
             LOGGER.info("Ширина " + aProperties.getProperty("Width") + " ,высота " + aProperties.getProperty("Height"));
             Constants.Width = Integer.parseInt(aProperties.getProperty("Width"));
             Constants.Height = Integer.parseInt(aProperties.getProperty("Height"));
