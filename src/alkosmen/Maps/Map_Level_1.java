@@ -15,6 +15,7 @@ import alkosmen.Interfaces.IGameObject;
 import alkosmen.Objects.GameMap;
 import alkosmen.Objects.Grass;
 import alkosmen.Objects.Ground;
+import alkosmen.Service.Ellers;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -31,22 +32,104 @@ public class Map_Level_1 {
         System.out.println(start + Constants.Size + 10);
         map = new GameMap();
 
-        for (int i = 0; i < Width / Constants.Size; i++) {
-            for (int j = 0; j < (Height / Constants.Size); j++) {
+        /*
+         * Пока закоментировано
+         * 
+         * for (int i = 0; i < Width / Constants.Size; i++) {
+         * for (int j = 0; j < (Height / Constants.Size); j++) {
+         * Random random = new Random();
+         * Point p = new Point(i, j);
+         * new Ground(p, getGround()).draw(g);
+         * if (random.nextBoolean() && j > 1) {
+         * map.setGrassAt(p);
+         * objects[objindex] = new Grass(p, getTextures(), objindex.toString());
+         * objects[objindex].draw(g);
+         * }
+         * objindex++;
+         * }
+         * 
+         * }
+         */
+        /************************************************************** */
+        Ellers ell = new Ellers(24, 24);
+        ell.makeMaze();
+        ell.printMaze();
+        int obj[][] = new int[Height / Constants.Size - 2][Width / Constants.Size - 1];
+        g.setFont(new Font(Constants.Font, 0, 20));
+        for (int j = 0; j < Height / Constants.Size - 2; j++) {
+            int last = 0;
+            /*
+             * g.drawLine(1 * Constants.Size, (j + 2) * Constants.Size, 1 * Constants.Size,
+             * (j + 2) * Constants.Size + Constants.Size);
+             */
+
+            Boolean lastwall = false;
+            Boolean downwall = false;
+            for (int i = 0; i < Width / Constants.Size - 1; i++) {
                 Random random = new Random();
-                Point p = new Point(i, j);
-                new Ground(p, getGround()).draw(g);
-                if (random.nextBoolean() && i % 2 == 0 && j > 1) {
-                    map.setGrassAt(p);
-                    objects[objindex] = new Grass(p, getTextures(), objindex.toString());
-                    objects[objindex].draw(g);
+                Point p = new Point(i + 1, j + 2);
+                /*
+                 * g.drawLine((i + 1) * Constants.Size + 2, (j + 2) * Constants.Size,
+                 * (i + 1) * Constants.Size - 2 + Constants.Size,
+                 * (j + 2) * Constants.Size);
+                 */
+                // map.setGrassAt(p);
+                // objects[objindex] = new Grass(p, getTextures(), objindex.toString());
+                // objects[objindex].draw(g);
+
+                last = (p.x) * Constants.Size + Constants.Size;
+                if (random.nextBoolean()) {
+
+                    g.drawLine(last, (p.y) * Constants.Size, last,
+                            (p.y) * Constants.Size + Constants.Size);
+
+                    // objects[objindex] = new Grass(p, getTextures(), objindex.toString());
+                    // objects[objindex].draw(g);
+                    if (!lastwall) {
+                        if (i == 0) {
+                            obj[j][i] = i + 1;
+                        } else {
+                            obj[j][i] = obj[j][i - 1];
+                        }
+                    } else {
+                        obj[j][i] = i + 1;
+
+                    }
+                    lastwall = true;
+                } else {
+                    if (lastwall) {
+                        obj[j][i] = i + 1;
+                        lastwall = false;
+                    } else if (!lastwall) {
+                        if (i == 0) {
+                            obj[j][i] = i + 1;
+                        } else {
+                            obj[j][i] = obj[j][i - 1];
+                        }
+                    }
                 }
 
+                g.drawString("" + obj[j][i], p.x * Constants.Size + 5, p.y * Constants.Size + Constants.Size);
+                if (random.nextBoolean()) {
+
+                    g.drawLine(p.x * Constants.Size + 2, p.y * Constants.Size + Constants.Size,
+                            p.x * Constants.Size - 2 + Constants.Size,
+                            p.y * Constants.Size + Constants.Size);
+
+                }
+
+                bs.show();
+                /*
+                 * g.drawLine(last, (j + 2) * Constants.Size, last,
+                 * (j + 2) * Constants.Size + Constants.Size);
+                 */
             }
 
             objindex++;
+            break;
         }
 
+        /********************************* */
         g.setFont(new Font(Constants.Font, 0, Constants.Size));
         g.drawLine(1, start, Width, start);
         g.drawLine(1, start + Constants.Size + 10, Width, start + Constants.Size + 10);

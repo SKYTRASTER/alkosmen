@@ -4,8 +4,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Properties;
 
-import static org.junit.jupiter.api.Assertions.fail;
-
 import java.awt.GridBagLayout;
 import java.awt.event.ActionListener;
 import java.awt.BorderLayout;
@@ -14,20 +12,22 @@ import java.awt.Dimension;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class Start {
-    private static final Logger LOGGER = LogManager.getLogger(Start.class);
+    static Logger LOGGER = LogManager.getLogger();
 
     public static void main(String[] args) {
-        LOGGER.info("Запуск игры....");
+
+        LOGGER.log(Level.INFO, "Запуск игры....");
         // String rootPath =
         // Thread.currentThread().getContextClassLoader().getResource("").getPath();
         // String appConfig = "config";
         Properties aProperties = new Properties();
         try {
-
+            var k = 1 / 0;
             aProperties.load(Start.class.getResourceAsStream("config"));
             Constants.Height = Integer.parseInt(aProperties.getProperty("Height"));
             Constants.Width = Integer.parseInt(aProperties.getProperty("Width"));
@@ -70,11 +70,10 @@ public class Start {
             frame.getContentPane().add(start);
             frame.getContentPane().add(end);
         } catch (FileNotFoundException e) {
-            // TODO Auto-generated catch block
+            LOGGER.error(e);
             e.printStackTrace();
         } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            LOGGER.error(e);
         }
 
     }

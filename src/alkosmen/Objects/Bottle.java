@@ -1,11 +1,9 @@
 package alkosmen.Objects;
 
-import greenfoot.Actor;
-
 /**
  * 
  */
-public class Bottle extends Actor {
+public class Bottle {
 
     /**
      * Act - do whatever the bottle wants to do. This method is called whenever the
