@@ -17,7 +17,7 @@ public class StartGame {
         LOGGER.log(System.Logger.Level.INFO, "Запуск игры....");
 
         Properties aProperties = new Properties();
-        try (var in = StartGame.class.getResourceAsStream("/alkosmen/config.properties")) { // <-- проверь имя
+        try (var in = StartGame.class.getResourceAsStream("/alkosmen/config.properties")) {
             if (in == null) throw new RuntimeException("Config not found: /alkosmen/config.properties");
             aProperties.load(in);
 
@@ -25,17 +25,23 @@ public class StartGame {
             Constants.Width  = Integer.parseInt(aProperties.getProperty("Width"));
             Constants.Size   = Integer.parseInt(aProperties.getProperty("Size"));
             Constants.Font   = aProperties.getProperty("Font");
+
             MidiPlayer midi = new MidiPlayer();
             midi.playLoop("/alkosmen/sounds/Golden-Brown.mid");
+
             JFrame frame = new JFrame(Constants.Title);
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-            // 1) СНАЧАЛА фон
+            // ⬇️ если пользователь жмёт крестик
+            frame.addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override
+                public void windowClosing(java.awt.event.WindowEvent e) {
+                    midi.stop();
+                }
+            });
+
             frame.setContentPane(new alkosmen.service.BackgroundPanel());
-
-            // 2) абсолютное позиционирование, чтобы setBounds работал
             frame.getContentPane().setLayout(null);
-
             frame.setSize(Constants.Width, Constants.Height);
             frame.setResizable(false);
 
@@ -45,15 +51,22 @@ public class StartGame {
             start.setBounds(Constants.Width / 2 - 180, Constants.Height / 2 - 20, 360, 70);
             end.setBounds(Constants.Width / 2 - 180, Constants.Height / 2 + 70, 360, 70);
 
+            // ▶ START
+            start.addActionListener(e -> {
+                midi.stop();       // 🔥 остановить музыку
+                frame.dispose();  // закрыть меню
+                newGame();        // запустить игру
+            });
 
-
-            start.addActionListener(e -> newGame());
-            end.addActionListener(e -> frame.dispose());
+            // ❌ EXIT
+            end.addActionListener(e -> {
+                midi.stop();      // 🔥 остановить музыку
+                frame.dispose(); // закрыть окно
+            });
 
             frame.getContentPane().add(start);
             frame.getContentPane().add(end);
 
-            // 3) ПОСЛЕ всего показываем
             frame.setVisible(true);
 
         } catch (Exception e) {
@@ -61,6 +74,7 @@ public class StartGame {
             e.printStackTrace();
         }
     }
+
 
     private static void newGame() {
         JFrame frame = new JFrame(" ");

@@ -167,6 +167,38 @@ public class Map_Level_1 {
     private static void setFontTextures() {
 
     }
+    public static void generateMapFromChars(IGameObject[] objects, char[][] map) {
+        int idx = 0;
+
+        for (int y = 0; y < map.length; y++) {
+            for (int x = 0; x < map[0].length; x++) {
+
+                char c = map[y][x];
+
+                // координаты в пикселях
+                int px = x * Constants.Size;
+                int py = y * Constants.Size;
+
+                if (c == '#') {
+                    // TODO: стенка
+                    // objects[idx++] = new Wall(new Point(px, py), ???);
+                } else {
+                    // TODO: пол (если надо)
+                    // objects[idx++] = new Ground(new Point(px, py), ???);
+                }
+
+                if (c == 'B') {
+                    // TODO: бутылка
+                    // objects[idx++] = new Bottle(new Point(px, py), ???);
+                }
+
+                if (c == 'E') {
+                    // TODO: выход
+                    // objects[idx++] = new Exit(new Point(px, py), ???);
+                }
+            }
+        }
+    }
 
     private static Image getImage(String path) {
         BufferedImage sourceImage = null;

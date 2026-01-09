@@ -1,32 +1,34 @@
 package alkosmen;
 
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Canvas;
-import java.awt.Graphics;
-import java.awt.Image;
+import alkosmen.interfaces.IGameObject;
+import alkosmen.maps.LevelLoader;
+import alkosmen.maps.Map_Level_1;
+import alkosmen.objects.GameMap;
+import alkosmen.objects.Player;
+
+import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferStrategy;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URL;
-import java.awt.Toolkit;
-import javax.imageio.ImageIO;
-import java.awt.Graphics2D;
-
-import alkosmen.interfaces.IGameObject;
-import alkosmen.maps.Map_Level_1;
-import alkosmen.objects.GameMap;
 
 public final class Game extends Canvas implements Runnable {
     private static int SCORES = 0;
-    private GameMap map;
     private static boolean running;
     private IGameObject objects[];
     private BufferStrategy strategy;
     Graphics2D g2d;
-
+    private Player player;
+    private char[][] map;
+    private GameMap gameMap;   // если реально нужен
+    private char[][] levelMap; // ЭТО карта уровня из txt
     public void run() {
-        init();
+        try {
+            init();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         while (running) {
             update();
             // render();
@@ -52,30 +54,46 @@ public final class Game extends Canvas implements Runnable {
     private void update() {
     }
 
-    private void init() {
+    private void init() throws Exception {
+        //System.out.println("map size: " + levelMap.length + " x " + levelMap[0].length);
+        //System.out.println("player: " + player.x + "," + player.y);
         running = true;
 
         createBufferStrategy(2);
-        // requestFocus();
         BufferStrategy bs = getBufferStrategy();
-        // Graphics2D graphics = (Graphics2D) strategy.getDrawGraphics();
-        // Graphics g = bs.getDrawGraphics();
         Graphics2D g = (Graphics2D) bs.getDrawGraphics();
+
         g.setColor(Color.white);
         g.fillRect(0, 0, Constants.Width, Constants.Height);
+        System.out.println("URL level1 = " +
+                alkosmen.maps.LevelLoader.class.getResource("/alkosmen/maps/level1.txt"));
 
-        System.out.println((this.getWidth() / Constants.Size) + " " + this.getHeight() / Constants.Size);
+        levelMap = LevelLoader.load("/alkosmen/maps/level1.txt");
+        System.out.println("levelMap = " + (levelMap == null ? "NULL" : levelMap.length + " rows"));
+
+        // создаём массив объектов карты
         objects = new IGameObject[this.getWidth() * this.getHeight() / (Constants.Size * Constants.Size)];
-        g.setColor(Color.black);
-        g.setFont(new Font(Constants.Font, 0, Constants.Size));
 
-        g.drawString("Загрузка Map_Level_1", this.getWidth() / 2 - 200, this.getHeight() / 2 - Constants.Size);
+        // 1) грузим level1.txt
+        levelMap = LevelLoader.load("/alkosmen/maps/level1.txt");
 
-        bs.show();
-        Map_Level_1.generateMap(bs, this.getWidth(), this.getHeight(), g, objects, map);
+        // 2) ищем P и ставим игрока
+        for (int y = 0; y < levelMap.length; y++) {
+            for (int x = 0; x < levelMap[0].length; x++) {
+                if (levelMap[y][x] == 'P') {
+                    player = new Player(x, y);
+                    levelMap[y][x] = '.'; // превращаем старт в пол
+                }
+            }
+        }
+
+        // 3) создаём объекты уровня из символов
+        Map_Level_1.generateMapFromChars(objects, levelMap);
+
         g.dispose();
         bs.show();
     }
+
 
     private void theEnd() {
     }
