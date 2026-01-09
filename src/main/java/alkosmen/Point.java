@@ -1,4 +1,4 @@
-package src.main.java.alkosmen;
+package alkosmen;
 
 public class Point {
     public int x, y;

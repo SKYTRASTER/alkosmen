@@ -1,4 +1,4 @@
-package src.main.java.alkosmen.service;
+package alkosmen.service;
 
 import java.util.*;
 

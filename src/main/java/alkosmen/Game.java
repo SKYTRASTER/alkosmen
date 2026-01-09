@@ -1,4 +1,4 @@
-package src.main.java.alkosmen;
+package alkosmen;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -13,9 +13,9 @@ import java.awt.Toolkit;
 import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
 
-import src.main.java.alkosmen.interfaces.IGameObject;
-import src.main.java.alkosmen.maps.Map_Level_1;
-import src.main.java.alkosmen.objects.GameMap;
+import alkosmen.interfaces.IGameObject;
+import alkosmen.maps.Map_Level_1;
+import alkosmen.objects.GameMap;
 
 public final class Game extends Canvas implements Runnable {
     private static int SCORES = 0;

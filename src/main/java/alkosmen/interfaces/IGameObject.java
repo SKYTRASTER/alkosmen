@@ -1,4 +1,4 @@
-package src.main.java.alkosmen.interfaces;
+package alkosmen.interfaces;
 
 import java.awt.Graphics;
 

@@ -1,4 +1,4 @@
-package src.main.java.alkosmen.heroes;
+package alkosmen.heroes;
 
 
 public class Alkobot {

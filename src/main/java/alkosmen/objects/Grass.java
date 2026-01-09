@@ -1,11 +1,11 @@
-package src.main.java.alkosmen.objects;
+package alkosmen.objects;
 
-import src.main.java.alkosmen.Point;
-import src.main.java.alkosmen.Sprite;
-import src.main.java.alkosmen.interfaces.IGameObject;
+import alkosmen.Point;
+import alkosmen.Sprite;
+import alkosmen.interfaces.IGameObject;
 
-import java.awt.Graphics;
-import java.awt.Image;
+import java.awt.*;
+
 
 public class Grass extends Texture implements IGameObject {
 
@@ -29,5 +29,4 @@ public class Grass extends Texture implements IGameObject {
         }
 
     }
-
 }

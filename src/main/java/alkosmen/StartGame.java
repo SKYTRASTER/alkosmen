@@ -1,83 +1,69 @@
-package src.main.java.alkosmen;
+package alkosmen;
 
-import java.io.FileNotFoundException;
+import alkosmen.audio.MidiPlayer;
+
 import java.io.IOException;
 import java.util.Properties;
-
-import java.awt.GridBagLayout;
-import java.awt.event.ActionListener;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
 
-
-
 public class StartGame {
     static final System.Logger LOGGER = System.getLogger(StartGame.class.getName());
 
     public static void main(String[] args) {
-
         LOGGER.log(System.Logger.Level.INFO, "Запуск игры....");
-        // String rootPath =
-        // Thread.currentThread().getContextClassLoader().getResource("").getPath();
-        // String appConfig = "config";
+
         Properties aProperties = new Properties();
-        try {
-            //var k = 1 / 0;
-            aProperties.load(StartGame.class.getResourceAsStream("config"));
+        try (var in = StartGame.class.getResourceAsStream("/alkosmen/config.properties")) { // <-- проверь имя
+            if (in == null) throw new RuntimeException("Config not found: /alkosmen/config.properties");
+            aProperties.load(in);
+
             Constants.Height = Integer.parseInt(aProperties.getProperty("Height"));
-            Constants.Width = Integer.parseInt(aProperties.getProperty("Width"));
-            Constants.Size = Integer.parseInt(aProperties.getProperty("Size"));
-            Constants.Font = aProperties.getProperty("Font");
-           // LOGGER.log(1,"Ширина " + aProperties.getProperty("Width") + " ,высота " + aProperties.getProperty("Height"));
-            Constants.Width = Integer.parseInt(aProperties.getProperty("Width"));
-            Constants.Height = Integer.parseInt(aProperties.getProperty("Height"));
+            Constants.Width  = Integer.parseInt(aProperties.getProperty("Width"));
+            Constants.Size   = Integer.parseInt(aProperties.getProperty("Size"));
+            Constants.Font   = aProperties.getProperty("Font");
+            MidiPlayer midi = new MidiPlayer();
+            midi.playLoop("/alkosmen/sounds/Golden-Brown.mid");
+
+
+
 
             JFrame frame = new JFrame(Constants.Title);
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setLayout(new GridBagLayout());
+
+            // 1) СНАЧАЛА фон
+            frame.setContentPane(new alkosmen.service.BackgroundPanel());
+
+            // 2) абсолютное позиционирование, чтобы setBounds работал
+            frame.getContentPane().setLayout(null);
+
             frame.setSize(Constants.Width, Constants.Height);
             frame.setResizable(false);
-            frame.setVisible(true);
-            JButton start = new JButton("Начать путь алкаша");
-            JButton end = new JButton("Выйти");
-            start.setSize(150, 40);
-            start.setLocation(frame.getWidth() / 2 - 75, frame.getHeight() / 2 - 70);
-            start.setVisible(true);
-            end.setSize(150, 40);
-            end.setLocation(frame.getWidth() / 2 - 75, frame.getHeight() / 2 - 20);
-            start.addActionListener(new ActionListener() {
 
-                @Override
-                public void actionPerformed(java.awt.event.ActionEvent e) {
-                    newGame();
+            alkosmen.ui.PixelButton start = new alkosmen.ui.PixelButton("Начать движуху");
+            alkosmen.ui.PixelButton end   = new alkosmen.ui.PixelButton("Выйти");
 
-                }
-            });
-            end.addActionListener(new ActionListener() {
+            start.setBounds(Constants.Width / 2 - 180, Constants.Height / 2 - 20, 360, 70);
+            end.setBounds(Constants.Width / 2 - 180, Constants.Height / 2 + 70, 360, 70);
 
-                @Override
-                public void actionPerformed(java.awt.event.ActionEvent e) {
-                    closeWindow(frame);
 
-                }
 
-            });
+            start.addActionListener(e -> newGame());
+            end.addActionListener(e -> frame.dispose());
+
             frame.getContentPane().add(start);
             frame.getContentPane().add(end);
-        } catch (FileNotFoundException e) {
-            LOGGER.log(System.Logger.Level.ERROR, "Error", e);
+
+            // 3) ПОСЛЕ всего показываем
+            frame.setVisible(true);
+
+        } catch (Exception e) {
+            LOGGER.log(System.Logger.Level.ERROR, "Start error", e);
             e.printStackTrace();
-        } catch (IOException e) {
-            LOGGER.log(System.Logger.Level.ERROR, "Error", e);
         }
-
-    }
-
-    private static void closeWindow(JFrame frame) {
-        frame.dispose();
     }
 
     private static void newGame() {

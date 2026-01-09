@@ -1,10 +1,11 @@
-package src.main.java.alkosmen.maps;
+package alkosmen.maps;
 
-import src.main.java.alkosmen.Constants;
-import src.main.java.alkosmen.Point;
-import src.main.java.alkosmen.interfaces.IGameObject;
-import src.main.java.alkosmen.objects.GameMap;
-import src.main.java.alkosmen.service.Ellers;
+
+import alkosmen.Constants;
+import alkosmen.Point;
+import alkosmen.interfaces.IGameObject;
+import alkosmen.objects.GameMap;
+import alkosmen.service.Ellers;
 
 import java.awt.Color;
 import java.awt.Font;

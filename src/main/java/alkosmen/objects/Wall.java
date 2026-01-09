@@ -1,10 +1,10 @@
-package src.main.java.alkosmen.objects;
+package alkosmen.objects;
 
 import java.awt.Graphics;
 
-import src.main.java.alkosmen.Constants;
-import src.main.java.alkosmen.Point;
-import src.main.java.alkosmen.interfaces.IGameObject;
+import alkosmen.Constants;
+import alkosmen.Point;
+import alkosmen.interfaces.IGameObject;
 
 public class Wall implements IGameObject {
     private int x, y;

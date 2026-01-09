@@ -1,8 +1,8 @@
-package src.main.java.alkosmen.objects;
+package alkosmen.objects;
 
-import src.main.java.alkosmen.Constants;
-import src.main.java.alkosmen.Point;
-import src.main.java.alkosmen.Sprite;
+import alkosmen.Constants;
+import alkosmen.Point;
+import alkosmen.Sprite;
 
 public class Texture {
     protected int x, y;

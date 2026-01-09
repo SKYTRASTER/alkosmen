@@ -1,4 +1,4 @@
-package src.main.java.alkosmen;
+package alkosmen;
 
 import java.awt.Font;
 import java.awt.Graphics;

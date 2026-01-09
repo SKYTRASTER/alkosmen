@@ -1,7 +1,7 @@
-package src.main.java.alkosmen.objects;
+package alkosmen.objects;
 
 
-import src.main.java.alkosmen.Point;
+import alkosmen.Point;
 
 /**
  * 
