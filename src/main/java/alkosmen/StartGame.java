@@ -27,10 +27,6 @@ public class StartGame {
             Constants.Font   = aProperties.getProperty("Font");
             MidiPlayer midi = new MidiPlayer();
             midi.playLoop("/alkosmen/sounds/Golden-Brown.mid");
-
-
-
-
             JFrame frame = new JFrame(Constants.Title);
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
