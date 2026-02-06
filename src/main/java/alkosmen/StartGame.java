@@ -78,16 +78,28 @@ public class StartGame {
 
     private static void newGame() {
         JFrame frame = new JFrame(" ");
-        frame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
         frame.setLayout(new BorderLayout());
-        frame.setSize(250, 250);
         frame.setResizable(false);
-        frame.setVisible(true);
 
         Game g = new Game();
-        g.setPreferredSize(new Dimension(Constants.Width, Constants.Height));
-        frame.add(g);
+        frame.add(g, BorderLayout.CENTER);
+
         frame.pack();
+        frame.setLocationRelativeTo(null);
+        frame.setVisible(true);
+
+        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                Game.stopGame(); // остановить цикл
+            }
+        });
+
+        g.requestFocusInWindow();
         g.start();
     }
+
+
 }

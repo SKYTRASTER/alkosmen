@@ -1,4 +1,4 @@
-package temp.objects;
+package alkosmen.objects;
 
 /**
  * 
