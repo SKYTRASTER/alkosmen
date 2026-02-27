@@ -34,6 +34,13 @@ public final class Game extends Canvas implements Runnable {
     private int playerDir = 1;   // 0 up, 1 right, 2 down, 3 left
     private int animFrame = 0;
     private long lastAnim = 0;
+    private boolean isWalking = false;
+    private float renderX;
+    private float renderY;
+    private float fromX;
+    private float fromY;
+    private long moveStartMs = 0;
+    private static final int MOVE_ANIM_MS = 90;
     private SpriteSheet sheet;
     private Image tileFloor, tileWall, tileExit;
 
@@ -96,17 +103,39 @@ public final class Game extends Canvas implements Runnable {
                 }
             }
         }
-        // анимация 0<->1 раз в 150 мс
         long now = System.currentTimeMillis();
-        if (now - lastAnim > 150) {
-            animFrame = 1 - animFrame;
-            lastAnim = now;
-        }
-
         if (player != null && playerSprites != null) {
             int cell = Constants.Size;
+            if (isWalking) {
+                long elapsed = now - moveStartMs;
+                float t = Math.min(1f, elapsed / (float) MOVE_ANIM_MS);
+                float k = t * t * (3f - 2f * t); // smoothstep
+                renderX = fromX + (player.x - fromX) * k;
+                renderY = fromY + (player.y - fromY) * k;
+
+                if (t >= 1f) {
+                    isWalking = false;
+                    renderX = player.x;
+                    renderY = player.y;
+                }
+            }
+
+            if (isWalking && now - lastAnim > 120) {
+                animFrame = 1 - animFrame;
+                lastAnim = now;
+            }
+            if (!isWalking) {
+                animFrame = 0;
+            }
+
+            int drawX = Math.round(renderX * cell);
+            int drawY = Math.round(renderY * cell);
+
+            g.setColor(new Color(0, 0, 0, 70));
+            g.fillOval(drawX + cell / 5, drawY + (cell * 3 / 4), cell * 3 / 5, cell / 5);
+
             Image img = playerSprites[playerDir][animFrame];
-            g.drawImage(img, player.x * cell, player.y * cell, cell, cell, null);
+            g.drawImage(img, drawX, drawY, cell, cell, null);
         }
         g.dispose();
         bs.show();
@@ -138,6 +167,10 @@ public final class Game extends Canvas implements Runnable {
         playerSprites = getAlkobotImages();
         enableNextLevelKey();
         loadLevel(1);
+        if (player != null) {
+            renderX = player.x;
+            renderY = player.y;
+        }
 
     }
 
@@ -213,22 +246,22 @@ public final class Game extends Canvas implements Runnable {
                     // movement (WASD + arrows)
                     case java.awt.event.KeyEvent.VK_W, java.awt.event.KeyEvent.VK_UP -> {
                         playerDir = 0; // up
-                        alkosmen.service.Movement.move(player, levelMap, 0, -1);
+                        attemptMove(0, -1);
                     }
 
                     case java.awt.event.KeyEvent.VK_D, java.awt.event.KeyEvent.VK_RIGHT -> {
                         playerDir = 1; // right
-                        alkosmen.service.Movement.move(player, levelMap, 1, 0);
+                        attemptMove(1, 0);
                     }
 
                     case java.awt.event.KeyEvent.VK_S, java.awt.event.KeyEvent.VK_DOWN -> {
                         playerDir = 2; // down
-                        alkosmen.service.Movement.move(player, levelMap, 0, 1);
+                        attemptMove(0, 1);
                     }
 
                     case java.awt.event.KeyEvent.VK_A, java.awt.event.KeyEvent.VK_LEFT -> {
                         playerDir = 3; // left
-                        alkosmen.service.Movement.move(player, levelMap, -1, 0);
+                        attemptMove(-1, 0);
                     }
 
                     default -> {
@@ -237,6 +270,22 @@ public final class Game extends Canvas implements Runnable {
                 }
             }
         });
+    }
+
+    private void attemptMove(int dx, int dy) {
+        if (player == null) return;
+
+        int startX = player.x;
+        int startY = player.y;
+        boolean moved = alkosmen.service.Movement.move(player, levelMap, dx, dy);
+        if (!moved) return;
+
+        fromX = startX;
+        fromY = startY;
+        renderX = startX;
+        renderY = startY;
+        moveStartMs = System.currentTimeMillis();
+        isWalking = true;
     }
 
     private Image getImage(String path, int x, int y, int width, int height) {
@@ -315,6 +364,13 @@ public final class Game extends Canvas implements Runnable {
         if (player == null) {
             throw new RuntimeException("No 'P' (player start) in map: " + path);
         }
+
+        renderX = player.x;
+        renderY = player.y;
+        fromX = player.x;
+        fromY = player.y;
+        isWalking = false;
+        animFrame = 0;
 
         // Массив объектов (пока просто создаём, можно позже заполнять)
         objects = new IGameObject[levelMap.length * levelMap[0].length];
