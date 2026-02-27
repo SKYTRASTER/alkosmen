@@ -19,7 +19,7 @@ out/
 *.class
 *.class.uniqueid*
 *.bin
-
+.gradle-user-home
 # (опционально) конкретные файлы Gradle-кэша
 executionHistory.bin
 fileHashes.bin
