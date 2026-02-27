@@ -11,5 +11,5 @@ javafx {
 }
 
 application {
-    mainClass = 'app.MainApp'
+    mainClass = 'alkosmen.StartGame'
 }

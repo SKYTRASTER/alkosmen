@@ -9,7 +9,7 @@ gradle/
 **/.gradle/
 build/
 **/build/
-build/
+build
 # IntelliJ IDEA
 .idea/
 *.iml
