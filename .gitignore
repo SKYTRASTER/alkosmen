@@ -3,3 +3,25 @@
 *.lock
 *.class
 .gradle
+*.bin
+# Gradle
+.gradle/
+**/.gradle/
+build/
+**/build/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+out/
+
+# Java build artifacts
+*.class
+*.class.uniqueid*
+*.bin
+
+# (опционально) конкретные файлы Gradle-кэша
+executionHistory.bin
+fileHashes.bin
+resourceHashesCache.bin
+previous-compilation-data.bin
