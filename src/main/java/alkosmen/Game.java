@@ -1,5 +1,6 @@
 package alkosmen;
 
+import alkosmen.audio.SoundEffectPlayer;
 import alkosmen.gfx.SpriteSheet;
 import alkosmen.interfaces.IGameObject;
 import alkosmen.maps.LevelLoader;
@@ -43,6 +44,7 @@ public final class Game extends Canvas implements Runnable {
     private static final int MOVE_ANIM_MS = 90;
     private SpriteSheet sheet;
     private Image tileFloor, tileWall, tileExit;
+    private SoundEffectPlayer stepSound;
 
     public void run() {
         try {
@@ -164,6 +166,7 @@ public final class Game extends Canvas implements Runnable {
         tileFloor = sheet.tile(0, 0);
         tileWall  = sheet.tile(1, 0);
         tileExit  = sheet.tile(2, 0);
+        stepSound = new SoundEffectPlayer("/alkosmen/sounds/step.wav");
         playerSprites = getAlkobotImages();
         enableNextLevelKey();
         loadLevel(1);
@@ -286,6 +289,7 @@ public final class Game extends Canvas implements Runnable {
         renderY = startY;
         moveStartMs = System.currentTimeMillis();
         isWalking = true;
+        stepSound.play();
     }
 
     private Image getImage(String path, int x, int y, int width, int height) {
