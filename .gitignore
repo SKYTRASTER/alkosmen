@@ -5,11 +5,11 @@
 .gradle
 *.bin
 # Gradle
-.gradle/
+gradle/
 **/.gradle/
 build/
 **/build/
-
+build/
 # IntelliJ IDEA
 .idea/
 *.iml
