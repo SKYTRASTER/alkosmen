@@ -4,12 +4,21 @@ import alkosmen.audio.SoundEffectPlayer;
 import alkosmen.gfx.SpriteSheet;
 import alkosmen.interfaces.IGameObject;
 import alkosmen.maps.LevelLoader;
-import alkosmen.maps.MapScaler;
 import alkosmen.objects.GameMap;
 import alkosmen.objects.Player;
 
 import javax.imageio.ImageIO;
-import java.awt.*;
+import javax.swing.SwingUtilities;
+import java.awt.Canvas;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.Toolkit;
+import java.awt.Window;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.image.BufferStrategy;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -17,41 +26,48 @@ import java.net.URL;
 
 public final class Game extends Canvas implements Runnable {
     private int currentLevel = 1;
-    private static int SCORES = 0;
     private static boolean running;
-    private IGameObject objects[];
+    private IGameObject[] objects;
     private BufferStrategy strategy;
     private Image[][] playerSprites;
-    Graphics2D g2d;
     private Player player;
-    private char[][] map;
-    private GameMap gameMap;   // если реально нужен
-    private char[][] levelMap; // ЭТО карта уровня из txt
+    private GameMap gameMap;
+    private char[][] levelMap;
     private static final String[] LEVELS = {
             "/alkosmen/maps/level1.txt",
             "/alkosmen/maps/level2.txt",
             "/alkosmen/maps/level3.txt"
     };
-    private int playerDir = 1;   // 0 up, 1 right, 2 down, 3 left
+
+    private boolean leftPressed;
+    private boolean rightPressed;
+    private boolean jumpPressed;
+    private boolean jumpQueued;
+    private int playerDir = 1; // 0 up, 1 right, 2 down, 3 left
     private int animFrame = 0;
     private long lastAnim = 0;
-    private boolean isWalking = false;
-    private float renderX;
-    private float renderY;
-    private float fromX;
-    private float fromY;
-    private long moveStartMs = 0;
-    private static final int MOVE_ANIM_MS = 90;
-    private SpriteSheet sheet;
-    private Image tileFloor, tileWall, tileExit;
     private SoundEffectPlayer stepSound;
+    private SpriteSheet sheet;
+    private Image tileFloor;
+    private Image tileWall;
+    private Image tileExit;
 
+    private float cameraX;
+    private float cameraY;
+
+    private static final double MOVE_SPEED = 0.12;
+    private static final double GRAVITY = 0.035;
+    private static final double JUMP_SPEED = -0.62;
+    private static final double MAX_FALL_SPEED = 0.9;
+
+    @Override
     public void run() {
         try {
             init();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+
         while (running) {
             update();
             render();
@@ -59,133 +75,236 @@ public final class Game extends Canvas implements Runnable {
                 Thread.sleep(16);
             } catch (InterruptedException ignored) {
             }
-
         }
-
-        theEnd();
-
     }
 
     @Override
     public Dimension getPreferredSize() {
-        if (levelMap == null) return new Dimension(400, 300);
-        return new Dimension(levelMap[0].length * Constants.Size,
-                levelMap.length * Constants.Size);
+        return new Dimension(Constants.Width, Constants.Height);
     }
-
-    private void render() {
-        BufferStrategy bs = getBufferStrategy();
-        if (bs == null) return;
-
-        Graphics g = bs.getDrawGraphics();
-
-        int w = getWidth();
-        int h = getHeight();
-
-        g.setColor(Color.BLACK);
-        g.fillRect(0, 0, w, h);
-
-
-        g.setColor(Color.WHITE);
-        g.setFont(new Font("Serif", Font.BOLD, 24));
-        g.drawString("LEVEL: " + currentLevel, 20, 40);
-        if (levelMap != null) {
-            int cell = Constants.Size;
-
-            for (int y = 0; y < levelMap.length; y++) {
-                for (int x = 0; x < levelMap[0].length; x++) {
-                    char c = levelMap[y][x];
-
-                    Image img =
-                            (c == '#') ? tileWall :
-                                    (c == 'E') ? tileExit :
-                                            tileFloor;
-
-                    g.drawImage(img, x * cell, y * cell, cell, cell, null);
-                }
-            }
-        }
-        long now = System.currentTimeMillis();
-        if (player != null && playerSprites != null) {
-            int cell = Constants.Size;
-            if (isWalking) {
-                long elapsed = now - moveStartMs;
-                float t = Math.min(1f, elapsed / (float) MOVE_ANIM_MS);
-                float k = t * t * (3f - 2f * t); // smoothstep
-                renderX = fromX + (player.x - fromX) * k;
-                renderY = fromY + (player.y - fromY) * k;
-
-                if (t >= 1f) {
-                    isWalking = false;
-                    renderX = player.x;
-                    renderY = player.y;
-                }
-            }
-
-            if (isWalking && now - lastAnim > 120) {
-                animFrame = 1 - animFrame;
-                lastAnim = now;
-            }
-            if (!isWalking) {
-                animFrame = 0;
-            }
-
-            int drawX = Math.round(renderX * cell);
-            int drawY = Math.round(renderY * cell);
-
-            g.setColor(new Color(0, 0, 0, 70));
-            g.fillOval(drawX + cell / 5, drawY + (cell * 3 / 4), cell * 3 / 5, cell / 5);
-
-            Image img = playerSprites[playerDir][animFrame];
-            g.drawImage(img, drawX, drawY, cell, cell, null);
-        }
-        g.dispose();
-        bs.show();
-    }
-
-    private void update() {
-    }
-
 
     private void init() throws Exception {
         running = true;
-
         setFocusable(true);
         requestFocus();
         enableKeys();
+
         while (!isDisplayable()) {
             Thread.yield();
         }
 
-
         createBufferStrategy(2);
-        sheet = new alkosmen.gfx.SpriteSheet(
+        strategy = getBufferStrategy();
+
+        sheet = new SpriteSheet(
                 "/alkosmen/images/grass_tileset_16x16/grass_tileset_16x16.png",
                 16
         );
         tileFloor = sheet.tile(0, 0);
-        tileWall  = sheet.tile(1, 0);
-        tileExit  = sheet.tile(2, 0);
+        tileWall = sheet.tile(1, 0);
+        tileExit = sheet.tile(2, 0);
         stepSound = new SoundEffectPlayer("/alkosmen/sounds/step.wav");
         playerSprites = getAlkobotImages();
-        enableNextLevelKey();
-        loadLevel(1);
-        if (player != null) {
-            renderX = player.x;
-            renderY = player.y;
-        }
 
+        loadLevel(1);
     }
 
-    private void enableNextLevelKey() {
-        addKeyListener(new java.awt.event.KeyAdapter() {
+    private void update() {
+        if (player == null || levelMap == null) {
+            return;
+        }
+
+        double targetVx = 0.0;
+        if (leftPressed && !rightPressed) {
+            targetVx = -MOVE_SPEED;
+            playerDir = 3;
+        } else if (rightPressed && !leftPressed) {
+            targetVx = MOVE_SPEED;
+            playerDir = 1;
+        }
+        player.vx = targetVx;
+
+        if (jumpQueued && player.onGround) {
+            player.vy = JUMP_SPEED;
+            player.onGround = false;
+        }
+        jumpQueued = false;
+
+        player.vy = Math.min(MAX_FALL_SPEED, player.vy + GRAVITY);
+
+        moveHorizontal(player.vx);
+        moveVertical(player.vy);
+
+        animatePlayer();
+        updateCamera();
+
+        int px = (int) Math.floor(player.x);
+        int py = (int) Math.floor(player.y);
+        if (isInsideMap(px, py) && levelMap[py][px] == 'E') {
+            try {
+                nextLevel();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private void moveHorizontal(double dx) {
+        if (dx == 0.0) {
+            return;
+        }
+
+        double nx = player.x + dx;
+        int tx = (int) Math.floor(nx);
+        int ty = (int) Math.floor(player.y);
+
+        if (isSolid(tx, ty)) {
+            if (dx > 0) {
+                player.x = tx - 0.001;
+            } else {
+                player.x = tx + 1.001;
+            }
+            player.vx = 0.0;
+        } else {
+            player.x = nx;
+        }
+    }
+
+    private void moveVertical(double dy) {
+        if (dy == 0.0) {
+            return;
+        }
+
+        double ny = player.y + dy;
+        int tx = (int) Math.floor(player.x);
+        int ty = (int) Math.floor(ny);
+
+        if (isSolid(tx, ty)) {
+            if (dy > 0) {
+                player.y = ty - 0.001;
+                player.onGround = true;
+            } else {
+                player.y = ty + 1.001;
+            }
+            player.vy = 0.0;
+        } else {
+            player.y = ny;
+            player.onGround = false;
+        }
+    }
+
+    private void animatePlayer() {
+        boolean isWalking = Math.abs(player.vx) > 0.0001 && player.onGround;
+        long now = System.currentTimeMillis();
+        if (isWalking && now - lastAnim > 120) {
+            animFrame = 1 - animFrame;
+            lastAnim = now;
+            stepSound.play();
+        }
+        if (!isWalking) {
+            animFrame = 0;
+        }
+    }
+
+    private void updateCamera() {
+        int cell = Constants.Size;
+        float worldPx = (float) (player.x * cell);
+        float worldPy = (float) (player.y * cell);
+
+        int mapPxW = levelMap[0].length * cell;
+        int mapPxH = levelMap.length * cell;
+
+        cameraX = worldPx - getWidth() / 2f + cell / 2f;
+        cameraY = worldPy - getHeight() / 2f + cell / 2f;
+
+        float maxX = Math.max(0, mapPxW - getWidth());
+        float maxY = Math.max(0, mapPxH - getHeight());
+        cameraX = clamp(cameraX, 0, maxX);
+        cameraY = clamp(cameraY, 0, maxY);
+    }
+
+    private void render() {
+        BufferStrategy bs = strategy;
+        if (bs == null) {
+            return;
+        }
+
+        Graphics g = bs.getDrawGraphics();
+
+        g.setColor(new Color(120, 190, 255));
+        g.fillRect(0, 0, getWidth(), getHeight());
+
+        if (levelMap != null) {
+            int cell = Constants.Size;
+            int firstTileX = Math.max(0, (int) (cameraX / cell));
+            int firstTileY = Math.max(0, (int) (cameraY / cell));
+            int visibleX = getWidth() / cell + 3;
+            int visibleY = getHeight() / cell + 3;
+            int lastTileX = Math.min(levelMap[0].length, firstTileX + visibleX);
+            int lastTileY = Math.min(levelMap.length, firstTileY + visibleY);
+
+            for (int y = firstTileY; y < lastTileY; y++) {
+                for (int x = firstTileX; x < lastTileX; x++) {
+                    char c = levelMap[y][x];
+                    if (c == '.') {
+                        continue;
+                    }
+
+                    Image img = c == '#' ? tileWall : c == 'E' ? tileExit : tileFloor;
+                    int drawX = x * cell - (int) cameraX;
+                    int drawY = y * cell - (int) cameraY;
+                    g.drawImage(img, drawX, drawY, cell, cell, null);
+                }
+            }
+        }
+
+        if (player != null && playerSprites != null) {
+            int cell = Constants.Size;
+            int drawX = (int) Math.round(player.x * cell - cameraX);
+            int drawY = (int) Math.round(player.y * cell - cameraY);
+            Image img = playerSprites[playerDir][animFrame];
+            g.drawImage(img, drawX, drawY, cell, cell, null);
+        }
+
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("Serif", Font.BOLD, 20));
+        g.drawString("LEVEL: " + currentLevel, 14, 26);
+        g.drawString("A/D or arrows + SPACE", 14, 50);
+
+        g.dispose();
+        bs.show();
+    }
+
+    private void enableKeys() {
+        addKeyListener(new KeyAdapter() {
             @Override
-            public void keyPressed(java.awt.event.KeyEvent e) {
-                if (e.getKeyCode() == java.awt.event.KeyEvent.VK_N) {
-                    try {
-                        nextLevel();
-                    } catch (Exception ex) {
-                        throw new RuntimeException(ex);
+            public void keyPressed(KeyEvent e) {
+                switch (e.getKeyCode()) {
+                    case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = true;
+                    case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = true;
+                    case KeyEvent.VK_SPACE, KeyEvent.VK_W, KeyEvent.VK_UP -> {
+                        jumpPressed = true;
+                        jumpQueued = true;
+                    }
+                    case KeyEvent.VK_N -> {
+                        try {
+                            nextLevel();
+                        } catch (Exception ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    }
+                    default -> {
+                    }
+                }
+            }
+
+            @Override
+            public void keyReleased(KeyEvent e) {
+                switch (e.getKeyCode()) {
+                    case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = false;
+                    case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = false;
+                    case KeyEvent.VK_SPACE, KeyEvent.VK_W, KeyEvent.VK_UP -> jumpPressed = false;
+                    default -> {
                     }
                 }
             }
@@ -194,16 +313,11 @@ public final class Game extends Canvas implements Runnable {
 
     private void nextLevel() throws Exception {
         int next = currentLevel + 1;
-
         if (next > LEVELS.length) {
-            running = false; // или показать "победа"
+            running = false;
             return;
         }
-
         loadLevel(next);
-    }
-
-    private void theEnd() {
     }
 
     public void start() {
@@ -212,17 +326,33 @@ public final class Game extends Canvas implements Runnable {
     }
 
     public static void stopGame() {
-        Game.running = false;
+        running = false;
+    }
+
+    private boolean isInsideMap(int x, int y) {
+        return y >= 0 && y < levelMap.length && x >= 0 && x < levelMap[0].length;
+    }
+
+    private boolean isSolid(int x, int y) {
+        if (!isInsideMap(x, y)) {
+            return true;
+        }
+        return levelMap[y][x] == '#';
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private Image getImage(String fileName) {
         BufferedImage sourceImage;
 
         try {
-            String full = "alkosmen/images/" + fileName; // <-- ВОТ ОНО
+            String full = "alkosmen/images/" + fileName;
             URL url = this.getClass().getClassLoader().getResource(full);
-            if (url == null) throw new RuntimeException("Image not found: " + full);
-
+            if (url == null) {
+                throw new RuntimeException("Image not found: " + full);
+            }
             sourceImage = ImageIO.read(url);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -231,84 +361,8 @@ public final class Game extends Canvas implements Runnable {
         return Toolkit.getDefaultToolkit().createImage(sourceImage.getSource());
     }
 
-    private void enableKeys() {
-        addKeyListener(new java.awt.event.KeyAdapter() {
-            @Override
-            public void keyPressed(java.awt.event.KeyEvent e) {
-                switch (e.getKeyCode()) {
-
-                    // next level
-                    case java.awt.event.KeyEvent.VK_N -> {
-                        try {
-                            nextLevel();
-                        } catch (Exception ex) {
-                            ex.printStackTrace();
-                        }
-                    }
-
-                    // movement (WASD + arrows)
-                    case java.awt.event.KeyEvent.VK_W, java.awt.event.KeyEvent.VK_UP -> {
-                        playerDir = 0; // up
-                        attemptMove(0, -1);
-                    }
-
-                    case java.awt.event.KeyEvent.VK_D, java.awt.event.KeyEvent.VK_RIGHT -> {
-                        playerDir = 1; // right
-                        attemptMove(1, 0);
-                    }
-
-                    case java.awt.event.KeyEvent.VK_S, java.awt.event.KeyEvent.VK_DOWN -> {
-                        playerDir = 2; // down
-                        attemptMove(0, 1);
-                    }
-
-                    case java.awt.event.KeyEvent.VK_A, java.awt.event.KeyEvent.VK_LEFT -> {
-                        playerDir = 3; // left
-                        attemptMove(-1, 0);
-                    }
-
-                    default -> {
-                        // ничего
-                    }
-                }
-            }
-        });
-    }
-
-    private void attemptMove(int dx, int dy) {
-        if (player == null) return;
-
-        int startX = player.x;
-        int startY = player.y;
-        boolean moved = alkosmen.service.Movement.move(player, levelMap, dx, dy);
-        if (!moved) return;
-
-        fromX = startX;
-        fromY = startY;
-        renderX = startX;
-        renderY = startY;
-        moveStartMs = System.currentTimeMillis();
-        isWalking = true;
-        stepSound.play();
-    }
-
-    private Image getImage(String path, int x, int y, int width, int height) {
-        BufferedImage sourceImage = null;
-
-        try {
-            URL url = this.getClass().getClassLoader().getResource(path);
-            sourceImage = ImageIO.read(url);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        Image result = Toolkit.getDefaultToolkit()
-                .createImage(sourceImage.getSubimage(x, y, width, height).getSource());
-        return result;
-    }
-
     private Image[][] getAlkobotImages() {
-        Image ar[][] = new Image[4][2];
+        Image[][] ar = new Image[4][2];
         ar[0][0] = getImage("alkup0.png");
         ar[0][1] = getImage("alkup1.png");
 
@@ -330,17 +384,11 @@ public final class Game extends Canvas implements Runnable {
         }
 
         String path = LEVELS[level - 1];
-
-        // Проверяем что ресурс реально существует
         URL url = LevelLoader.class.getResource(path);
-        System.out.println("Loading level " + level + " from: " + path);
-        System.out.println("Resource URL = " + url);
-
         if (url == null) {
             throw new RuntimeException("Level resource not found: " + path);
         }
 
-        // Грузим карту
         levelMap = LevelLoader.load(path);
         if (levelMap == null) {
             throw new RuntimeException("LevelLoader.load returned NULL for: " + path);
@@ -348,43 +396,38 @@ public final class Game extends Canvas implements Runnable {
         if (levelMap.length == 0 || levelMap[0].length == 0) {
             throw new RuntimeException("Loaded empty map for: " + path);
         }
-        levelMap = MapScaler.scale(levelMap, 3);
-        // Ставим текущий уровень
-        currentLevel = level;
 
-        // Ищем 'P' и создаём игрока
+        currentLevel = level;
         player = null;
+
         for (int y = 0; y < levelMap.length; y++) {
             for (int x = 0; x < levelMap[0].length; x++) {
                 if (levelMap[y][x] == 'P') {
                     player = new Player(x, y);
-                    levelMap[y][x] = '.'; // превращаем старт в пол
+                    levelMap[y][x] = '.';
                     break;
                 }
             }
-            if (player != null) break;
+            if (player != null) {
+                break;
+            }
         }
 
         if (player == null) {
             throw new RuntimeException("No 'P' (player start) in map: " + path);
         }
 
-        renderX = player.x;
-        renderY = player.y;
-        fromX = player.x;
-        fromY = player.y;
-        isWalking = false;
+        playerDir = 1;
         animFrame = 0;
+        cameraX = 0;
+        cameraY = 0;
+        jumpPressed = false;
+        jumpQueued = false;
 
-        // Массив объектов (пока просто создаём, можно позже заполнять)
         objects = new IGameObject[levelMap.length * levelMap[0].length];
-
-        System.out.println("Map size: " + levelMap.length + " x " + levelMap[0].length);
-        System.out.println("Player start: " + player.x + "," + player.y);
-        java.awt.Window w = javax.swing.SwingUtilities.getWindowAncestor(this);
-        if (w != null) w.pack();
-
+        Window w = SwingUtilities.getWindowAncestor(this);
+        if (w != null) {
+            w.pack();
+        }
     }
-
-
 }
