@@ -5,6 +5,7 @@ import alkosmen.gfx.SpriteSheet;
 import alkosmen.interfaces.IGameObject;
 import alkosmen.maps.LevelLoader;
 import alkosmen.maps.MapScaler;
+import alkosmen.maps.TileRules;
 import alkosmen.objects.GameMap;
 import alkosmen.objects.Player;
 
@@ -97,7 +98,7 @@ public final class Game extends Canvas implements Runnable {
                     char c = levelMap[y][x];
 
                     Image img =
-                            (c == '#') ? tileWall :
+                            TileRules.isSolid(c) ? tileWall :
                                     (c == 'E') ? tileExit :
                                             tileFloor;
 

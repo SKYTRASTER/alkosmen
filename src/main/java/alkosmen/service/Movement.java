@@ -1,5 +1,6 @@
 package alkosmen.service;
 
+import alkosmen.maps.TileRules;
 import alkosmen.objects.Player;
 
 public final class Movement {
@@ -15,7 +16,7 @@ public final class Movement {
         if (ny < 0 || ny >= levelMap.length) return false;
         if (nx < 0 || nx >= levelMap[0].length) return false;
 
-        if (levelMap[ny][nx] == '#') return false;
+        if (TileRules.isSolid(levelMap[ny][nx])) return false;
 
         player.x = nx;
         player.y = ny;
