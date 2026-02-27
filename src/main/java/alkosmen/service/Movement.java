@@ -1,5 +1,6 @@
 package alkosmen.service;
 
+import alkosmen.maps.TileRules;
 import alkosmen.objects.Player;
 
 public final class Movement {
