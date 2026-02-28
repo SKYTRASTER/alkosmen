@@ -2,7 +2,7 @@ package alkosmen.objects;
 
 import java.awt.Graphics;
 
-import alkosmen.Constants;
+import alkosmen.settings.Constants;
 import alkosmen.Point;
 import alkosmen.interfaces.IGameObject;
 
@@ -21,3 +21,4 @@ public class Wall implements IGameObject {
     }
 
 }
+

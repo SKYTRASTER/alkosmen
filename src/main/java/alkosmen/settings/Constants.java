@@ -1,4 +1,4 @@
-package alkosmen;
+package alkosmen.settings;
 
 import java.awt.Color;
 

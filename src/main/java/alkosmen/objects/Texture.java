@@ -1,6 +1,6 @@
 package alkosmen.objects;
 
-import alkosmen.Constants;
+import alkosmen.settings.Constants;
 import alkosmen.Point;
 import alkosmen.Sprite;
 
@@ -14,3 +14,4 @@ public class Texture {
         y = p.y * Constants.Size;
     }
 }
+

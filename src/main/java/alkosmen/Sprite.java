@@ -1,5 +1,7 @@
 package alkosmen;
 
+import alkosmen.settings.Constants;
+
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Image;
@@ -25,3 +27,4 @@ public class Sprite {
 
     }
 }
+

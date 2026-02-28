@@ -1,6 +1,7 @@
 package alkosmen;
 
 import alkosmen.audio.MidiPlayer;
+import alkosmen.settings.Constants;
 import alkosmen.audio.SoundEffectPlayer;
 import alkosmen.gfx.SpriteSheet;
 import alkosmen.interfaces.IGameObject;
@@ -10,13 +11,15 @@ import alkosmen.objects.Player;
 
 import javax.imageio.ImageIO;
 import javax.swing.SwingUtilities;
+import java.awt.AlphaComposite;
 import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Image;
-import java.awt.Toolkit;
+import java.awt.RenderingHints;
 import java.awt.Window;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -24,6 +27,8 @@ import java.awt.image.BufferStrategy;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class Game extends Canvas implements Runnable {
     private int currentLevel = 1;
@@ -47,7 +52,9 @@ public final class Game extends Canvas implements Runnable {
     private boolean rightPressed;
     private boolean jumpPressed;
     private boolean jumpQueued;
-    private int playerDir = 1; // 0 up, 1 right, 2 down, 3 left
+    private long jumpBufferUntil;
+    private long lastOnGroundAt;
+    private int playerDir = 2; // 0 left, 1 right, 2 idle/dance
     private int animFrame = 0;
     private long lastAnim = 0;
     private SoundEffectPlayer stepSound;
@@ -65,11 +72,19 @@ public final class Game extends Canvas implements Runnable {
 
     private float cameraX;
     private float cameraY;
+    private final List<CopNpc> cops = new ArrayList<>();
+    private int playerSpawnX;
+    private int playerSpawnY;
+    private boolean hidePressed;
+    private long lastCaughtAt;
+    private boolean gameOver;
 
     private static final double MOVE_SPEED = 0.12;
     private static final double GRAVITY = 0.035;
     private static final double JUMP_SPEED = -0.68;
     private static final double MAX_FALL_SPEED = 0.9;
+    private static final long JUMP_BUFFER_MS = 140;
+    private static final long COYOTE_TIME_MS = 120;
     // While jump key is held and player is moving up, gravity is reduced.
     private static final double JUMP_HOLD_GRAVITY_MULT = 0.55;
     private static final double PLAYER_SCALE = 1.95;
@@ -79,6 +94,12 @@ public final class Game extends Canvas implements Runnable {
     private static final int DEFAULT_BOTTLE_GOAL = 8;
     // Bottom HUD height; gameplay camera/render should not overlap this zone.
     private static final int HUD_HEIGHT = 56;
+    // Cop patrol tuning: horizontal speed, drop distance on turn, and sight range.
+    private static final double COP_SPEED = 0.06;
+    private static final double COP_DROP_STEP = 1.0;
+    private static final double COP_VIEW_DISTANCE = 6.0;
+    private static final long COP_CAUGHT_COOLDOWN_MS = 900;
+    private static final long COP_CAUGHT_TEXT_MS = 1200;
 
     @Override
     public void run() {
@@ -119,6 +140,7 @@ public final class Game extends Canvas implements Runnable {
 
         createBufferStrategy(2);
         strategy = getBufferStrategy();
+        renderLoadingScreen("Loading assets...");
 
         sheet = new SpriteSheet(
                 "/alkosmen/images/grass_tileset_16x16/grass_tileset_16x16.png",
@@ -127,8 +149,14 @@ public final class Game extends Canvas implements Runnable {
         tileFloor = sheet.tile(0, 0);
         tileWall = sheet.tile(1, 0);
         bottleSprite = loadImageResource("/alkosmen/images/objects/bottle/bottle_tich_gold.png");
-        npcBoy1Sprite = loadImageResource("/alkosmen/images/objects/boy/boy1.png");
-        npcBoy2Sprite = loadImageResource("/alkosmen/images/objects/boy/boy2.png");
+        npcBoy1Sprite = loadFirstExistingImage(
+                "/alkosmen/images/objects/glack/boy1.png",
+                "/alkosmen/images/objects/boy/boy1.png"
+        );
+        npcBoy2Sprite = loadFirstExistingImage(
+                "/alkosmen/images/objects/glack/boy2.png",
+                "/alkosmen/images/objects/boy/boy2.png"
+        );
         npcCopSprite = loadImageResource("/alkosmen/images/objects/cop/copdown0.png");
         stepSound = new SoundEffectPlayer("/alkosmen/sounds/step.wav");
         jumpSound = new SoundEffectPlayer("/alkosmen/sounds/jump.wav");
@@ -136,6 +164,7 @@ public final class Game extends Canvas implements Runnable {
         levelMidi = new MidiPlayer();
         levelMidi.playLoop("/alkosmen/sounds/Caribbean-Blue.mid", 70);
         playerSprites = getAlkobotImages();
+        renderLoadingScreen("Loading level...");
 
         loadLevel(1);
     }
@@ -144,22 +173,32 @@ public final class Game extends Canvas implements Runnable {
         if (player == null || levelMap == null) {
             return;
         }
+        long now = System.currentTimeMillis();
+        if (player.onGround) {
+            lastOnGroundAt = now;
+        }
 
         double targetVx = 0.0;
         if (leftPressed && !rightPressed) {
             targetVx = -MOVE_SPEED;
-            playerDir = 3;
+            playerDir = 0;
         } else if (rightPressed && !leftPressed) {
             targetVx = MOVE_SPEED;
             playerDir = 1;
+        } else {
+            playerDir = 2;
         }
         player.vx = targetVx;
 
-        if (jumpQueued && player.onGround) {
+        boolean hasBufferedJump = jumpQueued || now <= jumpBufferUntil;
+        boolean canJumpNow = player.onGround || (now - lastOnGroundAt <= COYOTE_TIME_MS);
+        if (hasBufferedJump && canJumpNow) {
             // Initial jump impulse applies only from ground.
             player.vy = JUMP_SPEED;
             player.onGround = false;
             jumpSound.play();
+            lastOnGroundAt = 0L;
+            jumpBufferUntil = 0L;
         }
         jumpQueued = false;
 
@@ -174,6 +213,13 @@ public final class Game extends Canvas implements Runnable {
         moveVertical(player.vy);
 
         animatePlayer();
+        // Patrol and stealth are updated each frame after player movement.
+        updateCops();
+        resolveCopCollision();
+        if (!running) {
+            return;
+        }
+        resolveCopDetection();
         updateCamera();
 
         int px = (int) Math.floor(player.x);
@@ -234,13 +280,22 @@ public final class Game extends Canvas implements Runnable {
     private void animatePlayer() {
         boolean isWalking = Math.abs(player.vx) > 0.0001 && player.onGround;
         long now = System.currentTimeMillis();
-        if (isWalking && now - lastAnim > 120) {
-            animFrame = 1 - animFrame;
-            lastAnim = now;
-            stepSound.play();
+        int frameCount = playerSprites != null && playerDir >= 0 && playerDir < playerSprites.length
+                ? playerSprites[playerDir].length
+                : 0;
+        if (frameCount <= 0) {
+            return;
         }
-        if (!isWalking) {
-            animFrame = 0;
+        if (isWalking && now - lastAnim > 90) {
+            animFrame = (animFrame + 1) % frameCount;
+            lastAnim = now;
+            if ((animFrame % 3) == 0) {
+                stepSound.play();
+            }
+        }
+        if (!isWalking && now - lastAnim > 110) {
+            animFrame = (animFrame + 1) % frameCount;
+            lastAnim = now;
         }
     }
 
@@ -339,15 +394,27 @@ public final class Game extends Canvas implements Runnable {
             if (drawY > maxPlayerY) {
                 drawY = maxPlayerY;
             }
-            Image img = playerSprites[playerDir][animFrame];
-            g.drawImage(img, drawX, drawY, playerW, playerH, null);
+            // Cops are dynamic entities, so they are drawn outside map tile loop.
+            drawCops(g, cell);
+            Image[] track = playerSprites[playerDir];
+            Image img = track[Math.floorMod(animFrame, track.length)];
+            // Hidden player remains visible with low alpha for gameplay readability.
+            if (isPlayerHidden()) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.33f));
+                g2.drawImage(img, drawX, drawY, playerW, playerH, null);
+                g2.dispose();
+            } else {
+                g.drawImage(img, drawX, drawY, playerW, playerH, null);
+            }
         }
 
         g.setColor(Color.WHITE);
         g.setFont(new Font("Serif", Font.BOLD, 20));
         g.drawString("LEVEL: " + currentLevel, 14, 26);
-        g.drawString("A/D or arrows + SPACE", 14, 50);
+        g.drawString("A/D or arrows + SPACE, S/Down to hide", 14, 50);
         drawDoomStyleHud(g);
+        drawGameOverOverlay(g);
 
         g.dispose();
         bs.show();
@@ -363,7 +430,10 @@ public final class Game extends Canvas implements Runnable {
                     case KeyEvent.VK_SPACE, KeyEvent.VK_W, KeyEvent.VK_UP -> {
                         jumpPressed = true;
                         jumpQueued = true;
+                        jumpBufferUntil = System.currentTimeMillis() + JUMP_BUFFER_MS;
                     }
+                    // Hold S/Down to hide from cop detection.
+                    case KeyEvent.VK_S, KeyEvent.VK_DOWN -> hidePressed = true;
                     case KeyEvent.VK_N -> {
                         // Demo mode: single level only.
                     }
@@ -378,6 +448,7 @@ public final class Game extends Canvas implements Runnable {
                     case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = false;
                     case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = false;
                     case KeyEvent.VK_SPACE, KeyEvent.VK_W, KeyEvent.VK_UP -> jumpPressed = false;
+                    case KeyEvent.VK_S, KeyEvent.VK_DOWN -> hidePressed = false;
                     default -> {
                     }
                 }
@@ -423,7 +494,7 @@ public final class Game extends Canvas implements Runnable {
             throw new RuntimeException(e);
         }
 
-        return Toolkit.getDefaultToolkit().createImage(sourceImage.getSource());
+        return sourceImage;
     }
 
     private Image loadImageResource(String path) {
@@ -432,7 +503,26 @@ public final class Game extends Canvas implements Runnable {
         if (url == null) {
             throw new RuntimeException("Image not found: " + path);
         }
-        return Toolkit.getDefaultToolkit().createImage(url);
+        try {
+            return ImageIO.read(url);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read image: " + path, e);
+        }
+    }
+
+    private Image loadFirstExistingImage(String... paths) {
+        for (String path : paths) {
+            String normalized = path.startsWith("/") ? path.substring(1) : path;
+            URL url = this.getClass().getClassLoader().getResource(normalized);
+            if (url != null) {
+                try {
+                    return ImageIO.read(url);
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to read image: " + path, e);
+                }
+            }
+        }
+        throw new RuntimeException("Image not found. Tried: " + String.join(", ", paths));
     }
 
     private void drawDoomStyleHud(Graphics g) {
@@ -454,8 +544,44 @@ public final class Game extends Canvas implements Runnable {
         g.setColor(score >= bottleGoal ? new Color(120, 220, 120) : new Color(220, 210, 170));
         g.drawString("BOTTLES " + score + "/" + bottleGoal, 260, y + 35);
         if (score >= bottleGoal) {
-            g.drawString("TASK DONE", 470, y + 35);
+            g.setColor(new Color(120, 220, 120));
+            g.drawString("YOU WIN!!!", 470, y + 35);
         }
+
+        if (isPlayerHidden()) {
+            g.setColor(new Color(150, 220, 255));
+            g.drawString("HIDING", 620, y + 35);
+        }
+        if (System.currentTimeMillis() - lastCaughtAt < COP_CAUGHT_TEXT_MS) {
+            g.setColor(new Color(255, 140, 120));
+            g.drawString("CAUGHT BY COP", 730, y + 35);
+        }
+        if (gameOver) {
+            g.setColor(new Color(255, 90, 90));
+            g.drawString("GAME OVER", 730, y + 35);
+        }
+    }
+
+    private void drawGameOverOverlay(Graphics g) {
+        if (!gameOver) {
+            return;
+        }
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setColor(new Color(0, 0, 0, 185));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2.setFont(new Font("Impact", Font.BOLD, Math.max(72, getHeight() / 5)));
+        String text = "GAME OVER";
+        int textW = g2.getFontMetrics().stringWidth(text);
+        int textX = (getWidth() - textW) / 2;
+        int textY = getHeight() / 2;
+
+        g2.setColor(new Color(30, 0, 0));
+        g2.drawString(text, textX + 4, textY + 4);
+        g2.setColor(new Color(255, 60, 60));
+        g2.drawString(text, textX, textY);
+        g2.dispose();
     }
 
     private boolean isNpcTile(char c) {
@@ -472,20 +598,34 @@ public final class Game extends Canvas implements Runnable {
     }
 
     private Image[][] getAlkobotImages() {
-        Image[][] ar = new Image[4][2];
-        ar[0][0] = getImage("alkup0.png");
-        ar[0][1] = getImage("alkup1.png");
+        try {
+            return new Image[][]{
+                    loadTrackFrames("left"),
+                    loadTrackFrames("right"),
+                    loadTrackFrames("idle")
+            };
+        } catch (RuntimeException ex) {
+            // Fallback to legacy 4x2 sprites if frame sequence is missing.
+            Image[][] ar = new Image[3][2];
+            ar[0][0] = getImage("alkleft0.png");
+            ar[0][1] = getImage("alkleft1.png");
 
-        ar[1][0] = getImage("alkright0.png");
-        ar[1][1] = getImage("alkright1.png");
+            ar[1][0] = getImage("alkright0.png");
+            ar[1][1] = getImage("alkright1.png");
 
-        ar[2][0] = getImage("alkdown0.png");
-        ar[2][1] = getImage("alkdown1.png");
+            ar[2][0] = getImage("alkdown0.png");
+            ar[2][1] = getImage("alkdown1.png");
+            return ar;
+        }
+    }
 
-        ar[3][0] = getImage("alkleft0.png");
-        ar[3][1] = getImage("alkleft1.png");
-
-        return ar;
+    private Image[] loadTrackFrames(String trackName) {
+        Image[] frames = new Image[10];
+        for (int i = 0; i < frames.length; i++) {
+            String framePath = String.format("/alkosmen/images/objects/alkoman/frames/alk_%s_%02d.png", trackName, i);
+            frames[i] = loadImageResource(framePath);
+        }
+        return frames;
     }
 
     private void loadLevel(int level) throws Exception {
@@ -512,19 +652,22 @@ public final class Game extends Canvas implements Runnable {
 
         currentLevel = level;
         score = 0;
-        bottleGoal = Math.min(DEFAULT_BOTTLE_GOAL, countTiles('B'));
+        bottleGoal = countTiles('B');
         player = null;
+        cops.clear();
 
+        // Scan full map: spawn player and convert all cop markers into dynamic NPCs.
         for (int y = 0; y < levelMap.length; y++) {
             for (int x = 0; x < levelMap[0].length; x++) {
                 if (levelMap[y][x] == 'P') {
+                    playerSpawnX = x;
+                    playerSpawnY = y;
                     player = new Player(x, y);
                     levelMap[y][x] = '.';
-                    break;
+                } else if (levelMap[y][x] == 'C') {
+                    cops.add(new CopNpc(x, y));
+                    levelMap[y][x] = '.';
                 }
-            }
-            if (player != null) {
-                break;
             }
         }
 
@@ -532,12 +675,16 @@ public final class Game extends Canvas implements Runnable {
             throw new RuntimeException("No 'P' (player start) in map: " + path);
         }
 
-        playerDir = 1;
+        playerDir = 2;
         animFrame = 0;
         cameraX = 0;
         cameraY = 0;
         jumpPressed = false;
         jumpQueued = false;
+        jumpBufferUntil = 0L;
+        lastOnGroundAt = 0L;
+        hidePressed = false;
+        gameOver = false;
 
         objects = new IGameObject[levelMap.length * levelMap[0].length];
         Window w = SwingUtilities.getWindowAncestor(this);
@@ -557,5 +704,146 @@ public final class Game extends Canvas implements Runnable {
         }
         return count;
     }
+
+    private void updateCops() {
+        for (CopNpc cop : cops) {
+            double nx = cop.x + cop.dir * COP_SPEED;
+            if (isCopBlocked(nx, cop.y)) {
+                // Patrol pattern: turn around and step one tile down when blocked.
+                cop.dir *= -1;
+                double ny = cop.y + COP_DROP_STEP;
+                if (!isCopBlocked(cop.x, ny)) {
+                    cop.y = ny;
+                }
+                continue;
+            }
+            cop.x = nx;
+        }
+    }
+
+    private void resolveCopCollision() {
+        for (CopNpc cop : cops) {
+            if (Math.abs(cop.x - player.x) <= 0.55 && Math.abs(cop.y - player.y) <= 0.75) {
+                gameOver = true;
+                running = false;
+                return;
+            }
+        }
+    }
+
+    private void resolveCopDetection() {
+        // Hidden player is ignored by cop vision.
+        if (isPlayerHidden()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (now - lastCaughtAt < COP_CAUGHT_COOLDOWN_MS) {
+            return;
+        }
+        for (CopNpc cop : cops) {
+            if (canCopSeePlayer(cop)) {
+                lastCaughtAt = now;
+                respawnPlayer();
+                return;
+            }
+        }
+    }
+
+    private boolean canCopSeePlayer(CopNpc cop) {
+        // Same-lane cone check: distance + facing direction + wall occlusion.
+        if (Math.abs(cop.y - player.y) > 0.75) {
+            return false;
+        }
+        double dx = player.x - cop.x;
+        if (Math.abs(dx) > COP_VIEW_DISTANCE) {
+            return false;
+        }
+        if (dx * cop.dir < 0) {
+            return false;
+        }
+
+        int rowY = (int) Math.floor(cop.y);
+        int startX = (int) Math.floor(Math.min(cop.x, player.x));
+        int endX = (int) Math.floor(Math.max(cop.x, player.x));
+        for (int x = startX; x <= endX; x++) {
+            if (!isInsideMap(x, rowY)) {
+                return false;
+            }
+            if (levelMap[rowY][x] == '#') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void respawnPlayer() {
+        // After getting spotted, reset position and clear movement/hide inputs.
+        player.x = playerSpawnX;
+        player.y = playerSpawnY;
+        player.vx = 0.0;
+        player.vy = 0.0;
+        player.onGround = false;
+        leftPressed = false;
+        rightPressed = false;
+        jumpPressed = false;
+        jumpQueued = false;
+        hidePressed = false;
+    }
+
+    private boolean isCopBlocked(double x, double y) {
+        int tx = (int) Math.floor(x);
+        int ty = (int) Math.floor(y);
+        return !isInsideMap(tx, ty) || levelMap[ty][tx] == '#';
+    }
+
+    private boolean isPlayerHidden() {
+        // Player can hide only while standing still on ground and holding hide key.
+        return hidePressed && player != null && Math.abs(player.vx) < 0.0001 && player.onGround;
+    }
+
+    private void drawCops(Graphics g, int cell) {
+        if (npcCopSprite == null) {
+            return;
+        }
+        for (CopNpc cop : cops) {
+            int copW = (int) Math.round(cell * NPC_SCALE);
+            int copH = (int) Math.round(cell * NPC_SCALE);
+            int drawX = (int) Math.round(cop.x * cell - cameraX - (copW - cell) / 2.0);
+            int drawY = (int) Math.round(cop.y * cell - cameraY - (copH - cell));
+            g.drawImage(npcCopSprite, drawX, drawY, copW, copH, null);
+        }
+    }
+
+    private static final class CopNpc {
+        private double x;
+        private double y;
+        private int dir = -1;
+
+        private CopNpc(double x, double y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    private void renderLoadingScreen(String text) {
+        BufferStrategy bs = strategy;
+        if (bs == null) {
+            return;
+        }
+        Graphics g = bs.getDrawGraphics();
+        g.setColor(Color.BLACK);
+        g.fillRect(0, 0, getWidth(), getHeight());
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("Monospaced", Font.BOLD, 36));
+        int textW = g.getFontMetrics().stringWidth(text);
+        int textX = Math.max(12, (getWidth() - textW) / 2);
+        int textY = Math.max(48, getHeight() / 2);
+        g.drawString(text, textX, textY);
+        g.dispose();
+        bs.show();
+    }
 }
+
+
+
 
