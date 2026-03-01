@@ -88,9 +88,9 @@ public final class Game extends Canvas implements Runnable {
     // Bottom HUD height; gameplay camera/render should not overlap this zone.
     private static final int HUD_HEIGHT = 56;
     // Cop patrol tuning: horizontal speed, drop distance on turn, and sight range.
-    private static final double COP_SPEED = 0.06;
+    private static final double COP_SPEED = 0.045;
     private static final double COP_DROP_STEP = 1.0;
-    private static final double COP_VIEW_DISTANCE = 6.0;
+    private static final double COP_VIEW_DISTANCE = 4.5;
     private static final long COP_CAUGHT_COOLDOWN_MS = 900;
     private static final long COP_CAUGHT_TEXT_MS = 1200;
     private static final long FRAME_DELAY_MS = 16L;
