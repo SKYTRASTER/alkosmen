@@ -3,10 +3,10 @@ package alkosmen;
 import alkosmen.audio.MidiPlayer;
 import alkosmen.settings.Constants;
 import alkosmen.audio.SoundEffectPlayer;
+import alkosmen.game.CopSystem;
+import alkosmen.game.GameHudRenderer;
 import alkosmen.gfx.SpriteSheet;
-import alkosmen.interfaces.IGameObject;
 import alkosmen.maps.LevelLoader;
-import alkosmen.objects.GameMap;
 import alkosmen.objects.Player;
 
 import javax.imageio.ImageIO;
@@ -19,7 +19,6 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
-import java.awt.RenderingHints;
 import java.awt.Window;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -27,19 +26,15 @@ import java.awt.image.BufferStrategy;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
 
 public final class Game extends Canvas implements Runnable {
     private int currentLevel = 1;
     private int score = 0;
     private int bottleGoal = 8;
-    private static boolean running;
-    private IGameObject[] objects;
+    private volatile boolean running;
     private BufferStrategy strategy;
     private Image[][] playerSprites;
     private Player player;
-    private GameMap gameMap;
     private char[][] levelMap;
     private static final String[] LEVELS = {
             "/alkosmen/maps/demo_level.txt"
@@ -72,11 +67,11 @@ public final class Game extends Canvas implements Runnable {
 
     private float cameraX;
     private float cameraY;
-    private final List<CopNpc> cops = new ArrayList<>();
+    private final GameHudRenderer hudRenderer = new GameHudRenderer(HUD_HEIGHT, COP_CAUGHT_TEXT_MS);
+    private final CopSystem copSystem = new CopSystem(COP_SPEED, COP_DROP_STEP, COP_VIEW_DISTANCE, COP_CAUGHT_COOLDOWN_MS);
     private int playerSpawnX;
     private int playerSpawnY;
     private boolean hidePressed;
-    private long lastCaughtAt;
     private boolean gameOver;
 
     private static final double MOVE_SPEED = 0.12;
@@ -90,8 +85,6 @@ public final class Game extends Canvas implements Runnable {
     private static final double PLAYER_SCALE = 1.95;
     private static final double BOTTLE_SCALE = 2.2;
     private static final double NPC_SCALE = 1.7;
-    // Demo task is intentionally small to keep level accessible.
-    private static final int DEFAULT_BOTTLE_GOAL = 8;
     // Bottom HUD height; gameplay camera/render should not overlap this zone.
     private static final int HUD_HEIGHT = 56;
     // Cop patrol tuning: horizontal speed, drop distance on turn, and sight range.
@@ -100,6 +93,7 @@ public final class Game extends Canvas implements Runnable {
     private static final double COP_VIEW_DISTANCE = 6.0;
     private static final long COP_CAUGHT_COOLDOWN_MS = 900;
     private static final long COP_CAUGHT_TEXT_MS = 1200;
+    private static final long FRAME_DELAY_MS = 16L;
 
     @Override
     public void run() {
@@ -113,14 +107,13 @@ public final class Game extends Canvas implements Runnable {
             update();
             render();
             try {
-                Thread.sleep(16);
+                Thread.sleep(FRAME_DELAY_MS);
             } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
             }
         }
 
-        if (levelMidi != null) {
-            levelMidi.stop();
-        }
+        stopAudio();
     }
 
     @Override
@@ -213,13 +206,15 @@ public final class Game extends Canvas implements Runnable {
         moveVertical(player.vy);
 
         animatePlayer();
-        // Patrol and stealth are updated each frame after player movement.
-        updateCops();
-        resolveCopCollision();
-        if (!running) {
+        CopSystem.Outcome copOutcome = copSystem.tick(levelMap, player, isPlayerHidden(), now);
+        if (copOutcome == CopSystem.Outcome.GAME_OVER) {
+            gameOver = true;
+            running = false;
             return;
         }
-        resolveCopDetection();
+        if (copOutcome == CopSystem.Outcome.CAUGHT) {
+            respawnPlayer();
+        }
         updateCamera();
 
         int px = (int) Math.floor(player.x);
@@ -394,8 +389,7 @@ public final class Game extends Canvas implements Runnable {
             if (drawY > maxPlayerY) {
                 drawY = maxPlayerY;
             }
-            // Cops are dynamic entities, so they are drawn outside map tile loop.
-            drawCops(g, cell);
+            copSystem.draw(g, cell, NPC_SCALE, npcCopSprite, cameraX, cameraY);
             Image[] track = playerSprites[playerDir];
             Image img = track[Math.floorMod(animFrame, track.length)];
             // Hidden player remains visible with low alpha for gameplay readability.
@@ -409,12 +403,19 @@ public final class Game extends Canvas implements Runnable {
             }
         }
 
-        g.setColor(Color.WHITE);
-        g.setFont(new Font("Serif", Font.BOLD, 20));
-        g.drawString("LEVEL: " + currentLevel, 14, 26);
-        g.drawString("A/D or arrows + SPACE, S/Down to hide", 14, 50);
-        drawDoomStyleHud(g);
-        drawGameOverOverlay(g);
+        hudRenderer.drawHud(
+                g,
+                getWidth(),
+                getHeight(),
+                currentLevel,
+                score,
+                bottleGoal,
+                isPlayerHidden(),
+                gameOver,
+                copSystem.getLastCaughtAt(),
+                System.currentTimeMillis()
+        );
+        hudRenderer.drawGameOverOverlay(g, getWidth(), getHeight(), gameOver);
 
         g.dispose();
         bs.show();
@@ -457,12 +458,22 @@ public final class Game extends Canvas implements Runnable {
     }
 
     public void start() {
+        if (running) {
+            return;
+        }
         running = true;
-        new Thread(this).start();
+        Thread loopThread = new Thread(this, "alkosmen-game-loop");
+        loopThread.start();
     }
 
-    public static void stopGame() {
+    public void stopGame() {
         running = false;
+    }
+
+    private void stopAudio() {
+        if (levelMidi != null) {
+            levelMidi.stop();
+        }
     }
 
     private boolean isInsideMap(int x, int y) {
@@ -523,65 +534,6 @@ public final class Game extends Canvas implements Runnable {
             }
         }
         throw new RuntimeException("Image not found. Tried: " + String.join(", ", paths));
-    }
-
-    private void drawDoomStyleHud(Graphics g) {
-        // Simple retro HUD bar anchored to the bottom of the viewport.
-        int y = getHeight() - HUD_HEIGHT;
-
-        g.setColor(new Color(28, 22, 20));
-        g.fillRect(0, y, getWidth(), HUD_HEIGHT);
-
-        g.setColor(new Color(92, 74, 58));
-        g.drawLine(0, y, getWidth(), y);
-        g.drawLine(0, y + 1, getWidth(), y + 1);
-
-        g.setColor(new Color(160, 130, 96));
-        g.setFont(new Font("Monospaced", Font.BOLD, 26));
-        g.drawString("SCORE " + score, 16, y + 38);
-
-        g.setFont(new Font("Monospaced", Font.BOLD, 18));
-        g.setColor(score >= bottleGoal ? new Color(120, 220, 120) : new Color(220, 210, 170));
-        g.drawString("BOTTLES " + score + "/" + bottleGoal, 260, y + 35);
-        if (score >= bottleGoal) {
-            g.setColor(new Color(120, 220, 120));
-            g.drawString("YOU WIN!!!", 470, y + 35);
-        }
-
-        if (isPlayerHidden()) {
-            g.setColor(new Color(150, 220, 255));
-            g.drawString("HIDING", 620, y + 35);
-        }
-        if (System.currentTimeMillis() - lastCaughtAt < COP_CAUGHT_TEXT_MS) {
-            g.setColor(new Color(255, 140, 120));
-            g.drawString("CAUGHT BY COP", 730, y + 35);
-        }
-        if (gameOver) {
-            g.setColor(new Color(255, 90, 90));
-            g.drawString("GAME OVER", 730, y + 35);
-        }
-    }
-
-    private void drawGameOverOverlay(Graphics g) {
-        if (!gameOver) {
-            return;
-        }
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.setColor(new Color(0, 0, 0, 185));
-        g2.fillRect(0, 0, getWidth(), getHeight());
-
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g2.setFont(new Font("Impact", Font.BOLD, Math.max(72, getHeight() / 5)));
-        String text = "GAME OVER";
-        int textW = g2.getFontMetrics().stringWidth(text);
-        int textX = (getWidth() - textW) / 2;
-        int textY = getHeight() / 2;
-
-        g2.setColor(new Color(30, 0, 0));
-        g2.drawString(text, textX + 4, textY + 4);
-        g2.setColor(new Color(255, 60, 60));
-        g2.drawString(text, textX, textY);
-        g2.dispose();
     }
 
     private boolean isNpcTile(char c) {
@@ -654,7 +606,7 @@ public final class Game extends Canvas implements Runnable {
         score = 0;
         bottleGoal = countTiles('B');
         player = null;
-        cops.clear();
+        copSystem.reset();
 
         // Scan full map: spawn player and convert all cop markers into dynamic NPCs.
         for (int y = 0; y < levelMap.length; y++) {
@@ -665,7 +617,7 @@ public final class Game extends Canvas implements Runnable {
                     player = new Player(x, y);
                     levelMap[y][x] = '.';
                 } else if (levelMap[y][x] == 'C') {
-                    cops.add(new CopNpc(x, y));
+                    copSystem.addCop(x, y);
                     levelMap[y][x] = '.';
                 }
             }
@@ -686,7 +638,6 @@ public final class Game extends Canvas implements Runnable {
         hidePressed = false;
         gameOver = false;
 
-        objects = new IGameObject[levelMap.length * levelMap[0].length];
         Window w = SwingUtilities.getWindowAncestor(this);
         if (w != null) {
             w.pack();
@@ -705,77 +656,6 @@ public final class Game extends Canvas implements Runnable {
         return count;
     }
 
-    private void updateCops() {
-        for (CopNpc cop : cops) {
-            double nx = cop.x + cop.dir * COP_SPEED;
-            if (isCopBlocked(nx, cop.y)) {
-                // Patrol pattern: turn around and step one tile down when blocked.
-                cop.dir *= -1;
-                double ny = cop.y + COP_DROP_STEP;
-                if (!isCopBlocked(cop.x, ny)) {
-                    cop.y = ny;
-                }
-                continue;
-            }
-            cop.x = nx;
-        }
-    }
-
-    private void resolveCopCollision() {
-        for (CopNpc cop : cops) {
-            if (Math.abs(cop.x - player.x) <= 0.55 && Math.abs(cop.y - player.y) <= 0.75) {
-                gameOver = true;
-                running = false;
-                return;
-            }
-        }
-    }
-
-    private void resolveCopDetection() {
-        // Hidden player is ignored by cop vision.
-        if (isPlayerHidden()) {
-            return;
-        }
-        long now = System.currentTimeMillis();
-        if (now - lastCaughtAt < COP_CAUGHT_COOLDOWN_MS) {
-            return;
-        }
-        for (CopNpc cop : cops) {
-            if (canCopSeePlayer(cop)) {
-                lastCaughtAt = now;
-                respawnPlayer();
-                return;
-            }
-        }
-    }
-
-    private boolean canCopSeePlayer(CopNpc cop) {
-        // Same-lane cone check: distance + facing direction + wall occlusion.
-        if (Math.abs(cop.y - player.y) > 0.75) {
-            return false;
-        }
-        double dx = player.x - cop.x;
-        if (Math.abs(dx) > COP_VIEW_DISTANCE) {
-            return false;
-        }
-        if (dx * cop.dir < 0) {
-            return false;
-        }
-
-        int rowY = (int) Math.floor(cop.y);
-        int startX = (int) Math.floor(Math.min(cop.x, player.x));
-        int endX = (int) Math.floor(Math.max(cop.x, player.x));
-        for (int x = startX; x <= endX; x++) {
-            if (!isInsideMap(x, rowY)) {
-                return false;
-            }
-            if (levelMap[rowY][x] == '#') {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private void respawnPlayer() {
         // After getting spotted, reset position and clear movement/hide inputs.
         player.x = playerSpawnX;
@@ -790,39 +670,9 @@ public final class Game extends Canvas implements Runnable {
         hidePressed = false;
     }
 
-    private boolean isCopBlocked(double x, double y) {
-        int tx = (int) Math.floor(x);
-        int ty = (int) Math.floor(y);
-        return !isInsideMap(tx, ty) || levelMap[ty][tx] == '#';
-    }
-
     private boolean isPlayerHidden() {
         // Player can hide only while standing still on ground and holding hide key.
         return hidePressed && player != null && Math.abs(player.vx) < 0.0001 && player.onGround;
-    }
-
-    private void drawCops(Graphics g, int cell) {
-        if (npcCopSprite == null) {
-            return;
-        }
-        for (CopNpc cop : cops) {
-            int copW = (int) Math.round(cell * NPC_SCALE);
-            int copH = (int) Math.round(cell * NPC_SCALE);
-            int drawX = (int) Math.round(cop.x * cell - cameraX - (copW - cell) / 2.0);
-            int drawY = (int) Math.round(cop.y * cell - cameraY - (copH - cell));
-            g.drawImage(npcCopSprite, drawX, drawY, copW, copH, null);
-        }
-    }
-
-    private static final class CopNpc {
-        private double x;
-        private double y;
-        private int dir = -1;
-
-        private CopNpc(double x, double y) {
-            this.x = x;
-            this.y = y;
-        }
     }
 
     private void renderLoadingScreen(String text) {

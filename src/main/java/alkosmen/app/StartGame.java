@@ -33,35 +33,12 @@ public class StartGame {
     public static void main(String[] args) {
         LOGGER.log(System.Logger.Level.INFO, "Start game...");
 
-        Properties aProperties = new Properties();
         try (var in = StartGame.class.getResourceAsStream("/alkosmen/config.properties")) {
-            if (in == null) {
-                throw new RuntimeException("Config not found: /alkosmen/config.properties");
-            }
-            aProperties.load(in);
-
-            Constants.Height = Integer.parseInt(aProperties.getProperty("Height"));
-            Constants.Width = Integer.parseInt(aProperties.getProperty("Width"));
-            Constants.Size = Integer.parseInt(aProperties.getProperty("Size"));
-            Constants.Font = aProperties.getProperty("Font");
-
+            Properties aProperties = loadProperties(in);
+            applyConstants(aProperties);
             MidiPlayer midi = new MidiPlayer();
             applyMenuMusic(midi);
-
-            JFrame frame = new JFrame(Constants.Title);
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
-            frame.addWindowListener(new java.awt.event.WindowAdapter() {
-                @Override
-                public void windowClosing(java.awt.event.WindowEvent e) {
-                    midi.stop();
-                }
-            });
-
-            frame.setContentPane(new alkosmen.service.BackgroundPanel());
-            frame.getContentPane().setLayout(null);
-            frame.setSize(Constants.Width, Constants.Height);
-            frame.setResizable(false);
+            JFrame frame = createMenuFrame(midi);
 
             PixelButton start = new PixelButton("Start");
             PixelButton settings = new PixelButton("Settings");
@@ -87,14 +64,49 @@ public class StartGame {
             frame.getContentPane().add(start);
             frame.getContentPane().add(settings);
             frame.getContentPane().add(exit);
-
-            frame.setLocationRelativeTo(null);
-            frame.setVisible(true);
+            showFrame(frame);
 
         } catch (Exception e) {
             LOGGER.log(System.Logger.Level.ERROR, "Start error", e);
             e.printStackTrace();
         }
+    }
+
+    private static Properties loadProperties(java.io.InputStream in) throws Exception {
+        if (in == null) {
+            throw new RuntimeException("Config not found: /alkosmen/config.properties");
+        }
+        Properties properties = new Properties();
+        properties.load(in);
+        return properties;
+    }
+
+    private static void applyConstants(Properties properties) {
+        Constants.Height = Integer.parseInt(properties.getProperty("Height"));
+        Constants.Width = Integer.parseInt(properties.getProperty("Width"));
+        Constants.Size = Integer.parseInt(properties.getProperty("Size"));
+        Constants.Font = properties.getProperty("Font");
+    }
+
+    private static JFrame createMenuFrame(MidiPlayer midi) {
+        JFrame frame = new JFrame(Constants.Title);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                midi.stop();
+            }
+        });
+        frame.setContentPane(new alkosmen.service.BackgroundPanel());
+        frame.getContentPane().setLayout(null);
+        frame.setSize(Constants.Width, Constants.Height);
+        frame.setResizable(false);
+        return frame;
+    }
+
+    private static void showFrame(JFrame frame) {
+        frame.setLocationRelativeTo(null);
+        frame.setVisible(true);
     }
 
     private static void positionMenuButtons(PixelButton start, PixelButton settings, PixelButton exit) {
@@ -176,7 +188,7 @@ public class StartGame {
         frame.addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent e) {
-                Game.stopGame();
+                g.stopGame();
             }
         });
 
