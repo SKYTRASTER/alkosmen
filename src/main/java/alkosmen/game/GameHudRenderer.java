@@ -22,6 +22,8 @@ public final class GameHudRenderer {
             int level,
             int score,
             int bottleGoal,
+            int lives,
+            int maxLives,
             boolean hidden,
             boolean gameOver,
             long lastCaughtAt,
@@ -48,21 +50,25 @@ public final class GameHudRenderer {
         g.setFont(new Font("Monospaced", Font.BOLD, 18));
         g.setColor(score >= bottleGoal ? new Color(120, 220, 120) : new Color(220, 210, 170));
         g.drawString("BOTTLES " + score + "/" + bottleGoal, 260, y + 35);
+
+        g.setColor(lives > 1 ? new Color(140, 220, 140) : new Color(255, 140, 120));
+        g.drawString("LIVES " + lives + "/" + maxLives, 500, y + 35);
+
         if (score >= bottleGoal) {
             g.setColor(new Color(120, 220, 120));
             g.drawString("YOU WIN!!!", 470, y + 35);
         }
         if (hidden) {
             g.setColor(new Color(150, 220, 255));
-            g.drawString("HIDING", 620, y + 35);
+            g.drawString("HIDING", 700, y + 35);
         }
         if (now - lastCaughtAt < caughtTextMs) {
             g.setColor(new Color(255, 140, 120));
-            g.drawString("CAUGHT BY COP", 730, y + 35);
+            g.drawString("CAUGHT BY COP", 790, y + 35);
         }
         if (gameOver) {
             g.setColor(new Color(255, 90, 90));
-            g.drawString("GAME OVER", 730, y + 35);
+            g.drawString("GAME OVER", 790, y + 35);
         }
     }
 

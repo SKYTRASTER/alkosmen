@@ -26,6 +26,7 @@ import java.awt.image.BufferStrategy;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URL;
+import java.util.concurrent.ThreadLocalRandom;
 
 public final class Game extends Canvas implements Runnable {
     private int currentLevel = 1;
@@ -63,6 +64,8 @@ public final class Game extends Canvas implements Runnable {
     private Image npcBoy1Sprite;
     private Image npcBoy2Sprite;
     private Image npcCopSprite;
+    private Image[] copWalkLeftFrames;
+    private Image[] copWalkRightFrames;
     private MidiPlayer levelMidi;
 
     private float cameraX;
@@ -73,6 +76,8 @@ public final class Game extends Canvas implements Runnable {
     private int playerSpawnY;
     private boolean hidePressed;
     private boolean gameOver;
+    private int lives = MAX_LIVES;
+    private boolean spectatorMode;
 
     private static final double MOVE_SPEED = 0.12;
     private static final double GRAVITY = 0.035;
@@ -94,6 +99,10 @@ public final class Game extends Canvas implements Runnable {
     private static final long COP_CAUGHT_COOLDOWN_MS = 900;
     private static final long COP_CAUGHT_TEXT_MS = 1200;
     private static final long FRAME_DELAY_MS = 16L;
+    private static final int MAX_LIVES = 3;
+    private static final int DEMO_RANDOM_COPS = 12;
+    private static final int DEMO_RANDOM_COP_ATTEMPTS = 800;
+    private static final int COP_WALK_FRAME_COUNT = 8;
 
     @Override
     public void run() {
@@ -151,11 +160,15 @@ public final class Game extends Canvas implements Runnable {
                 "/alkosmen/images/objects/boy/boy2.png"
         );
         npcCopSprite = loadImageResource("/alkosmen/images/objects/cop/copdown0.png");
+        copWalkLeftFrames = loadCopTrackFrames("walk_left");
+        copWalkRightFrames = loadCopTrackFrames("walk_right");
         stepSound = new SoundEffectPlayer("/alkosmen/sounds/step.wav");
         jumpSound = new SoundEffectPlayer("/alkosmen/sounds/jump.wav");
         bottleCollectSound = new SoundEffectPlayer("/alkosmen/sounds/scratch_bottle.wav");
         levelMidi = new MidiPlayer();
-        levelMidi.playLoop("/alkosmen/sounds/Caribbean-Blue.mid", 70);
+        if (Constants.GameMusicEnabled) {
+            levelMidi.playLoop("/alkosmen/sounds/Caribbean-Blue.mid", 70);
+        }
         playerSprites = getAlkobotImages();
         renderLoadingScreen("Loading level...");
 
@@ -171,48 +184,57 @@ public final class Game extends Canvas implements Runnable {
             lastOnGroundAt = now;
         }
 
-        double targetVx = 0.0;
-        if (leftPressed && !rightPressed) {
-            targetVx = -MOVE_SPEED;
-            playerDir = 0;
-        } else if (rightPressed && !leftPressed) {
-            targetVx = MOVE_SPEED;
-            playerDir = 1;
-        } else {
-            playerDir = 2;
-        }
-        player.vx = targetVx;
+        if (!spectatorMode) {
+            double targetVx = 0.0;
+            if (leftPressed && !rightPressed) {
+                targetVx = -MOVE_SPEED;
+                playerDir = 0;
+            } else if (rightPressed && !leftPressed) {
+                targetVx = MOVE_SPEED;
+                playerDir = 1;
+            } else {
+                playerDir = 2;
+            }
+            player.vx = targetVx;
 
-        boolean hasBufferedJump = jumpQueued || now <= jumpBufferUntil;
-        boolean canJumpNow = player.onGround || (now - lastOnGroundAt <= COYOTE_TIME_MS);
-        if (hasBufferedJump && canJumpNow) {
-            // Initial jump impulse applies only from ground.
-            player.vy = JUMP_SPEED;
-            player.onGround = false;
-            jumpSound.play();
-            lastOnGroundAt = 0L;
-            jumpBufferUntil = 0L;
-        }
-        jumpQueued = false;
+            boolean hasBufferedJump = jumpQueued || now <= jumpBufferUntil;
+            boolean canJumpNow = player.onGround || (now - lastOnGroundAt <= COYOTE_TIME_MS);
+            if (hasBufferedJump && canJumpNow) {
+                // Initial jump impulse applies only from ground.
+                player.vy = JUMP_SPEED;
+                player.onGround = false;
+                jumpSound.play();
+                lastOnGroundAt = 0L;
+                jumpBufferUntil = 0L;
+            }
+            jumpQueued = false;
 
-        double gravityStep = GRAVITY;
-        if (jumpPressed && player.vy < 0) {
-            // Variable jump height: hold key to jump a bit higher.
-            gravityStep *= JUMP_HOLD_GRAVITY_MULT;
-        }
-        player.vy = Math.min(MAX_FALL_SPEED, player.vy + gravityStep);
+            double gravityStep = GRAVITY;
+            if (jumpPressed && player.vy < 0) {
+                // Variable jump height: hold key to jump a bit higher.
+                gravityStep *= JUMP_HOLD_GRAVITY_MULT;
+            }
+            player.vy = Math.min(MAX_FALL_SPEED, player.vy + gravityStep);
 
-        moveHorizontal(player.vx);
-        moveVertical(player.vy);
+            moveHorizontal(player.vx);
+            moveVertical(player.vy);
+        }
 
         animatePlayer();
-        CopSystem.Outcome copOutcome = copSystem.tick(levelMap, player, isPlayerHidden(), now);
+        CopSystem.Outcome copOutcome = copSystem.tick(levelMap, player, isPlayerHidden(), now, spectatorMode);
         if (copOutcome == CopSystem.Outcome.GAME_OVER) {
+            lives = 0;
             gameOver = true;
             running = false;
             return;
         }
         if (copOutcome == CopSystem.Outcome.CAUGHT) {
+            lives = Math.max(0, lives - 1);
+            if (lives == 0) {
+                gameOver = true;
+                running = false;
+                return;
+            }
             respawnPlayer();
         }
         updateCamera();
@@ -296,8 +318,10 @@ public final class Game extends Canvas implements Runnable {
 
     private void updateCamera() {
         int cell = Constants.Size;
-        float worldPx = (float) (player.x * cell);
-        float worldPy = (float) (player.y * cell);
+        double focusX = spectatorMode && copSystem.hasCops() ? copSystem.getFocusX() : player.x;
+        double focusY = spectatorMode && copSystem.hasCops() ? copSystem.getFocusY() : player.y;
+        float worldPx = (float) (focusX * cell);
+        float worldPy = (float) (focusY * cell);
         int gameplayHeight = Math.max(1, getHeight() - HUD_HEIGHT);
 
         int mapPxW = levelMap[0].length * cell;
@@ -379,7 +403,22 @@ public final class Game extends Canvas implements Runnable {
             }
         }
 
-        if (player != null && playerSprites != null) {
+        if (levelMap != null) {
+            int cell = Constants.Size;
+            copSystem.draw(
+                    g,
+                    cell,
+                    NPC_SCALE,
+                    npcCopSprite,
+                    copWalkLeftFrames,
+                    copWalkRightFrames,
+                    cameraX,
+                    cameraY,
+                    System.currentTimeMillis()
+            );
+        }
+
+        if (!spectatorMode && player != null && playerSprites != null) {
             int cell = Constants.Size;
             int playerW = (int) Math.round(cell * PLAYER_SCALE);
             int playerH = (int) Math.round(cell * PLAYER_SCALE);
@@ -389,7 +428,6 @@ public final class Game extends Canvas implements Runnable {
             if (drawY > maxPlayerY) {
                 drawY = maxPlayerY;
             }
-            copSystem.draw(g, cell, NPC_SCALE, npcCopSprite, cameraX, cameraY);
             Image[] track = playerSprites[playerDir];
             Image img = track[Math.floorMod(animFrame, track.length)];
             // Hidden player remains visible with low alpha for gameplay readability.
@@ -410,6 +448,8 @@ public final class Game extends Canvas implements Runnable {
                 currentLevel,
                 score,
                 bottleGoal,
+                lives,
+                MAX_LIVES,
                 isPlayerHidden(),
                 gameOver,
                 copSystem.getLastCaughtAt(),
@@ -428,7 +468,7 @@ public final class Game extends Canvas implements Runnable {
                 switch (e.getKeyCode()) {
                     case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = true;
                     case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = true;
-                    case KeyEvent.VK_SPACE, KeyEvent.VK_W, KeyEvent.VK_UP -> {
+                    case KeyEvent.VK_SPACE -> {
                         jumpPressed = true;
                         jumpQueued = true;
                         jumpBufferUntil = System.currentTimeMillis() + JUMP_BUFFER_MS;
@@ -448,7 +488,7 @@ public final class Game extends Canvas implements Runnable {
                 switch (e.getKeyCode()) {
                     case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = false;
                     case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = false;
-                    case KeyEvent.VK_SPACE, KeyEvent.VK_W, KeyEvent.VK_UP -> jumpPressed = false;
+                    case KeyEvent.VK_SPACE -> jumpPressed = false;
                     case KeyEvent.VK_S, KeyEvent.VK_DOWN -> hidePressed = false;
                     default -> {
                     }
@@ -580,6 +620,15 @@ public final class Game extends Canvas implements Runnable {
         return frames;
     }
 
+    private Image[] loadCopTrackFrames(String trackName) {
+        Image[] frames = new Image[COP_WALK_FRAME_COUNT];
+        for (int i = 0; i < frames.length; i++) {
+            String framePath = String.format("/alkosmen/images/objects/cop/male/%s/%02d.png", trackName, i);
+            frames[i] = loadImageResource(framePath);
+        }
+        return frames;
+    }
+
     private void loadLevel(int level) throws Exception {
         if (level < 1 || level > LEVELS.length) {
             throw new IllegalArgumentException("Bad level: " + level);
@@ -627,6 +676,11 @@ public final class Game extends Canvas implements Runnable {
             throw new RuntimeException("No 'P' (player start) in map: " + path);
         }
 
+        spectatorMode = !copSystem.hasCops();
+        if (spectatorMode) {
+            spawnRandomCops(DEMO_RANDOM_COPS);
+        }
+
         playerDir = 2;
         animFrame = 0;
         cameraX = 0;
@@ -637,6 +691,7 @@ public final class Game extends Canvas implements Runnable {
         lastOnGroundAt = 0L;
         hidePressed = false;
         gameOver = false;
+        lives = MAX_LIVES;
 
         Window w = SwingUtilities.getWindowAncestor(this);
         if (w != null) {
@@ -671,8 +726,29 @@ public final class Game extends Canvas implements Runnable {
     }
 
     private boolean isPlayerHidden() {
+        if (spectatorMode) {
+            return false;
+        }
         // Player can hide only while standing still on ground and holding hide key.
         return hidePressed && player != null && Math.abs(player.vx) < 0.0001 && player.onGround;
+    }
+
+    private void spawnRandomCops(int targetCount) {
+        int h = levelMap.length;
+        int w = levelMap[0].length;
+        int added = 0;
+        for (int i = 0; i < DEMO_RANDOM_COP_ATTEMPTS && added < targetCount; i++) {
+            int x = ThreadLocalRandom.current().nextInt(1, Math.max(2, w - 1));
+            int y = ThreadLocalRandom.current().nextInt(1, Math.max(2, h - 1));
+            if (levelMap[y][x] != '.') {
+                continue;
+            }
+            if (y + 1 >= h || levelMap[y + 1][x] != '#') {
+                continue;
+            }
+            copSystem.addCop(x, y);
+            added++;
+        }
     }
 
     private void renderLoadingScreen(String text) {

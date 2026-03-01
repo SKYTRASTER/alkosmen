@@ -28,8 +28,6 @@ public class StartGame {
             "1920x1080"
     };
 
-    private static boolean menuMusicEnabled = true;
-
     public static void main(String[] args) {
         LOGGER.log(System.Logger.Level.INFO, "Start game...");
 
@@ -86,6 +84,12 @@ public class StartGame {
         Constants.Width = Integer.parseInt(properties.getProperty("Width"));
         Constants.Size = Integer.parseInt(properties.getProperty("Size"));
         Constants.Font = properties.getProperty("Font");
+        Constants.MenuMusicEnabled = Boolean.parseBoolean(
+                properties.getProperty("MenuMusicEnabled", String.valueOf(Constants.MenuMusicEnabled))
+        );
+        Constants.GameMusicEnabled = Boolean.parseBoolean(
+                properties.getProperty("GameMusicEnabled", String.valueOf(Constants.GameMusicEnabled))
+        );
     }
 
     private static JFrame createMenuFrame(MidiPlayer midi) {
@@ -132,8 +136,11 @@ public class StartGame {
         resolutionBox.setSelectedItem(current);
         panel.add(resolutionBox);
 
-        JCheckBox menuMusicBox = new JCheckBox("Enable menu music", menuMusicEnabled);
+        JCheckBox menuMusicBox = new JCheckBox("Enable menu music", Constants.MenuMusicEnabled);
         panel.add(menuMusicBox);
+
+        JCheckBox gameMusicBox = new JCheckBox("Enable game background music", Constants.GameMusicEnabled);
+        panel.add(gameMusicBox);
 
         int result = JOptionPane.showConfirmDialog(
                 frame,
@@ -159,12 +166,13 @@ public class StartGame {
             frame.setLocationRelativeTo(null);
         }
 
-        menuMusicEnabled = menuMusicBox.isSelected();
+        Constants.MenuMusicEnabled = menuMusicBox.isSelected();
+        Constants.GameMusicEnabled = gameMusicBox.isSelected();
         applyMenuMusic(midi);
     }
 
     private static void applyMenuMusic(MidiPlayer midi) {
-        if (menuMusicEnabled) {
+        if (Constants.MenuMusicEnabled) {
             midi.playLoop(MENU_TRACK);
         } else {
             midi.stop();

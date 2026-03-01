@@ -11,4 +11,6 @@ public class Constants {
     public static int Height;
     public static int Size;
     public static String Font;
+    public static boolean MenuMusicEnabled = false;
+    public static boolean GameMusicEnabled = false;
 }

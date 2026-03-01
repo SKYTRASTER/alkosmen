@@ -6,11 +6,13 @@ import java.awt.Graphics;
 import java.awt.Image;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 public final class CopSystem {
     private static final double COLLISION_X = 0.55;
     private static final double COLLISION_Y = 0.75;
     private static final double LANE_TOLERANCE = 0.75;
+    private static final long WALK_FRAME_MS = 90L;
 
     private final List<CopNpc> cops = new ArrayList<>();
     private final double speed;
@@ -39,8 +41,11 @@ public final class CopSystem {
         return lastCaughtAt;
     }
 
-    public Outcome tick(char[][] levelMap, Player player, boolean playerHidden, long now) {
+    public Outcome tick(char[][] levelMap, Player player, boolean playerHidden, long now, boolean observerMode) {
         updatePatrol(levelMap);
+        if (observerMode) {
+            return Outcome.NONE;
+        }
         if (hasCollision(player)) {
             return Outcome.GAME_OVER;
         }
@@ -56,21 +61,55 @@ public final class CopSystem {
         return Outcome.NONE;
     }
 
-    public void draw(Graphics g, int cell, double npcScale, Image npcSprite, float cameraX, float cameraY) {
+    public void draw(
+            Graphics g,
+            int cell,
+            double npcScale,
+            Image npcSprite,
+            Image[] walkLeftFrames,
+            Image[] walkRightFrames,
+            float cameraX,
+            float cameraY,
+            long now
+    ) {
         if (npcSprite == null) {
             return;
         }
+        int frameIndex = Math.floorMod((int) (now / WALK_FRAME_MS), 8);
+        boolean hasLeftFrames = walkLeftFrames != null && walkLeftFrames.length > 0;
+        boolean hasRightFrames = walkRightFrames != null && walkRightFrames.length > 0;
         for (CopNpc cop : cops) {
             int copW = (int) Math.round(cell * npcScale);
             int copH = (int) Math.round(cell * npcScale);
             int drawX = (int) Math.round(cop.x * cell - cameraX - (copW - cell) / 2.0);
             int drawY = (int) Math.round(cop.y * cell - cameraY - (copH - cell));
-            g.drawImage(npcSprite, drawX, drawY, copW, copH, null);
+            Image sprite = npcSprite;
+            if (cop.dir < 0 && hasLeftFrames) {
+                sprite = walkLeftFrames[Math.floorMod(frameIndex, walkLeftFrames.length)];
+            } else if (cop.dir > 0 && hasRightFrames) {
+                sprite = walkRightFrames[Math.floorMod(frameIndex, walkRightFrames.length)];
+            }
+            g.drawImage(sprite, drawX, drawY, copW, copH, null);
         }
+    }
+
+    public boolean hasCops() {
+        return !cops.isEmpty();
+    }
+
+    public double getFocusX() {
+        return cops.isEmpty() ? 0.0 : cops.get(0).x;
+    }
+
+    public double getFocusY() {
+        return cops.isEmpty() ? 0.0 : cops.get(0).y;
     }
 
     private void updatePatrol(char[][] levelMap) {
         for (CopNpc cop : cops) {
+            if (ThreadLocalRandom.current().nextDouble() < 0.012) {
+                cop.dir *= -1;
+            }
             double nx = cop.x + cop.dir * speed;
             if (isBlocked(levelMap, nx, cop.y)) {
                 cop.dir *= -1;
