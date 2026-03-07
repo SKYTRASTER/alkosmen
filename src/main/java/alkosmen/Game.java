@@ -46,7 +46,6 @@ public final class Game extends Canvas implements Runnable {
 
     private boolean leftPressed;
     private boolean rightPressed;
-    private boolean runPressed;
     private boolean jumpPressed;
     private boolean jumpQueued;
     private long jumpBufferUntil;
@@ -81,7 +80,6 @@ public final class Game extends Canvas implements Runnable {
     private boolean spectatorMode;
 
     private static final double MOVE_SPEED = 0.12;
-    private static final double RUN_MULTIPLIER = 2.6;
     private static final double GRAVITY = 0.035;
     private static final double JUMP_SPEED = -0.68;
     private static final double MAX_FALL_SPEED = 0.9;
@@ -188,12 +186,11 @@ public final class Game extends Canvas implements Runnable {
 
         if (!spectatorMode) {
             double targetVx = 0.0;
-            double speed = runPressed ? MOVE_SPEED * RUN_MULTIPLIER : MOVE_SPEED;
             if (leftPressed && !rightPressed) {
-                targetVx = -speed;
+                targetVx = -MOVE_SPEED;
                 playerDir = 0;
             } else if (rightPressed && !leftPressed) {
-                targetVx = speed;
+                targetVx = MOVE_SPEED;
                 playerDir = 1;
             } else {
                 playerDir = 2;
@@ -307,14 +304,6 @@ public final class Game extends Canvas implements Runnable {
             return;
         }
         if (isWalking && now - lastAnim > 90) {
-            if (runPressed) {
-                animFrame = (animFrame + 1) % frameCount;
-                lastAnim = now;
-                if ((animFrame % 2) == 0) {
-                    stepSound.play();
-                }
-                return;
-            }
             animFrame = (animFrame + 1) % frameCount;
             lastAnim = now;
             if ((animFrame % 3) == 0) {
@@ -479,8 +468,7 @@ public final class Game extends Canvas implements Runnable {
                 switch (e.getKeyCode()) {
                     case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = true;
                     case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = true;
-                    case KeyEvent.VK_SHIFT -> runPressed = true;
-                    case KeyEvent.VK_SPACE, KeyEvent.VK_W, KeyEvent.VK_UP -> {
+                    case KeyEvent.VK_SPACE -> {
                         jumpPressed = true;
                         jumpQueued = true;
                         jumpBufferUntil = System.currentTimeMillis() + JUMP_BUFFER_MS;
@@ -500,8 +488,7 @@ public final class Game extends Canvas implements Runnable {
                 switch (e.getKeyCode()) {
                     case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = false;
                     case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = false;
-                    case KeyEvent.VK_SHIFT -> runPressed = false;
-                    case KeyEvent.VK_SPACE, KeyEvent.VK_W, KeyEvent.VK_UP -> jumpPressed = false;
+                    case KeyEvent.VK_SPACE -> jumpPressed = false;
                     case KeyEvent.VK_S, KeyEvent.VK_DOWN -> hidePressed = false;
                     default -> {
                     }
@@ -733,7 +720,6 @@ public final class Game extends Canvas implements Runnable {
         player.onGround = false;
         leftPressed = false;
         rightPressed = false;
-        runPressed = false;
         jumpPressed = false;
         jumpQueued = false;
         hidePressed = false;

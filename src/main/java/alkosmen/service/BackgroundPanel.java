@@ -47,7 +47,6 @@ public class BackgroundPanel extends JPanel {
 
         drawBackgroundCover(g2, w, h);
         drawAtmospherePass(g2, w, h);
-        drawMenuGlassPanel(g2, w, h);
 
         g2.dispose();
     }
@@ -101,32 +100,4 @@ public class BackgroundPanel extends JPanel {
         g2.fillRect(0, 0, (int) (w * 0.22), h);
     }
 
-    private void drawMenuGlassPanel(Graphics2D g2, int w, int h) {
-        int panelW = clamp((int) (w * 0.34), 350, 470);
-        int panelH = clamp((int) (h * 0.60), 360, 500);
-        int panelX = Math.max(22, (int) (w * 0.03));
-        int panelY = clamp((int) (h * 0.14), 80, h - panelH - 26);
-
-        GradientPaint glassFill = new GradientPaint(
-                panelX,
-                panelY,
-                new Color(8, 18, 24, 130),
-                panelX,
-                panelY + panelH,
-                new Color(6, 12, 18, 185)
-        );
-
-        g2.setPaint(glassFill);
-        g2.fillRoundRect(panelX, panelY, panelW, panelH, 28, 28);
-
-        g2.setColor(new Color(110, 210, 196, 165));
-        g2.drawRoundRect(panelX, panelY, panelW - 1, panelH - 1, 28, 28);
-
-        g2.setColor(new Color(150, 235, 223, 70));
-        g2.drawRoundRect(panelX + 3, panelY + 3, panelW - 7, panelH - 7, 24, 24);
-    }
-
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
 }

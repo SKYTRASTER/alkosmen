@@ -70,28 +70,34 @@ public class PixelButton extends JButton {
         int h = getHeight();
         boolean focused = hasFocus();
 
-        Color top = new Color(10, 20, 24, 185);
-        Color bottom = new Color(5, 12, 16, 210);
-        Color border = new Color(88, 195, 175, 235);
-        Color inner = new Color(120, 230, 210, 130);
+        Color glow = new Color(95, 70, 220, 40);
+        Color top = new Color(10, 10, 24, 176);
+        Color bottom = new Color(4, 8, 18, 214);
+        Color border = new Color(90, 214, 244, 205);
+        Color inner = new Color(196, 112, 255, 88);
 
         if (hover || focused) {
-            top = new Color(14, 30, 36, 205);
-            bottom = new Color(8, 18, 24, 225);
-            border = new Color(124, 231, 210, 245);
-            inner = new Color(155, 250, 232, 170);
+            glow = new Color(120, 88, 255, 86);
+            top = new Color(14, 14, 34, 204);
+            bottom = new Color(6, 10, 26, 232);
+            border = new Color(138, 242, 255, 245);
+            inner = new Color(220, 142, 255, 154);
         }
         if (pressed) {
-            top = new Color(6, 13, 16, 220);
-            bottom = new Color(3, 8, 12, 235);
-            border = new Color(76, 170, 154, 245);
-            inner = new Color(120, 220, 204, 135);
+            glow = new Color(72, 60, 170, 54);
+            top = new Color(7, 8, 18, 214);
+            bottom = new Color(2, 5, 12, 238);
+            border = new Color(112, 214, 236, 230);
+            inner = new Color(176, 116, 232, 112);
         }
+
+        g2.setColor(glow);
+        g2.fillRoundRect(-2, -2, w + 4, h + 4, 18, 18);
 
         g2.setPaint(new GradientPaint(0, 0, top, 0, h, bottom));
         g2.fillRoundRect(0, 0, w, h, 14, 14);
 
-        g2.setColor(new Color(0, 0, 0, 65));
+        g2.setColor(new Color(0, 0, 0, 54));
         g2.fillRoundRect(3, 4, Math.max(0, w - 6), Math.max(0, h - 6), 12, 12);
 
         g2.setColor(border);
@@ -103,7 +109,7 @@ public class PixelButton extends JButton {
         g2.drawRoundRect(4, 4, w - 9, h - 9, 10, 10);
 
         if (focused) {
-            g2.setColor(new Color(182, 255, 244, 180));
+            g2.setColor(new Color(180, 255, 248, 195));
             g2.setStroke(new BasicStroke(2f));
             g2.drawRoundRect(-2, -2, w + 3, h + 3, 16, 16);
         }
@@ -113,8 +119,8 @@ public class PixelButton extends JButton {
         int tx = (w - fm.stringWidth(text)) / 2;
         int ty = (h - fm.getHeight()) / 2 + fm.getAscent();
 
-        g2.setColor(new Color(0, 0, 0, 185));
-        g2.drawString(text, tx + 1, ty + 2);
+        g2.setColor(new Color(0, 0, 0, 170));
+        g2.drawString(text, tx + 1, ty + 1);
         g2.setColor(getForeground());
         g2.drawString(text, tx, ty);
 
