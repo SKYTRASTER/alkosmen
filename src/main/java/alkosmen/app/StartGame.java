@@ -38,9 +38,9 @@ public class StartGame {
             applyMenuMusic(midi);
             JFrame frame = createMenuFrame(midi);
 
-            PixelButton start = new PixelButton("Start");
-            PixelButton settings = new PixelButton("Settings");
-            PixelButton exit = new PixelButton("Exit");
+            PixelButton start = new PixelButton("Старт");
+            PixelButton settings = new PixelButton("Настройки");
+            PixelButton exit = new PixelButton("Выход");
 
             positionMenuButtons(start, settings, exit);
 
@@ -129,23 +129,23 @@ public class StartGame {
             PixelButton exit
     ) {
         JPanel panel = new JPanel(new GridLayout(0, 1, 6, 6));
-        panel.add(new JLabel("Resolution"));
+        panel.add(new JLabel("Разрешение"));
 
         JComboBox<String> resolutionBox = new JComboBox<>(RESOLUTIONS);
         String current = Constants.Width + "x" + Constants.Height;
         resolutionBox.setSelectedItem(current);
         panel.add(resolutionBox);
 
-        JCheckBox menuMusicBox = new JCheckBox("Enable menu music", Constants.MenuMusicEnabled);
+        JCheckBox menuMusicBox = new JCheckBox("Музыка в меню", Constants.MenuMusicEnabled);
         panel.add(menuMusicBox);
 
-        JCheckBox gameMusicBox = new JCheckBox("Enable game background music", Constants.GameMusicEnabled);
+        JCheckBox gameMusicBox = new JCheckBox("Фоновая музыка в игре", Constants.GameMusicEnabled);
         panel.add(gameMusicBox);
 
         int result = JOptionPane.showConfirmDialog(
                 frame,
                 panel,
-                "Settings",
+                "Настройки",
                 JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE
         );
