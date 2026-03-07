@@ -41,7 +41,7 @@ public final class Game extends Canvas implements Runnable {
             "/alkosmen/maps/demo_level.txt"
     };
     private static final String[] LEVEL_BACKGROUNDS = {
-            "/alkosmen/images/objects/maps/demo_map.png"
+            "/alkosmen/images/objects/maps/demo_map_grid_48x32.png"
     };
 
     private boolean leftPressed;
