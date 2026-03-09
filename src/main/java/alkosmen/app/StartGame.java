@@ -1,6 +1,9 @@
 package alkosmen.app;
 
 import alkosmen.Game;
+import alkosmen.app.menu.settings.MenuSettingsApplier;
+import alkosmen.app.menu.settings.MenuSettingsDialog;
+import alkosmen.app.menu.settings.MenuSettingsState;
 import alkosmen.audio.MidiPlayer;
 import alkosmen.settings.Constants;
 import alkosmen.ui.PixelButton;
@@ -8,12 +11,9 @@ import alkosmen.ui.PixelButton;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -23,7 +23,6 @@ import java.awt.Font;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.RenderingHints;
 import java.net.URL;
@@ -34,13 +33,6 @@ public class StartGame {
 
     private static final String MENU_TRACK = "/alkosmen/sounds/Golden-Brown.mid";
     private static final String MENU_LOGO = "/alkosmen/ui/menu/alkosmeny_title_logo_v1_transparent.png";
-    private static final String[] RESOLUTIONS = {
-            "1024x576",
-            "1280x720",
-            "1366x768",
-            "1600x900",
-            "1920x1080"
-    };
 
     public static void main(String[] args) {
         LOGGER.log(System.Logger.Level.INFO, "Start game...");
@@ -53,9 +45,9 @@ public class StartGame {
             applyMenuMusic(midi);
             JFrame frame = createMenuFrame(midi);
 
-            PixelButton start = new PixelButton("Старт");
-            PixelButton settings = new PixelButton("Настройки");
-            PixelButton exit = new PixelButton("Выход");
+            PixelButton start = new PixelButton("РЎС‚Р°СЂС‚");
+            PixelButton settings = new PixelButton("РќР°СЃС‚СЂРѕР№РєРё");
+            PixelButton exit = new PixelButton("Р’С‹С…РѕРґ");
             JPanel menuButtons = createMenuButtonsPanel(start, settings, exit);
 
             start.addActionListener(e -> {
@@ -154,7 +146,7 @@ public class StartGame {
         menuShell.setLayout(new BoxLayout(menuShell, BoxLayout.Y_AXIS));
         menuShell.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
 
-        JLabel subtitle = new JLabel("Ночной патруль похмельного героя");
+        JLabel subtitle = new JLabel("РќРѕС‡РЅРѕР№ РїР°С‚СЂСѓР»СЊ РїРѕС…РјРµР»СЊРЅРѕРіРѕ РіРµСЂРѕСЏ");
         subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
         subtitle.setForeground(new Color(148, 178, 214));
         subtitle.setFont(new Font("Dialog", Font.BOLD, 16));
@@ -195,7 +187,7 @@ public class StartGame {
     private static JLabel createMenuLogoLabel() {
         URL logoUrl = StartGame.class.getResource(MENU_LOGO);
         if (logoUrl == null) {
-            JLabel fallback = new JLabel("АЛКОСМЕНЫ");
+            JLabel fallback = new JLabel("РђР›РљРћРЎРњР•РќР«");
             fallback.setForeground(new Color(226, 244, 240));
             fallback.setFont(new Font("Dialog", Font.BOLD, 36));
             return fallback;
@@ -247,48 +239,18 @@ public class StartGame {
     }
 
     private static void openSettings(JFrame frame, MidiPlayer midi) {
-        JPanel panel = new JPanel(new GridLayout(0, 1, 6, 6));
-        panel.add(new JLabel("Разрешение"));
-
-        JComboBox<String> resolutionBox = new JComboBox<>(RESOLUTIONS);
-        String current = Constants.Width + "x" + Constants.Height;
-        resolutionBox.setSelectedItem(current);
-        panel.add(resolutionBox);
-
-        JCheckBox menuMusicBox = new JCheckBox("Музыка в меню", Constants.MenuMusicEnabled);
-        panel.add(menuMusicBox);
-
-        JCheckBox gameMusicBox = new JCheckBox("Фоновая музыка в игре", Constants.GameMusicEnabled);
-        panel.add(gameMusicBox);
-
-        int result = JOptionPane.showConfirmDialog(
-                frame,
-                panel,
-                "Настройки",
-                JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE
+        MenuSettingsState currentSettings = new MenuSettingsState(
+                Constants.Width,
+                Constants.Height,
+                Constants.MenuMusicEnabled,
+                Constants.GameMusicEnabled
         );
-
-        if (result != JOptionPane.OK_OPTION) {
+        MenuSettingsState updatedSettings = MenuSettingsDialog.show(frame, currentSettings);
+        if (updatedSettings == null) {
             return;
         }
 
-        String selected = (String) resolutionBox.getSelectedItem();
-        if (selected != null && selected.contains("x")) {
-            String[] parts = selected.split("x");
-            Constants.Width = Integer.parseInt(parts[0]);
-            Constants.Height = Integer.parseInt(parts[1]);
-            frame.setSize(Constants.Width, Constants.Height);
-            for (Component component : frame.getContentPane().getComponents()) {
-                component.revalidate();
-            }
-            frame.revalidate();
-            frame.repaint();
-            frame.setLocationRelativeTo(null);
-        }
-
-        Constants.MenuMusicEnabled = menuMusicBox.isSelected();
-        Constants.GameMusicEnabled = gameMusicBox.isSelected();
+        MenuSettingsApplier.apply(updatedSettings, frame);
         applyMenuMusic(midi);
     }
 
@@ -332,3 +294,4 @@ public class StartGame {
         g.start();
     }
 }
+
