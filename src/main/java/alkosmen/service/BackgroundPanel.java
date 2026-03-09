@@ -14,16 +14,22 @@ import java.io.IOException;
 public class BackgroundPanel extends JPanel {
 
     // TODO: Replace with final art keeping the same aspect ratio for best framing.
-    private static final String PRIMARY_MENU_BG = "/alkosmen/ui/menu/main_menu_bg.png";
+    private static final String PRIMARY_MENU_BG = "/alkosmen/ui/versions/img.png";
     private static final String FALLBACK_MENU_BG = "/alkosmen/ui/menu_background.png";
+    private static final String MOZOL_OVERLAY = "/alkosmen/ui/menu/mozol_overlay.png";
+    private static final String EBOBO_OVERLAY = "/alkosmen/ui/menu/ebobo_overlay.png";
 
     private Image background;
+    private Image mozolOverlay;
+    private Image eboboOverlay;
 
     public BackgroundPanel() {
         background = loadBackground(PRIMARY_MENU_BG);
         if (background == null) {
             background = loadBackground(FALLBACK_MENU_BG);
         }
+        mozolOverlay = loadBackground(MOZOL_OVERLAY);
+        eboboOverlay = loadBackground(EBOBO_OVERLAY);
     }
 
     private static Image loadBackground(String path) {
@@ -47,6 +53,8 @@ public class BackgroundPanel extends JPanel {
 
         drawBackgroundCover(g2, w, h);
         drawAtmospherePass(g2, w, h);
+        drawMozolOverlay(g2, w, h);
+        drawEboboOverlay(g2, w, h);
 
         g2.dispose();
     }
@@ -99,6 +107,46 @@ public class BackgroundPanel extends JPanel {
         );
         g2.setPaint(edgeVignette);
         g2.fillRect(0, 0, vignetteW, h);
+    }
+
+    private void drawMozolOverlay(Graphics2D g2, int w, int h) {
+        if (mozolOverlay == null) {
+            return;
+        }
+
+        int srcW = mozolOverlay.getWidth(this);
+        int srcH = mozolOverlay.getHeight(this);
+        if (srcW <= 0 || srcH <= 0) {
+            return;
+        }
+
+        int margin = 20;
+        int targetH = Math.max(1, (int) Math.round(h * 0.22));
+        int targetW = Math.max(1, (int) Math.round((double) srcW * targetH / srcH));
+        int x = w - targetW - margin;
+        int y = h - targetH - margin;
+
+        g2.drawImage(mozolOverlay, x, y, targetW, targetH, this);
+    }
+
+    private void drawEboboOverlay(Graphics2D g2, int w, int h) {
+        if (eboboOverlay == null) {
+            return;
+        }
+
+        int srcW = eboboOverlay.getWidth(this);
+        int srcH = eboboOverlay.getHeight(this);
+        if (srcW <= 0 || srcH <= 0) {
+            return;
+        }
+
+        int margin = 20;
+        int targetH = Math.max(1, (int) Math.round(h * 0.24));
+        int targetW = Math.max(1, (int) Math.round((double) srcW * targetH / srcH));
+        int x = margin;
+        int y = h - targetH - margin;
+
+        g2.drawImage(eboboOverlay, x, y, targetW, targetH, this);
     }
 
 }
