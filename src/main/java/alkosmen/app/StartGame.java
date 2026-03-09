@@ -45,7 +45,7 @@ import java.util.Random;
 public class StartGame {
     static final System.Logger LOGGER = System.getLogger(StartGame.class.getName());
 
-    private static final String MENU_TRACK = "/alkosmen/sounds/Golden-Brown.mid";
+    private static final String MENU_TRACK = "/alkosmen/sounds/bomfunk_mcs-freestyler.mid";
     private static final String MENU_LOGO = "/alkosmen/ui/menu/alkosmeny_title_logo_v1_transparent.png";
     private static final String EBOBO_WALK_RIGHT_PATH = "/alkosmen/ui/intro/ebobo/walk_right";
     private static final String EBOBO_WALK_LEFT_PATH = "/alkosmen/ui/intro/ebobo/walk_left";
@@ -341,6 +341,8 @@ public class StartGame {
         final String[] activeSubtitle = {subtitleCues.isEmpty() ? "" : subtitleCues.get(0).text()};
         final int[] subtitleIndex = {0};
         final boolean subtitlesEnabled = introBool("intro.subtitles.enabled", false);
+        final int subtitlesOffsetMs = introInt("intro.sub.sync.offset.ms", 0);
+        final double subtitlesSyncSpeed = introDouble("intro.sub.sync.speed", 1.0);
         final long introStartedAt = System.currentTimeMillis();
         final Image[] eboboRight = loadAnimationTrack(EBOBO_WALK_RIGHT_PATH);
         final Image[] eboboLeft = loadAnimationTrack(EBOBO_WALK_LEFT_PATH);
@@ -461,7 +463,8 @@ public class StartGame {
         Timer introTimer = new Timer(scrollDelayMs, e -> {
             crawlOffset[0] += scrollStep;
             if (subtitlesEnabled && !subtitleCues.isEmpty()) {
-                long elapsed = System.currentTimeMillis() - introStartedAt;
+                long elapsedRaw = System.currentTimeMillis() - introStartedAt;
+                long elapsed = Math.max(0L, Math.round(elapsedRaw * subtitlesSyncSpeed) + subtitlesOffsetMs);
                 while (subtitleIndex[0] + 1 < subtitleCues.size()
                         && elapsed >= subtitleCues.get(subtitleIndex[0] + 1).timeMs()) {
                     subtitleIndex[0]++;
@@ -517,7 +520,7 @@ public class StartGame {
                     loading.dispose();
                 }
                 if (resumeMenuMusic) {
-                    menuMidi.playLoop(MENU_TRACK);
+                    applyMenuMusic(menuMidi);
                 }
             }
         });
@@ -533,7 +536,7 @@ public class StartGame {
                 loading.dispose();
             }
             if (resumeMenuMusic) {
-                menuMidi.playLoop(MENU_TRACK);
+                applyMenuMusic(menuMidi);
             }
         };
 
