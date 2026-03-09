@@ -2,6 +2,7 @@ package alkosmen.service;
 
 import javax.imageio.ImageIO;
 import javax.swing.JPanel;
+import javax.swing.Timer;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.GradientPaint;
@@ -10,6 +11,8 @@ import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.RenderingHints;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class BackgroundPanel extends JPanel {
 
@@ -17,11 +20,17 @@ public class BackgroundPanel extends JPanel {
     private static final String PRIMARY_MENU_BG = "/alkosmen/ui/versions/img.png";
     private static final String FALLBACK_MENU_BG = "/alkosmen/ui/menu_background.png";
     private static final String MOZOL_OVERLAY = "/alkosmen/ui/menu/mozol_overlay.png";
-    private static final String EBOBO_OVERLAY = "/alkosmen/ui/menu/ebobo_overlay.png";
+    private static final String EBOBO_WALK_RIGHT = "/alkosmen/ui/intro/ebobo/walk_right";
+    private static final String EBOBO_WALK_LEFT = "/alkosmen/ui/intro/ebobo/walk_left";
 
     private Image background;
     private Image mozolOverlay;
-    private Image eboboOverlay;
+    private Image[] eboboWalkRight;
+    private Image[] eboboWalkLeft;
+    private final Timer eboboTimer;
+    private int eboboX = -1;
+    private int eboboDirection = 1;
+    private int eboboFrame = 0;
 
     public BackgroundPanel() {
         background = loadBackground(PRIMARY_MENU_BG);
@@ -29,7 +38,14 @@ public class BackgroundPanel extends JPanel {
             background = loadBackground(FALLBACK_MENU_BG);
         }
         mozolOverlay = loadBackground(MOZOL_OVERLAY);
-        eboboOverlay = loadBackground(EBOBO_OVERLAY);
+        eboboWalkRight = loadAnimationTrack(EBOBO_WALK_RIGHT);
+        eboboWalkLeft = loadAnimationTrack(EBOBO_WALK_LEFT);
+
+        eboboTimer = new Timer(95, e -> {
+            advanceEboboAnimation();
+            repaint();
+        });
+        eboboTimer.setRepeats(true);
     }
 
     private static Image loadBackground(String path) {
@@ -38,6 +54,32 @@ public class BackgroundPanel extends JPanel {
         } catch (IOException | IllegalArgumentException e) {
             return null;
         }
+    }
+
+    private static Image[] loadAnimationTrack(String folderPath) {
+        List<Image> frames = new ArrayList<>();
+        for (int i = 0; i < 60; i++) {
+            Image frame = loadBackground(folderPath + "/" + String.format("%02d", i) + ".png");
+            if (frame == null) {
+                break;
+            }
+            frames.add(frame);
+        }
+        return frames.toArray(new Image[0]);
+    }
+
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        if (!eboboTimer.isRunning()) {
+            eboboTimer.start();
+        }
+    }
+
+    @Override
+    public void removeNotify() {
+        eboboTimer.stop();
+        super.removeNotify();
     }
 
     @Override
@@ -130,9 +172,11 @@ public class BackgroundPanel extends JPanel {
     }
 
     private void drawEboboOverlay(Graphics2D g2, int w, int h) {
-        if (eboboOverlay == null) {
+        Image[] activeTrack = eboboDirection >= 0 ? eboboWalkRight : eboboWalkLeft;
+        if (activeTrack == null || activeTrack.length == 0) {
             return;
         }
+        Image eboboOverlay = activeTrack[Math.floorMod(eboboFrame, activeTrack.length)];
 
         int srcW = eboboOverlay.getWidth(this);
         int srcH = eboboOverlay.getHeight(this);
@@ -141,12 +185,51 @@ public class BackgroundPanel extends JPanel {
         }
 
         int margin = 20;
-        int targetH = Math.max(1, (int) Math.round(h * 0.24));
+        int targetH = Math.max(1, (int) Math.round(h * 0.18));
         int targetW = Math.max(1, (int) Math.round((double) srcW * targetH / srcH));
-        int x = margin;
-        int y = h - targetH - margin;
+        int benchMinX = (int) Math.round(w * 0.18);
+        int benchMaxX = (int) Math.round(w * 0.45);
+        if (eboboX < 0) {
+            eboboX = benchMinX;
+        }
+        int benchSeatY = (int) Math.round(h * 0.60);
+        int x = eboboX - targetW / 2;
+        int y = benchSeatY - targetH;
+
+        int minX = Math.max(margin, benchMinX - targetW / 2);
+        int maxX = Math.min(Math.max(margin, w - targetW - margin), benchMaxX - targetW / 2);
+        x = Math.max(minX, Math.min(x, maxX));
+        y = Math.max(margin, Math.min(y, Math.max(margin, h - targetH - margin)));
 
         g2.drawImage(eboboOverlay, x, y, targetW, targetH, this);
+    }
+
+    private void advanceEboboAnimation() {
+        int w = getWidth();
+        int h = getHeight();
+        if (w <= 0 || h <= 0) {
+            return;
+        }
+        int benchMinX = (int) Math.round(w * 0.18);
+        int benchMaxX = (int) Math.round(w * 0.45);
+        if (eboboX < 0) {
+            eboboX = benchMinX;
+        }
+
+        int step = Math.max(2, (int) Math.round(w * 0.0032));
+        eboboX += step * eboboDirection;
+        if (eboboX <= benchMinX) {
+            eboboX = benchMinX;
+            eboboDirection = 1;
+        } else if (eboboX >= benchMaxX) {
+            eboboX = benchMaxX;
+            eboboDirection = -1;
+        }
+
+        Image[] activeTrack = eboboDirection >= 0 ? eboboWalkRight : eboboWalkLeft;
+        if (activeTrack != null && activeTrack.length > 0) {
+            eboboFrame = (eboboFrame + 1) % activeTrack.length;
+        }
     }
 
 }

@@ -28,6 +28,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.RenderingHints;
+import java.awt.AlphaComposite;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
@@ -39,12 +40,15 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Properties;
+import java.util.Random;
 
 public class StartGame {
     static final System.Logger LOGGER = System.getLogger(StartGame.class.getName());
 
     private static final String MENU_TRACK = "/alkosmen/sounds/Golden-Brown.mid";
     private static final String MENU_LOGO = "/alkosmen/ui/menu/alkosmeny_title_logo_v1_transparent.png";
+    private static final String EBOBO_WALK_RIGHT_PATH = "/alkosmen/ui/intro/ebobo/walk_right";
+    private static final String EBOBO_WALK_LEFT_PATH = "/alkosmen/ui/intro/ebobo/walk_left";
     private static final boolean LEVELS_TEMP_DISABLED = true;
     private static Properties uiTexts = new Properties();
     private static Properties introTexts = new Properties();
@@ -336,19 +340,44 @@ public class StartGame {
         final List<IntroSubtitleCue> subtitleCues = introSubtitleCues();
         final String[] activeSubtitle = {subtitleCues.isEmpty() ? "" : subtitleCues.get(0).text()};
         final int[] subtitleIndex = {0};
+        final boolean subtitlesEnabled = introBool("intro.subtitles.enabled", false);
         final long introStartedAt = System.currentTimeMillis();
+        final Image[] eboboRight = loadAnimationTrack(EBOBO_WALK_RIGHT_PATH);
+        final Image[] eboboLeft = loadAnimationTrack(EBOBO_WALK_LEFT_PATH);
+        final int eboboMargin = introInt("intro.ebobo.margin.px", 20);
+        final int[] eboboX = {introInt("intro.ebobo.start.x.px", eboboMargin + 2)};
+        final int[] eboboDirection = {1};
+        final int[] eboboFrame = {0};
+        final int[] eboboTick = {0};
+        final int eboboStepPx = introInt("intro.ebobo.step.px", Math.max(2, owner.getWidth() / 280));
+        final double eboboHeightRatio = introDouble("intro.ebobo.height.ratio", 0.21);
+        final int eboboSubtitleGap = introInt("intro.ebobo.subtitle.gap.px", 52);
+        final int eboboJumpAmplitude = introInt("intro.ebobo.jump.amplitude.px", 16);
+        final double eboboJumpFrequency = introDouble("intro.ebobo.jump.frequency", 0.45);
+        final int eboboFrameStep = Math.max(1, introInt("intro.ebobo.frame.step", 1));
+        final boolean eboboRandomJumpEnabled = introBool("intro.ebobo.random.enabled", true);
+        final int eboboRandomIntervalTicks = Math.max(1, introInt("intro.ebobo.random.interval.ticks", 9));
+        final int eboboRandomYRangePx = Math.max(0, introInt("intro.ebobo.random.y.range.px", 44));
+        final int[] eboboRandomYOffset = {0};
+        final Random eboboRandom = new Random();
+        final boolean eboboLaneEnabled = introBool("intro.ebobo.lane.enabled", true);
+        final double eboboLaneHeightRatio = introDouble("intro.ebobo.lane.height.ratio", 0.17);
+        final int eboboLaneBottomMargin = introInt("intro.ebobo.lane.bottom.margin.px", 26);
+        final int eboboLaneAlpha = clamp(introInt("intro.ebobo.lane.alpha", 135), 0, 255);
 
         JPanel crawlPanel = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setColor(Color.BLACK);
-                g2.fillRect(0, 0, getWidth(), getHeight());
-                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
                 int w = getWidth();
                 int h = getHeight();
+                drawIntroBackdrop(g2, w, h, eboboTick[0]);
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                int laneH = Math.max(1, (int) Math.round(h * eboboLaneHeightRatio));
+                int laneYBase = h - laneH - eboboLaneBottomMargin;
+                int laneY = Math.min(h - laneH, Math.max(0, laneYBase + (int) Math.round(laneH * 0.25)));
+
                 int startY = h + 120;
                 int lineGap = 48;
 
@@ -360,35 +389,66 @@ public class StartGame {
                     }
 
                     float depth = Math.max(0f, Math.min(1f, y / (float) h));
-                    int fontSize = (int) (14 + 26 * depth);
+                    int fontSize = (int) (16 + 14 * depth);
                     Font font = new Font("Monospaced", Font.BOLD, fontSize);
                     g2.setFont(font);
 
                     int textW = g2.getFontMetrics().stringWidth(line);
                     int x = (w - textW) / 2;
 
-                    g2.setColor(new Color(0, 0, 0, 190));
+                    g2.setColor(new Color(8, 14, 34, 220));
                     g2.drawString(line, x + 2, y + 2);
-                    g2.setColor(new Color(255, 224, 110));
+                    g2.setColor(new Color(126, 230, 255));
                     g2.drawString(line, x, y);
                 }
 
-                if (!activeSubtitle[0].isBlank()) {
+                if (eboboLaneEnabled) {
+                    drawEboboLane(g2, w, laneY, laneH, eboboLaneAlpha);
+                }
+
+                if (subtitlesEnabled && !activeSubtitle[0].isBlank()) {
                     int boxH = 44;
-                    int boxY = h - boxH - 18;
-                    g2.setColor(new Color(0, 0, 0, 165));
-                    g2.fillRoundRect(18, boxY, w - 36, boxH, 14, 14);
+                    int boxW = Math.min(w - 36, (int) Math.round(w * 0.72));
+                    int boxX = (w - boxW) / 2;
+                    int boxY = eboboLaneEnabled
+                            ? Math.max(10, laneY + laneH - boxH - 10)
+                            : h - boxH - 18;
+                    g2.setColor(new Color(0, 0, 0, 188));
+                    g2.fillRoundRect(boxX, boxY, boxW, boxH, 14, 14);
+                    g2.setColor(new Color(255, 216, 82, 150));
+                    g2.drawRoundRect(boxX, boxY, boxW, boxH, 14, 14);
 
                     g2.setFont(new Font("Dialog", Font.BOLD, 20));
                     int subW = g2.getFontMetrics().stringWidth(activeSubtitle[0]);
-                    int subX = Math.max(24, (w - subW) / 2);
+                    int subX = Math.max(boxX + 12, boxX + (boxW - subW) / 2);
                     int subY = boxY + 29;
 
-                    g2.setColor(new Color(0, 0, 0, 190));
+                    g2.setColor(new Color(0, 0, 0, 220));
                     g2.drawString(activeSubtitle[0], subX + 1, subY + 1);
-                    g2.setColor(new Color(255, 235, 170));
+                    g2.setColor(new Color(255, 233, 160));
                     g2.drawString(activeSubtitle[0], subX, subY);
                 }
+
+                drawIntroEbobo(
+                        g2,
+                        w,
+                        h,
+                        eboboRight,
+                        eboboLeft,
+                        eboboFrame[0],
+                        eboboDirection[0],
+                        eboboX[0],
+                        eboboTick[0],
+                        eboboHeightRatio,
+                        eboboSubtitleGap,
+                        eboboJumpAmplitude,
+                        eboboJumpFrequency,
+                        eboboMargin,
+                        eboboRandomYOffset[0],
+                        eboboLaneEnabled,
+                        laneY,
+                        laneH
+                );
 
                 g2.dispose();
             }
@@ -400,13 +460,48 @@ public class StartGame {
 
         Timer introTimer = new Timer(scrollDelayMs, e -> {
             crawlOffset[0] += scrollStep;
-            if (!subtitleCues.isEmpty()) {
+            if (subtitlesEnabled && !subtitleCues.isEmpty()) {
                 long elapsed = System.currentTimeMillis() - introStartedAt;
                 while (subtitleIndex[0] + 1 < subtitleCues.size()
                         && elapsed >= subtitleCues.get(subtitleIndex[0] + 1).timeMs()) {
                     subtitleIndex[0]++;
                 }
                 activeSubtitle[0] = subtitleCues.get(subtitleIndex[0]).text();
+            }
+
+            int trackSize = Math.max(trackLength(eboboRight), trackLength(eboboLeft));
+            if (trackSize > 0) {
+                if (eboboTick[0] % eboboFrameStep == 0) {
+                    eboboFrame[0] = (eboboFrame[0] + 1) % trackSize;
+                }
+                int step = Math.max(1, eboboStepPx);
+                int eboboH = Math.max(1, (int) Math.round(owner.getHeight() * eboboHeightRatio));
+                Image probe = frameAt(eboboDirection[0] > 0 ? eboboRight : eboboLeft, eboboFrame[0]);
+                if (probe != null) {
+                    int srcW = Math.max(1, probe.getWidth(null));
+                    int srcH = Math.max(1, probe.getHeight(null));
+                    int eboboW = Math.max(1, (int) Math.round((double) srcW * eboboH / srcH));
+                    int minX = eboboMargin;
+                    int maxX = Math.max(minX, owner.getWidth() - eboboW - eboboMargin);
+                    if (eboboRandomJumpEnabled && eboboTick[0] % eboboRandomIntervalTicks == 0) {
+                        int span = Math.max(1, maxX - minX + 1);
+                        int randomX = minX + eboboRandom.nextInt(span);
+                        eboboDirection[0] = randomX >= eboboX[0] ? 1 : -1;
+                        eboboX[0] = randomX;
+                        int ySpan = eboboRandomYRangePx * 2 + 1;
+                        eboboRandomYOffset[0] = ySpan > 1 ? eboboRandom.nextInt(ySpan) - eboboRandomYRangePx : 0;
+                    } else {
+                        eboboX[0] += step * eboboDirection[0];
+                        if (eboboX[0] <= minX) {
+                            eboboX[0] = minX;
+                            eboboDirection[0] = 1;
+                        } else if (eboboX[0] >= maxX) {
+                            eboboX[0] = maxX;
+                            eboboDirection[0] = -1;
+                        }
+                    }
+                }
+                eboboTick[0]++;
             }
             crawlPanel.repaint();
 
@@ -520,6 +615,26 @@ public class StartGame {
         }
     }
 
+    private static double introDouble(String key, double fallback) {
+        String raw = introTexts.getProperty(key);
+        if (raw == null) {
+            return fallback;
+        }
+        try {
+            return Double.parseDouble(raw.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private static boolean introBool(String key, boolean fallback) {
+        String raw = introTexts.getProperty(key);
+        if (raw == null) {
+            return fallback;
+        }
+        return Boolean.parseBoolean(raw.trim());
+    }
+
     private static String[] introCrawlLines() {
         List<String> keys = new ArrayList<>();
         for (String key : introTexts.stringPropertyNames()) {
@@ -555,5 +670,171 @@ public class StartGame {
             lines.add(introTexts.getProperty(key, ""));
         }
         return lines.toArray(new String[0]);
+    }
+
+    private static Image loadImage(String path) {
+        URL url = StartGame.class.getResource(path);
+        if (url == null) {
+            return null;
+        }
+        return new ImageIcon(url).getImage();
+    }
+
+    private static void drawIntroEbobo(
+            Graphics2D g2,
+            int w,
+            int h,
+            Image[] rightTrack,
+            Image[] leftTrack,
+            int frame,
+            int direction,
+            int x,
+            int tick,
+            double heightRatio,
+            int subtitleGap,
+            int jumpAmplitude,
+            double jumpFrequency,
+            int margin,
+            int randomYOffset,
+            boolean laneEnabled,
+            int laneY,
+            int laneH
+    ) {
+        Image sprite = frameAt(direction > 0 ? rightTrack : leftTrack, frame);
+        if (sprite == null) {
+            return;
+        }
+        int srcW = Math.max(1, sprite.getWidth(null));
+        int srcH = Math.max(1, sprite.getHeight(null));
+        int targetH = Math.max(1, (int) Math.round(h * heightRatio));
+        int targetW = Math.max(1, (int) Math.round((double) srcW * targetH / srcH));
+
+        int jumpOffset = (int) Math.round(Math.abs(Math.sin(tick * jumpFrequency)) * jumpAmplitude);
+        int y;
+        if (laneEnabled) {
+            y = laneY + laneH - targetH - 6 - jumpOffset - randomYOffset;
+        } else {
+            y = h - targetH - subtitleGap - jumpOffset - randomYOffset;
+        }
+        int clampedX = Math.max(margin, Math.min(x, Math.max(margin, w - targetW - margin)));
+
+        // Neon aura behind Ebobo.
+        g2.setComposite(AlphaComposite.SrcOver);
+        g2.setColor(new Color(66, 216, 255, 82));
+        g2.fillOval(clampedX - targetW / 5, y - targetH / 6, targetW + targetW / 3, targetH + targetH / 3);
+        g2.setColor(new Color(255, 82, 214, 72));
+        g2.fillOval(clampedX - targetW / 7, y - targetH / 8, targetW + targetW / 4, targetH + targetH / 4);
+
+        g2.drawImage(sprite, clampedX, y, targetW, targetH, null);
+
+        // Neon underglow on the lane/floor.
+        int glowY = y + targetH - 4;
+        g2.setColor(new Color(76, 222, 255, 120));
+        g2.fillRoundRect(clampedX + targetW / 7, glowY, targetW - targetW / 4, 4, 4, 4);
+        g2.setColor(new Color(255, 94, 226, 92));
+        g2.fillRoundRect(clampedX + targetW / 5, glowY + 2, targetW - targetW / 3, 3, 3, 3);
+    }
+
+    private static void drawEboboLane(Graphics2D g2, int w, int laneY, int laneH, int alpha) {
+        GradientPaint lanePaint = new GradientPaint(
+                0,
+                laneY,
+                new Color(12, 12, 18, alpha),
+                0,
+                laneY + laneH,
+                new Color(6, 6, 10, Math.min(255, alpha + 30))
+        );
+        g2.setPaint(lanePaint);
+        g2.fillRoundRect(0, laneY, w, laneH, 18, 18);
+
+        g2.setColor(new Color(255, 216, 82, Math.min(255, alpha + 45)));
+        g2.drawLine(0, laneY + 1, w, laneY + 1);
+        g2.setColor(new Color(0, 0, 0, Math.min(255, alpha + 40)));
+        g2.drawLine(0, laneY + laneH - 1, w, laneY + laneH - 1);
+    }
+
+    private static void drawIntroBackdrop(Graphics2D g2, int w, int h, int tick) {
+        GradientPaint bg = new GradientPaint(
+                0,
+                0,
+                new Color(8, 12, 28),
+                0,
+                h,
+                new Color(16, 24, 42)
+        );
+        g2.setPaint(bg);
+        g2.fillRect(0, 0, w, h);
+
+        int cell = 30;
+        g2.setColor(new Color(76, 120, 170, 46));
+        for (int x = 0; x <= w; x += cell) {
+            g2.drawLine(x, 0, x, h);
+        }
+        for (int y = 0; y <= h; y += cell) {
+            g2.drawLine(0, y, w, y);
+        }
+
+        Color[] palette = {
+                new Color(0, 240, 245, 170),
+                new Color(246, 215, 80, 170),
+                new Color(212, 104, 255, 170),
+                new Color(88, 255, 132, 170),
+                new Color(255, 120, 96, 170)
+        };
+
+        for (int i = 0; i < 8; i++) {
+            int type = i % 5;
+            int laneX = (int) Math.round((i + 1) * (w / 9.0));
+            int speed = 5 + (i % 4) * 2;
+            int y = ((tick * speed) + i * 140) % (h + cell * 8) - cell * 4;
+            drawTetrisPiece(g2, laneX, y, cell - 3, palette[type], type);
+        }
+    }
+
+    private static void drawTetrisPiece(Graphics2D g2, int x, int y, int cell, Color color, int type) {
+        int[][] offsets;
+        switch (type) {
+            case 0 -> offsets = new int[][]{{0, 0}, {1, 0}, {-1, 0}, {2, 0}}; // I
+            case 1 -> offsets = new int[][]{{0, 0}, {1, 0}, {0, 1}, {1, 1}}; // O
+            case 2 -> offsets = new int[][]{{0, 0}, {-1, 0}, {1, 0}, {0, 1}}; // T
+            case 3 -> offsets = new int[][]{{0, 0}, {1, 0}, {0, 1}, {-1, 1}}; // S
+            default -> offsets = new int[][]{{0, 0}, {-1, 0}, {0, 1}, {1, 1}}; // Z
+        }
+        for (int[] d : offsets) {
+            int bx = x + d[0] * (cell + 2);
+            int by = y + d[1] * (cell + 2);
+            g2.setColor(color);
+            g2.fillRoundRect(bx, by, cell, cell, 4, 4);
+            g2.setColor(new Color(255, 255, 255, 90));
+            g2.drawLine(bx + 1, by + 1, bx + cell - 2, by + 1);
+            g2.drawLine(bx + 1, by + 1, bx + 1, by + cell - 2);
+            g2.setColor(new Color(0, 0, 0, 110));
+            g2.drawLine(bx + cell - 1, by + 1, bx + cell - 1, by + cell - 1);
+            g2.drawLine(bx + 1, by + cell - 1, bx + cell - 1, by + cell - 1);
+        }
+    }
+
+    private static Image[] loadAnimationTrack(String folderPath) {
+        List<Image> track = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            Image frame = loadImage(folderPath + "/" + String.format("%02d", i) + ".png");
+            if (frame == null) {
+                break;
+            }
+            track.add(frame);
+        }
+        return track.toArray(new Image[0]);
+    }
+
+    private static Image frameAt(Image[] track, int index) {
+        if (track == null || track.length == 0) {
+            return null;
+        }
+        int safeIndex = Math.floorMod(index, track.length);
+        return track[safeIndex];
+    }
+
+    private static int trackLength(Image[] track) {
+        return track == null ? 0 : track.length;
     }
 }
