@@ -6,6 +6,8 @@ import alkosmen.audio.SoundEffectPlayer;
 import alkosmen.game.CopSystem;
 import alkosmen.game.GameHudRenderer;
 import alkosmen.gfx.SpriteSheet;
+import alkosmen.lore.LoreCharacter;
+import alkosmen.lore.LoreRepository;
 import alkosmen.maps.LevelLoader;
 import alkosmen.objects.Player;
 
@@ -72,12 +74,15 @@ public final class Game extends Canvas implements Runnable {
     private float cameraY;
     private final GameHudRenderer hudRenderer = new GameHudRenderer(HUD_HEIGHT, COP_CAUGHT_TEXT_MS);
     private final CopSystem copSystem = new CopSystem(COP_SPEED, COP_DROP_STEP, COP_VIEW_DISTANCE, COP_CAUGHT_COOLDOWN_MS);
+    private final LoreRepository lore = LoreRepository.loadDefault();
     private int playerSpawnX;
     private int playerSpawnY;
     private boolean hidePressed;
     private boolean gameOver;
     private int lives = MAX_LIVES;
     private boolean spectatorMode;
+    private String cityLine = "";
+    private long nextCityLineAt;
 
     private static final double MOVE_SPEED = 0.12;
     private static final double GRAVITY = 0.035;
@@ -99,6 +104,7 @@ public final class Game extends Canvas implements Runnable {
     private static final long COP_CAUGHT_COOLDOWN_MS = 900;
     private static final long COP_CAUGHT_TEXT_MS = 1200;
     private static final long FRAME_DELAY_MS = 16L;
+    private static final long CITY_LINE_REFRESH_MS = 9_000L;
     private static final int MAX_LIVES = 3;
     private static final int DEMO_RANDOM_COPS = 12;
     private static final int DEMO_RANDOM_COP_ATTEMPTS = 800;
@@ -173,6 +179,7 @@ public final class Game extends Canvas implements Runnable {
         renderLoadingScreen("Loading level...");
 
         loadLevel(1);
+        rotateCityLine(System.currentTimeMillis(), true);
     }
 
     private void update() {
@@ -180,6 +187,9 @@ public final class Game extends Canvas implements Runnable {
             return;
         }
         long now = System.currentTimeMillis();
+        if (now >= nextCityLineAt) {
+            rotateCityLine(now, false);
+        }
         if (player.onGround) {
             lastOnGroundAt = now;
         }
@@ -452,6 +462,7 @@ public final class Game extends Canvas implements Runnable {
                 MAX_LIVES,
                 isPlayerHidden(),
                 gameOver,
+                cityLine,
                 copSystem.getLastCaughtAt(),
                 System.currentTimeMillis()
         );
@@ -731,6 +742,19 @@ public final class Game extends Canvas implements Runnable {
         }
         // Player can hide only while standing still on ground and holding hide key.
         return hidePressed && player != null && Math.abs(player.vx) < 0.0001 && player.onGround;
+    }
+
+    private void rotateCityLine(long now, boolean firstLine) {
+        String speakers = lore.sceneText("scene.city.speakers", "tolya_mozol,vyatskiy_ebobo,cops");
+        String fallback = lore.sceneText("scene.city.default_line", "Ночной город живет по своим правилам.");
+        String picked = lore.randomDialogueFromSpeakers(speakers, fallback);
+        if (firstLine && !picked.isBlank()) {
+            LoreCharacter hero = lore.character("alkosmen");
+            cityLine = hero.name() + ": " + hero.role() + ". " + picked;
+        } else {
+            cityLine = picked;
+        }
+        nextCityLineAt = now + CITY_LINE_REFRESH_MS;
     }
 
     private void spawnRandomCops(int targetCount) {

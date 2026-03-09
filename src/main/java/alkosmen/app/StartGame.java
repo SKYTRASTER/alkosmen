@@ -5,6 +5,7 @@ import alkosmen.app.menu.settings.MenuSettingsApplier;
 import alkosmen.app.menu.settings.MenuSettingsDialog;
 import alkosmen.app.menu.settings.MenuSettingsState;
 import alkosmen.audio.MidiPlayer;
+import alkosmen.lore.LoreRepository;
 import alkosmen.settings.Constants;
 import alkosmen.ui.PixelButton;
 
@@ -36,6 +37,7 @@ public class StartGame {
     private static final String MENU_TRACK = "/alkosmen/sounds/Golden-Brown.mid";
     private static final String MENU_LOGO = "/alkosmen/ui/menu/alkosmeny_title_logo_v1_transparent.png";
     private static Properties uiTexts = new Properties();
+    private static final LoreRepository lore = LoreRepository.loadDefault();
 
     public static void main(String[] args) {
         LOGGER.log(System.Logger.Level.INFO, "Start game...");
@@ -155,10 +157,19 @@ public class StartGame {
         subtitle.setForeground(new Color(148, 178, 214));
         subtitle.setFont(new Font("Dialog", Font.BOLD, 16));
 
+        JLabel teaser = new JLabel(
+                lore.sceneText("scene.menu.teaser", "Ночной город не спит: на линии мент-патруль и городские чудики.")
+        );
+        teaser.setAlignmentX(Component.LEFT_ALIGNMENT);
+        teaser.setForeground(new Color(176, 198, 216));
+        teaser.setFont(new Font("Dialog", Font.PLAIN, 12));
+
         menuButtons.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         menuShell.add(subtitle);
-        menuShell.add(Box.createVerticalStrut(10));
+        menuShell.add(Box.createVerticalStrut(5));
+        menuShell.add(teaser);
+        menuShell.add(Box.createVerticalStrut(8));
         menuShell.add(menuButtons);
         menuShell.add(Box.createVerticalGlue());
 

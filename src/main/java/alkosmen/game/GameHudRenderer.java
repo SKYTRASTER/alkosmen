@@ -26,6 +26,7 @@ public final class GameHudRenderer {
             int maxLives,
             boolean hidden,
             boolean gameOver,
+            String cityLine,
             long lastCaughtAt,
             long now
     ) {
@@ -53,6 +54,11 @@ public final class GameHudRenderer {
 
         g.setColor(lives > 1 ? new Color(140, 220, 140) : new Color(255, 140, 120));
         g.drawString("LIVES " + lives + "/" + maxLives, 500, y + 35);
+        if (cityLine != null && !cityLine.isBlank()) {
+            g.setColor(new Color(170, 190, 220));
+            g.setFont(new Font("Dialog", Font.PLAIN, 13));
+            g.drawString("ГОРОД: " + cityLine, 14, y + hudHeight - 6);
+        }
 
         if (score >= bottleGoal) {
             g.setColor(new Color(120, 220, 120));
