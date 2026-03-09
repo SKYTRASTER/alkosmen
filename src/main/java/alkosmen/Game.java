@@ -789,6 +789,17 @@ public final class Game extends Canvas implements Runnable {
         int textX = Math.max(12, (getWidth() - textW) / 2);
         int textY = Math.max(48, getHeight() / 2);
         g.drawString(text, textX, textY);
+
+        String teaser = lore.sceneText(
+                "scene.menu.teaser",
+                "Ночной город не спит: на линии мент-патруль и городские чудики."
+        );
+        g.setColor(new Color(190, 205, 220));
+        g.setFont(new Font("Dialog", Font.PLAIN, 16));
+        int teaserW = g.getFontMetrics().stringWidth(teaser);
+        int teaserX = Math.max(12, (getWidth() - teaserW) / 2);
+        g.drawString(teaser, teaserX, textY + 30);
+
         g.dispose();
         bs.show();
     }

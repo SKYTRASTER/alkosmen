@@ -41,7 +41,6 @@ public final class GameHudRenderer {
 
         g.setColor(Color.WHITE);
         g.setFont(new Font("Serif", Font.BOLD, 20));
-        g.drawString("LEVEL: " + level, 14, 26);
         g.drawString("A/D or arrows + SPACE, S/Down to hide", 14, 50);
 
         g.setColor(new Color(160, 130, 96));

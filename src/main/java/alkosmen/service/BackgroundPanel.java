@@ -88,16 +88,17 @@ public class BackgroundPanel extends JPanel {
         g2.setPaint(topFade);
         g2.fillRect(0, 0, w, (int) (h * 0.38));
 
+        int vignetteW = (int) (w * 0.22);
         GradientPaint edgeVignette = new GradientPaint(
                 0,
                 0,
                 new Color(0, 0, 0, 95),
-                w,
+                vignetteW,
                 0,
-                new Color(0, 0, 0, 25)
+                new Color(0, 0, 0, 0)
         );
         g2.setPaint(edgeVignette);
-        g2.fillRect(0, 0, (int) (w * 0.22), h);
+        g2.fillRect(0, 0, vignetteW, h);
     }
 
 }

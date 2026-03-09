@@ -5,17 +5,19 @@ import alkosmen.app.menu.settings.MenuSettingsApplier;
 import alkosmen.app.menu.settings.MenuSettingsDialog;
 import alkosmen.app.menu.settings.MenuSettingsState;
 import alkosmen.audio.MidiPlayer;
-import alkosmen.lore.LoreRepository;
+import alkosmen.audio.SoundEffectPlayer;
 import alkosmen.settings.Constants;
 import alkosmen.ui.PixelButton;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.Timer;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -26,9 +28,16 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.RenderingHints;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Properties;
 
 public class StartGame {
@@ -36,8 +45,9 @@ public class StartGame {
 
     private static final String MENU_TRACK = "/alkosmen/sounds/Golden-Brown.mid";
     private static final String MENU_LOGO = "/alkosmen/ui/menu/alkosmeny_title_logo_v1_transparent.png";
+    private static final boolean LEVELS_TEMP_DISABLED = true;
     private static Properties uiTexts = new Properties();
-    private static final LoreRepository lore = LoreRepository.loadDefault();
+    private static Properties introTexts = new Properties();
 
     public static void main(String[] args) {
         LOGGER.log(System.Logger.Level.INFO, "Start game...");
@@ -45,6 +55,7 @@ public class StartGame {
         try {
             Properties properties = loadProperties("/alkosmen/config.properties");
             uiTexts = loadProperties("/alkosmen/ui-texts.properties");
+            introTexts = loadProperties("/alkosmen/intro.properties");
             applyConstants(properties);
 
             MidiPlayer midi = new MidiPlayer();
@@ -57,6 +68,10 @@ public class StartGame {
             JPanel menuButtons = createMenuButtonsPanel(start, settings, exit);
 
             start.addActionListener(e -> {
+                if (LEVELS_TEMP_DISABLED) {
+                    showTemporaryLoadingScreen(frame, midi);
+                    return;
+                }
                 midi.stop();
                 frame.dispose();
                 newGame();
@@ -152,24 +167,8 @@ public class StartGame {
         menuShell.setLayout(new BoxLayout(menuShell, BoxLayout.Y_AXIS));
         menuShell.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
 
-        JLabel subtitle = new JLabel(text("menu.subtitle", "Ночной патруль похмельного героя"));
-        subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        subtitle.setForeground(new Color(148, 178, 214));
-        subtitle.setFont(new Font("Dialog", Font.BOLD, 16));
-
-        JLabel teaser = new JLabel(
-                lore.sceneText("scene.menu.teaser", "Ночной город не спит: на линии мент-патруль и городские чудики.")
-        );
-        teaser.setAlignmentX(Component.LEFT_ALIGNMENT);
-        teaser.setForeground(new Color(176, 198, 216));
-        teaser.setFont(new Font("Dialog", Font.PLAIN, 12));
-
         menuButtons.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        menuShell.add(subtitle);
-        menuShell.add(Box.createVerticalStrut(5));
-        menuShell.add(teaser);
-        menuShell.add(Box.createVerticalStrut(8));
         menuShell.add(menuButtons);
         menuShell.add(Box.createVerticalGlue());
 
@@ -315,5 +314,246 @@ public class StartGame {
 
         g.requestFocusInWindow();
         g.start();
+    }
+
+    private static void showTemporaryLoadingScreen(JFrame owner, MidiPlayer menuMidi) {
+        JDialog loading = new JDialog(owner, introText("intro.windowTitle", "Интро"), false);
+        loading.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        loading.setUndecorated(true);
+
+        boolean resumeMenuMusic = Constants.MenuMusicEnabled;
+        menuMidi.stop();
+
+        SoundEffectPlayer introVoice = loadIntroVoice();
+        if (introVoice != null) {
+            introVoice.play();
+        }
+
+        final String[] crawlLines = introCrawlLines();
+        final int[] crawlOffset = {0};
+        final int scrollStep = introInt("intro.scroll.step", 2);
+        final int scrollDelayMs = introInt("intro.scroll.delay.ms", 33);
+        final List<IntroSubtitleCue> subtitleCues = introSubtitleCues();
+        final String[] activeSubtitle = {subtitleCues.isEmpty() ? "" : subtitleCues.get(0).text()};
+        final int[] subtitleIndex = {0};
+        final long introStartedAt = System.currentTimeMillis();
+
+        JPanel crawlPanel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setColor(Color.BLACK);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+                int w = getWidth();
+                int h = getHeight();
+                int startY = h + 120;
+                int lineGap = 48;
+
+                for (int i = 0; i < crawlLines.length; i++) {
+                    String line = crawlLines[i];
+                    int y = startY - crawlOffset[0] + i * lineGap;
+                    if (y < -80 || y > h + 120) {
+                        continue;
+                    }
+
+                    float depth = Math.max(0f, Math.min(1f, y / (float) h));
+                    int fontSize = (int) (14 + 26 * depth);
+                    Font font = new Font("Monospaced", Font.BOLD, fontSize);
+                    g2.setFont(font);
+
+                    int textW = g2.getFontMetrics().stringWidth(line);
+                    int x = (w - textW) / 2;
+
+                    g2.setColor(new Color(0, 0, 0, 190));
+                    g2.drawString(line, x + 2, y + 2);
+                    g2.setColor(new Color(255, 224, 110));
+                    g2.drawString(line, x, y);
+                }
+
+                if (!activeSubtitle[0].isBlank()) {
+                    int boxH = 44;
+                    int boxY = h - boxH - 18;
+                    g2.setColor(new Color(0, 0, 0, 165));
+                    g2.fillRoundRect(18, boxY, w - 36, boxH, 14, 14);
+
+                    g2.setFont(new Font("Dialog", Font.BOLD, 20));
+                    int subW = g2.getFontMetrics().stringWidth(activeSubtitle[0]);
+                    int subX = Math.max(24, (w - subW) / 2);
+                    int subY = boxY + 29;
+
+                    g2.setColor(new Color(0, 0, 0, 190));
+                    g2.drawString(activeSubtitle[0], subX + 1, subY + 1);
+                    g2.setColor(new Color(255, 235, 170));
+                    g2.drawString(activeSubtitle[0], subX, subY);
+                }
+
+                g2.dispose();
+            }
+        };
+
+        loading.setContentPane(crawlPanel);
+        loading.setSize(owner.getWidth(), owner.getHeight());
+        loading.setLocationRelativeTo(owner);
+
+        Timer introTimer = new Timer(scrollDelayMs, e -> {
+            crawlOffset[0] += scrollStep;
+            if (!subtitleCues.isEmpty()) {
+                long elapsed = System.currentTimeMillis() - introStartedAt;
+                while (subtitleIndex[0] + 1 < subtitleCues.size()
+                        && elapsed >= subtitleCues.get(subtitleIndex[0] + 1).timeMs()) {
+                    subtitleIndex[0]++;
+                }
+                activeSubtitle[0] = subtitleCues.get(subtitleIndex[0]).text();
+            }
+            crawlPanel.repaint();
+
+            int startY = crawlPanel.getHeight() + 120;
+            int lineGap = 48;
+            int lastLineY = startY - crawlOffset[0] + (crawlLines.length - 1) * lineGap;
+            if (lastLineY < -100) {
+                ((Timer) e.getSource()).stop();
+                if (introVoice != null) {
+                    introVoice.stop();
+                }
+                if (loading.isDisplayable()) {
+                    loading.dispose();
+                }
+                if (resumeMenuMusic) {
+                    menuMidi.playLoop(MENU_TRACK);
+                }
+            }
+        });
+
+        Runnable skipIntro = () -> {
+            if (introTimer.isRunning()) {
+                introTimer.stop();
+            }
+            if (introVoice != null) {
+                introVoice.stop();
+            }
+            if (loading.isDisplayable()) {
+                loading.dispose();
+            }
+            if (resumeMenuMusic) {
+                menuMidi.playLoop(MENU_TRACK);
+            }
+        };
+
+        loading.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                skipIntro.run();
+            }
+        });
+        crawlPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                skipIntro.run();
+            }
+        });
+        loading.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                skipIntro.run();
+            }
+        });
+
+        introTimer.start();
+        loading.setVisible(true);
+        loading.requestFocus();
+    }
+
+    private static List<IntroSubtitleCue> introSubtitleCues() {
+        List<IntroSubtitleCue> cues = new ArrayList<>();
+        for (int i = 1; i <= 99; i++) {
+            String timeRaw = introTexts.getProperty("intro.sub." + i + ".timeMs");
+            String text = introTexts.getProperty("intro.sub." + i + ".text");
+            if (timeRaw == null && text == null) {
+                continue;
+            }
+            if (timeRaw == null) {
+                continue;
+            }
+            try {
+                int timeMs = Integer.parseInt(timeRaw.trim());
+                cues.add(new IntroSubtitleCue(timeMs, text == null ? "" : text));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        cues.sort(Comparator.comparingInt(IntroSubtitleCue::timeMs));
+        return cues;
+    }
+
+    private record IntroSubtitleCue(int timeMs, String text) {
+    }
+
+    private static SoundEffectPlayer loadIntroVoice() {
+        String[] candidates = {
+                "/alkosmen/sounds/raw/intro.wav",
+                "/alkosmen/sounds/raw/intro.mp3",
+                "/alkosmen/sounds/raw/audio_2026-03-09_19-29-48.ogg"
+        };
+        for (String path : candidates) {
+            try {
+                return new SoundEffectPlayer(path);
+            } catch (RuntimeException ignored) {
+            }
+        }
+        return null;
+    }
+    private static String introText(String key, String fallback) {
+        return introTexts.getProperty(key, fallback);
+    }
+
+    private static int introInt(String key, int fallback) {
+        String raw = introTexts.getProperty(key);
+        if (raw == null) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private static String[] introCrawlLines() {
+        List<String> keys = new ArrayList<>();
+        for (String key : introTexts.stringPropertyNames()) {
+            if (key.startsWith("intro.crawl.")) {
+                keys.add(key);
+            }
+        }
+        if (keys.isEmpty()) {
+            return new String[]{
+                    "ЭПИЗОД I",
+                    "АЛКОСМЕН: НОЧНОЙ ЗАХОД",
+                    "",
+                    "Ночной город не спит.",
+                    "Фонари трещат, район шумит.",
+                    "Менты уже на патруле.",
+                    "",
+                    "Первый уровень",
+                    "временно отключен."
+            };
+        }
+
+        keys.sort(Comparator.comparingInt(k -> {
+            String suffix = k.substring("intro.crawl.".length());
+            try {
+                return Integer.parseInt(suffix);
+            } catch (NumberFormatException e) {
+                return Integer.MAX_VALUE;
+            }
+        }));
+
+        List<String> lines = new ArrayList<>(keys.size());
+        for (String key : keys) {
+            lines.add(introTexts.getProperty(key, ""));
+        }
+        return lines.toArray(new String[0]);
     }
 }

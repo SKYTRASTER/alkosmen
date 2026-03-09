@@ -71,4 +71,11 @@ public final class SoundEffectPlayer {
         clip.setFramePosition(0);
         clip.start();
     }
+
+    public void stop() {
+        if (clip.isRunning()) {
+            clip.stop();
+        }
+        clip.setFramePosition(0);
+    }
 }
