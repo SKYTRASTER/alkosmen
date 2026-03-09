@@ -45,9 +45,9 @@ public class StartGame {
             applyMenuMusic(midi);
             JFrame frame = createMenuFrame(midi);
 
-            PixelButton start = new PixelButton("РЎС‚Р°СЂС‚");
-            PixelButton settings = new PixelButton("РќР°СЃС‚СЂРѕР№РєРё");
-            PixelButton exit = new PixelButton("Р’С‹С…РѕРґ");
+            PixelButton start = new PixelButton("Старт");
+            PixelButton settings = new PixelButton("Настройки");
+            PixelButton exit = new PixelButton("Выход");
             JPanel menuButtons = createMenuButtonsPanel(start, settings, exit);
 
             start.addActionListener(e -> {
@@ -146,7 +146,7 @@ public class StartGame {
         menuShell.setLayout(new BoxLayout(menuShell, BoxLayout.Y_AXIS));
         menuShell.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
 
-        JLabel subtitle = new JLabel("РќРѕС‡РЅРѕР№ РїР°С‚СЂСѓР»СЊ РїРѕС…РјРµР»СЊРЅРѕРіРѕ РіРµСЂРѕСЏ");
+        JLabel subtitle = new JLabel("Ночной патруль похмельного героя");
         subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
         subtitle.setForeground(new Color(148, 178, 214));
         subtitle.setFont(new Font("Dialog", Font.BOLD, 16));
@@ -187,7 +187,7 @@ public class StartGame {
     private static JLabel createMenuLogoLabel() {
         URL logoUrl = StartGame.class.getResource(MENU_LOGO);
         if (logoUrl == null) {
-            JLabel fallback = new JLabel("РђР›РљРћРЎРњР•РќР«");
+            JLabel fallback = new JLabel("АЛКОСМЕНЫ");
             fallback.setForeground(new Color(226, 244, 240));
             fallback.setFont(new Font("Dialog", Font.BOLD, 36));
             return fallback;
@@ -294,4 +294,3 @@ public class StartGame {
         g.start();
     }
 }
-

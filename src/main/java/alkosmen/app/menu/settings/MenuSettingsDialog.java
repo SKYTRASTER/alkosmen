@@ -22,22 +22,22 @@ public final class MenuSettingsDialog {
 
     public static MenuSettingsState show(JFrame frame, MenuSettingsState current) {
         JPanel panel = new JPanel(new GridLayout(0, 1, 6, 6));
-        panel.add(new JLabel("Р Р°Р·СЂРµС€РµРЅРёРµ"));
+        panel.add(new JLabel("Разрешение"));
 
         JComboBox<String> resolutionBox = new JComboBox<>(RESOLUTIONS);
         resolutionBox.setSelectedItem(current.width() + "x" + current.height());
         panel.add(resolutionBox);
 
-        JCheckBox menuMusicBox = new JCheckBox("РњСѓР·С‹РєР° РІ РјРµРЅСЋ", current.menuMusicEnabled());
+        JCheckBox menuMusicBox = new JCheckBox("Музыка в меню", current.menuMusicEnabled());
         panel.add(menuMusicBox);
 
-        JCheckBox gameMusicBox = new JCheckBox("Р¤РѕРЅРѕРІР°СЏ РјСѓР·С‹РєР° РІ РёРіСЂРµ", current.gameMusicEnabled());
+        JCheckBox gameMusicBox = new JCheckBox("Фоновая музыка в игре", current.gameMusicEnabled());
         panel.add(gameMusicBox);
 
         int result = JOptionPane.showConfirmDialog(
                 frame,
                 panel,
-                "РќР°СЃС‚СЂРѕР№РєРё",
+                "Настройки",
                 JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE
         );
@@ -63,4 +63,3 @@ public final class MenuSettingsDialog {
         );
     }
 }
-
