@@ -7,6 +7,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import java.awt.GridLayout;
+import java.util.Properties;
 
 public final class MenuSettingsDialog {
     private static final String[] RESOLUTIONS = {
@@ -20,24 +21,30 @@ public final class MenuSettingsDialog {
     private MenuSettingsDialog() {
     }
 
-    public static MenuSettingsState show(JFrame frame, MenuSettingsState current) {
+    public static MenuSettingsState show(JFrame frame, MenuSettingsState current, Properties uiTexts) {
         JPanel panel = new JPanel(new GridLayout(0, 1, 6, 6));
-        panel.add(new JLabel("Разрешение"));
+        panel.add(new JLabel(text(uiTexts, "menu.settings.resolution", "Разрешение")));
 
         JComboBox<String> resolutionBox = new JComboBox<>(RESOLUTIONS);
         resolutionBox.setSelectedItem(current.width() + "x" + current.height());
         panel.add(resolutionBox);
 
-        JCheckBox menuMusicBox = new JCheckBox("Музыка в меню", current.menuMusicEnabled());
+        JCheckBox menuMusicBox = new JCheckBox(
+                text(uiTexts, "menu.settings.music.menu", "Музыка в меню"),
+                current.menuMusicEnabled()
+        );
         panel.add(menuMusicBox);
 
-        JCheckBox gameMusicBox = new JCheckBox("Фоновая музыка в игре", current.gameMusicEnabled());
+        JCheckBox gameMusicBox = new JCheckBox(
+                text(uiTexts, "menu.settings.music.game", "Фоновая музыка в игре"),
+                current.gameMusicEnabled()
+        );
         panel.add(gameMusicBox);
 
         int result = JOptionPane.showConfirmDialog(
                 frame,
                 panel,
-                "Настройки",
+                text(uiTexts, "menu.settings.title", "Настройки"),
                 JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE
         );
@@ -61,5 +68,9 @@ public final class MenuSettingsDialog {
                 menuMusicBox.isSelected(),
                 gameMusicBox.isSelected()
         );
+    }
+
+    private static String text(Properties uiTexts, String key, String fallback) {
+        return uiTexts.getProperty(key, fallback);
     }
 }

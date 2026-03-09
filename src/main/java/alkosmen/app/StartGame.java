@@ -25,6 +25,8 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.RenderingHints;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.net.URL;
 import java.util.Properties;
 
@@ -33,21 +35,23 @@ public class StartGame {
 
     private static final String MENU_TRACK = "/alkosmen/sounds/Golden-Brown.mid";
     private static final String MENU_LOGO = "/alkosmen/ui/menu/alkosmeny_title_logo_v1_transparent.png";
+    private static Properties uiTexts = new Properties();
 
     public static void main(String[] args) {
         LOGGER.log(System.Logger.Level.INFO, "Start game...");
 
-        try (var in = StartGame.class.getResourceAsStream("/alkosmen/config.properties")) {
-            Properties properties = loadProperties(in);
+        try {
+            Properties properties = loadProperties("/alkosmen/config.properties");
+            uiTexts = loadProperties("/alkosmen/ui-texts.properties");
             applyConstants(properties);
 
             MidiPlayer midi = new MidiPlayer();
             applyMenuMusic(midi);
             JFrame frame = createMenuFrame(midi);
 
-            PixelButton start = new PixelButton("Старт");
-            PixelButton settings = new PixelButton("Настройки");
-            PixelButton exit = new PixelButton("Выход");
+            PixelButton start = new PixelButton(text("menu.button.start", "Старт"));
+            PixelButton settings = new PixelButton(text("menu.button.settings", "Настройки"));
+            PixelButton exit = new PixelButton(text("menu.button.exit", "Выход"));
             JPanel menuButtons = createMenuButtonsPanel(start, settings, exit);
 
             start.addActionListener(e -> {
@@ -146,7 +150,7 @@ public class StartGame {
         menuShell.setLayout(new BoxLayout(menuShell, BoxLayout.Y_AXIS));
         menuShell.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
 
-        JLabel subtitle = new JLabel("Ночной патруль похмельного героя");
+        JLabel subtitle = new JLabel(text("menu.subtitle", "Ночной патруль похмельного героя"));
         subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
         subtitle.setForeground(new Color(148, 178, 214));
         subtitle.setFont(new Font("Dialog", Font.BOLD, 16));
@@ -187,7 +191,7 @@ public class StartGame {
     private static JLabel createMenuLogoLabel() {
         URL logoUrl = StartGame.class.getResource(MENU_LOGO);
         if (logoUrl == null) {
-            JLabel fallback = new JLabel("АЛКОСМЕНЫ");
+            JLabel fallback = new JLabel(text("menu.logo.fallback", "АЛКОСМЕНЫ"));
             fallback.setForeground(new Color(226, 244, 240));
             fallback.setFont(new Font("Dialog", Font.BOLD, 36));
             return fallback;
@@ -216,13 +220,17 @@ public class StartGame {
         return targetH;
     }
 
-    private static Properties loadProperties(java.io.InputStream in) throws Exception {
-        if (in == null) {
-            throw new RuntimeException("Config not found: /alkosmen/config.properties");
+    private static Properties loadProperties(String resourcePath) throws Exception {
+        try (var in = StartGame.class.getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                throw new RuntimeException("Config not found: " + resourcePath);
+            }
+            Properties properties = new Properties();
+            try (var reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+                properties.load(reader);
+            }
+            return properties;
         }
-        Properties properties = new Properties();
-        properties.load(in);
-        return properties;
     }
 
     private static void applyConstants(Properties properties) {
@@ -245,7 +253,7 @@ public class StartGame {
                 Constants.MenuMusicEnabled,
                 Constants.GameMusicEnabled
         );
-        MenuSettingsState updatedSettings = MenuSettingsDialog.show(frame, currentSettings);
+        MenuSettingsState updatedSettings = MenuSettingsDialog.show(frame, currentSettings, uiTexts);
         if (updatedSettings == null) {
             return;
         }
@@ -269,6 +277,10 @@ public class StartGame {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static String text(String key, String fallback) {
+        return uiTexts.getProperty(key, fallback);
     }
 
     private static void newGame() {
