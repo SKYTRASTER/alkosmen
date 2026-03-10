@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Алкосмен</string>
+    <string name="menu_start">Старт</string>
+    <string name="menu_settings">Настройки</string>
+    <string name="menu_exit">Выход</string>
+    <string name="menu_start_stub">Запуск игры будет на следующем шаге</string>
+    <string name="menu_settings_stub">Настройки скоро будут</string>
+    <string name="menu_music_enabled">Музыка в меню</string>
+    <string name="game_music_enabled">Музыка в игре</string>
+</resources>

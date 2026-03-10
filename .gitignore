@@ -21,6 +21,10 @@ out/
 *.class.uniqueid*
 *.bin
 .gradle-user-home
+.android/
+local.properties
+androidApp/.cxx/
+androidApp/build/
 # (опционально) конкретные файлы Gradle-кэша
 executionHistory.bin
 fileHashes.bin

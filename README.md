@@ -32,7 +32,7 @@
 .\gradlew.bat run
 ```
 
-Точка входа приложения: `alkosmen.app.StartGame`.
+Точка входа приложения: `alkosmen.app.DesktopStartGame`.
 
 ## Управление
 

@@ -1,11 +1,8 @@
 package alkosmen.maps;
 
-import java.io.BufferedReader;
+import alkosmen.shared.GridMapParser;
+
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.List;
 
 public final class LevelLoader {
 
@@ -20,22 +17,7 @@ public final class LevelLoader {
             java.util.List<String> lines = br.lines().toList();
 
             if (lines.isEmpty()) return null;
-
-            int rows = lines.size();
-            int cols = lines.get(0).length();
-
-            char[][] map = new char[rows][cols];
-            for (int y = 0; y < rows; y++) {
-                String line = lines.get(y);
-                if (line.length() != cols) {
-                    throw new IllegalArgumentException(
-                            "Bad map: different line lengths at row " + y +
-                                    " (expected " + cols + ", got " + line.length() + ")"
-                    );
-                }
-                map[y] = line.toCharArray();
-            }
-            return map;
+            return GridMapParser.parseRectangular(lines).tiles();
         }
     }
 }

@@ -5,6 +5,6 @@ public final class StartGame {
     }
 
     public static void main(String[] args) {
-        alkosmen.app.StartGame.main(args);
+        alkosmen.app.DesktopStartGame.main(args);
     }
 }

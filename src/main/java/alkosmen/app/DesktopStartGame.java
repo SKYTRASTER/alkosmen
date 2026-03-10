@@ -42,8 +42,8 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Random;
 
-public class StartGame {
-    static final System.Logger LOGGER = System.getLogger(StartGame.class.getName());
+public class DesktopStartGame {
+    static final System.Logger LOGGER = System.getLogger(DesktopStartGame.class.getName());
 
     private static final String MENU_TRACK = "/alkosmen/sounds/bomfunk_mcs-freestyler.mid";
     private static final String MENU_LOGO = "/alkosmen/ui/menu/alkosmeny_title_logo_v1_transparent.png";
@@ -63,12 +63,11 @@ public class StartGame {
             applyConstants(properties);
 
             MidiPlayer midi = new MidiPlayer();
-            applyMenuMusic(midi);
             JFrame frame = createMenuFrame(midi);
 
-            PixelButton start = new PixelButton(text("menu.button.start", "Старт"));
-            PixelButton settings = new PixelButton(text("menu.button.settings", "Настройки"));
-            PixelButton exit = new PixelButton(text("menu.button.exit", "Выход"));
+            PixelButton start = new PixelButton(text("menu.button.start", "РЎС‚Р°СЂС‚"));
+            PixelButton settings = new PixelButton(text("menu.button.settings", "РќР°СЃС‚СЂРѕР№РєРё"));
+            PixelButton exit = new PixelButton(text("menu.button.exit", "Р’С‹С…РѕРґ"));
             JPanel menuButtons = createMenuButtonsPanel(start, settings, exit);
 
             start.addActionListener(e -> {
@@ -88,6 +87,7 @@ public class StartGame {
 
             frame.getContentPane().add(createMenuOverlay(menuButtons), BorderLayout.CENTER);
             showFrame(frame);
+            applyMenuMusic(midi);
 
         } catch (Exception e) {
             LOGGER.log(System.Logger.Level.ERROR, "Start error", e);
@@ -203,9 +203,9 @@ public class StartGame {
     }
 
     private static JLabel createMenuLogoLabel() {
-        URL logoUrl = StartGame.class.getResource(MENU_LOGO);
+        URL logoUrl = DesktopStartGame.class.getResource(MENU_LOGO);
         if (logoUrl == null) {
-            JLabel fallback = new JLabel(text("menu.logo.fallback", "АЛКОСМЕНЫ"));
+            JLabel fallback = new JLabel(text("menu.logo.fallback", "РђР›РљРћРЎРњР•РќР«"));
             fallback.setForeground(new Color(226, 244, 240));
             fallback.setFont(new Font("Dialog", Font.BOLD, 36));
             return fallback;
@@ -235,7 +235,7 @@ public class StartGame {
     }
 
     private static Properties loadProperties(String resourcePath) throws Exception {
-        try (var in = StartGame.class.getResourceAsStream(resourcePath)) {
+        try (var in = DesktopStartGame.class.getResourceAsStream(resourcePath)) {
             if (in == null) {
                 throw new RuntimeException("Config not found: " + resourcePath);
             }
@@ -321,7 +321,7 @@ public class StartGame {
     }
 
     private static void showTemporaryLoadingScreen(JFrame owner, MidiPlayer menuMidi) {
-        JDialog loading = new JDialog(owner, introText("intro.windowTitle", "Интро"), false);
+        JDialog loading = new JDialog(owner, introText("intro.windowTitle", "РРЅС‚СЂРѕ"), false);
         loading.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         loading.setUndecorated(true);
 
@@ -647,15 +647,15 @@ public class StartGame {
         }
         if (keys.isEmpty()) {
             return new String[]{
-                    "ЭПИЗОД I",
-                    "АЛКОСМЕН: НОЧНОЙ ЗАХОД",
+                    "Р­РџРР—РћР” I",
+                    "РђР›РљРћРЎРњР•Рќ: РќРћР§РќРћР™ Р—РђРҐРћР”",
                     "",
-                    "Ночной город не спит.",
-                    "Фонари трещат, район шумит.",
-                    "Менты уже на патруле.",
+                    "РќРѕС‡РЅРѕР№ РіРѕСЂРѕРґ РЅРµ СЃРїРёС‚.",
+                    "Р¤РѕРЅР°СЂРё С‚СЂРµС‰Р°С‚, СЂР°Р№РѕРЅ С€СѓРјРёС‚.",
+                    "РњРµРЅС‚С‹ СѓР¶Рµ РЅР° РїР°С‚СЂСѓР»Рµ.",
                     "",
-                    "Первый уровень",
-                    "временно отключен."
+                    "РџРµСЂРІС‹Р№ СѓСЂРѕРІРµРЅСЊ",
+                    "РІСЂРµРјРµРЅРЅРѕ РѕС‚РєР»СЋС‡РµРЅ."
             };
         }
 
@@ -676,7 +676,7 @@ public class StartGame {
     }
 
     private static Image loadImage(String path) {
-        URL url = StartGame.class.getResource(path);
+        URL url = DesktopStartGame.class.getResource(path);
         if (url == null) {
             return null;
         }
@@ -841,3 +841,4 @@ public class StartGame {
         return track == null ? 0 : track.length;
     }
 }
+
