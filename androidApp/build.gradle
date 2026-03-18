@@ -36,7 +36,25 @@ android {
 }
 
 dependencies {
-    implementation project(':shared')
+    implementation project(':common')
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
+}
+
+tasks.register('syncSharedMenuTexts', Copy) {
+    from(rootProject.file('src/main/resources/alkosmen/ui-texts.properties'))
+    into(layout.projectDirectory.dir('src/main/assets/alkosmen'))
+}
+
+tasks.register('syncSharedMenuArt', Copy) {
+    from(rootProject.file('src/main/resources/alkosmen/ui/menu/main_menu_bg.png'))
+    from(rootProject.file('src/main/resources/alkosmen/ui/menu/alkosmeny_title_logo_v1_transparent.png'))
+    into(layout.projectDirectory.dir('src/main/res/drawable'))
+    rename('main_menu_bg.png', 'menu_main_bg.png')
+    rename('alkosmeny_title_logo_v1_transparent.png', 'menu_logo.png')
+}
+
+tasks.named('preBuild').configure {
+    dependsOn(tasks.named('syncSharedMenuTexts'))
+    dependsOn(tasks.named('syncSharedMenuArt'))
 }

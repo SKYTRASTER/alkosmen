@@ -328,7 +328,7 @@ public class DesktopStartGame {
         boolean resumeMenuMusic = Constants.MenuMusicEnabled;
         menuMidi.stop();
 
-        SoundEffectPlayer introVoice = loadIntroVoice();
+        SoundEffectPlayer introVoice = introBool("intro.voice.enabled", false) ? loadIntroVoice() : null;
         if (introVoice != null) {
             introVoice.play();
         }
