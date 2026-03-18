@@ -1,9 +1,9 @@
 plugins {
-    id 'com.android.application' version '8.5.2'
+    id 'com.android.application' version '8.13.2'
 }
 
 android {
-    namespace 'alkosmen.android'
+    namespace = 'alkosmen.android'
     compileSdk 35
 
     defaultConfig {
@@ -31,7 +31,7 @@ android {
     }
 
     buildFeatures {
-        buildConfig true
+        buildConfig = true
     }
 }
 
