@@ -21,6 +21,7 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.Window;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -104,6 +105,7 @@ public final class Game extends Canvas implements Runnable {
     private static final double PLAYER_SCALE = 1.55;
     private static final double BOTTLE_SCALE = 2.2;
     private static final double NPC_SCALE = 1.7;
+    private static final double PATROL_SCALE = 1.0;
     // Bottom HUD height; gameplay camera/render should not overlap this zone.
     private static final int HUD_HEIGHT = 56;
     // Cop patrol tuning: horizontal speed, drop distance on turn, and sight range.
@@ -498,11 +500,14 @@ public final class Game extends Canvas implements Runnable {
             Image sprite = frames == null || frames.length == 0
                     ? npcCopSprite
                     : frames[Math.floorMod(patrol.animationTick / 7, frames.length)];
-            int spriteW = (int) Math.round(cell * NPC_SCALE);
-            int spriteH = (int) Math.round(cell * NPC_SCALE);
+            int spriteW = (int) Math.round(cell * PATROL_SCALE);
+            int spriteH = (int) Math.round(cell * PATROL_SCALE);
             int drawX = (int) Math.round(patrol.x * cell - cameraX - (spriteW - cell) / 2.0);
             int drawY = (int) Math.round(patrol.y * cell - cameraY - (spriteH - cell));
-            g.drawImage(sprite, drawX, drawY, spriteW, spriteH, null);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            g2.drawImage(sprite, drawX, drawY, spriteW, spriteH, null);
+            g2.dispose();
         }
     }
 
