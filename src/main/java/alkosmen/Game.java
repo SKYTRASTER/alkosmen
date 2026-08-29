@@ -107,7 +107,7 @@ public final class Game extends Canvas implements Runnable {
     private static final double JUMP_HOLD_GRAVITY_MULT = 0.55;
     private static final double PLAYER_SCALE = 0.875;
     private static final double PLAYER_COLLISION_MARGIN = 0.18;
-    private static final double BOTTLE_SCALE = 2.2;
+    private static final double BOTTLE_SCALE = 0.875;
     private static final double NPC_SCALE = 1.7;
     private static final double PATROL_SCALE = 0.875;
     // Bottom HUD height; gameplay camera/render should not overlap this zone.
