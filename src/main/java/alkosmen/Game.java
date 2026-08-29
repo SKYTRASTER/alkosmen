@@ -31,11 +31,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
-import java.util.PriorityQueue;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class Game extends Canvas implements Runnable {
@@ -104,8 +100,6 @@ public final class Game extends Canvas implements Runnable {
     private static final double TOP_DOWN_SPEED = 0.115;
     private static final double PATROL_SPEED = 0.032;
     private static final double PATROL_COLLISION_MARGIN = 0.06;
-    private static final int PATROL_SEARCH_RADIUS = 8;
-    private static final long PATROL_PATH_REFRESH_MS = 500;
     private static final double BOTTLE_PICKUP_RADIUS = 0.82;
     private static final double GRAVITY = 0.035;
     private static final double JUMP_SPEED = -0.68;
@@ -310,120 +304,87 @@ public final class Game extends Canvas implements Runnable {
     }
 
     private void updatePatrols() {
-        long now = System.currentTimeMillis();
+        int targetX = (int) Math.floor(player.x + 0.5);
+        int targetY = (int) Math.floor(player.y + 0.5);
         for (TopDownPatrol patrol : patrols) {
-            int targetX = (int) Math.floor(player.x + 0.5);
-            int targetY = (int) Math.floor(player.y + 0.5);
-            int patrolTileX = (int) Math.round(patrol.x);
-            int patrolTileY = (int) Math.round(patrol.y);
-            int distance = Math.abs(targetX - patrolTileX) + Math.abs(targetY - patrolTileY);
-
-            if (distance <= PATROL_SEARCH_RADIUS) {
-                if (now >= patrol.nextPathAt || patrol.targetX != targetX || patrol.targetY != targetY) {
-                    patrol.path = findPath(patrolTileX, patrolTileY, targetX, targetY);
-                    patrol.pathIndex = patrol.path.size() > 1 ? 1 : 0;
-                    patrol.targetX = targetX;
-                    patrol.targetY = targetY;
-                    patrol.nextPathAt = now + PATROL_PATH_REFRESH_MS;
-                }
-                movePatrolAlongPath(patrol);
-                continue;
-            }
-
-            double nextX = patrol.x + patrol.direction * PATROL_SPEED;
-            if (!canPatrolOccupy(nextX, patrol.y)) {
-                patrol.direction *= -1;
-            } else {
-                patrol.x = nextX;
-                patrol.animationTick++;
-            }
+            movePatrolLikePacman(patrol, targetX, targetY);
         }
     }
 
-    private void movePatrolAlongPath(TopDownPatrol patrol) {
-        if (patrol.pathIndex <= 0 || patrol.pathIndex >= patrol.path.size()) {
-            return;
+    private void movePatrolLikePacman(TopDownPatrol patrol, int targetX, int targetY) {
+        if (isAtCellCenter(patrol.x) && isAtCellCenter(patrol.y)) {
+            patrol.x = Math.rint(patrol.x);
+            patrol.y = Math.rint(patrol.y);
+            choosePacmanTurn(patrol, targetX, targetY);
         }
-        GridPoint waypoint = patrol.path.get(patrol.pathIndex);
-        double remainingX = waypoint.x - patrol.x;
-        double remainingY = waypoint.y - patrol.y;
-        double stepX = Math.copySign(Math.min(PATROL_SPEED, Math.abs(remainingX)), remainingX);
-        double stepY = Math.copySign(Math.min(PATROL_SPEED, Math.abs(remainingY)), remainingY);
 
-        if (stepX != 0.0 && canPatrolOccupy(patrol.x + stepX, patrol.y)) {
+        double stepX = patrol.moveX * PATROL_SPEED;
+        double stepY = patrol.moveY * PATROL_SPEED;
+        if (patrol.moveX != 0) {
+            double boundary = patrol.moveX > 0 ? Math.floor(patrol.x) + 1.0 : Math.ceil(patrol.x) - 1.0;
+            stepX = Math.copySign(Math.min(Math.abs(stepX), Math.abs(boundary - patrol.x)), stepX);
+        }
+        if (patrol.moveY != 0) {
+            double boundary = patrol.moveY > 0 ? Math.floor(patrol.y) + 1.0 : Math.ceil(patrol.y) - 1.0;
+            stepY = Math.copySign(Math.min(Math.abs(stepY), Math.abs(boundary - patrol.y)), stepY);
+        }
+        if (canPatrolOccupy(patrol.x + stepX, patrol.y + stepY)) {
             patrol.x += stepX;
-            patrol.direction = stepX < 0.0 ? -1 : 1;
-        } else if (stepY != 0.0 && canPatrolOccupy(patrol.x, patrol.y + stepY)) {
             patrol.y += stepY;
-        }
-        patrol.animationTick++;
-
-        if (Math.abs(waypoint.x - patrol.x) < 0.001 && Math.abs(waypoint.y - patrol.y) < 0.001) {
-            patrol.x = waypoint.x;
-            patrol.y = waypoint.y;
-            patrol.pathIndex++;
+            patrol.animationTick++;
+        } else {
+            patrol.moveX = -patrol.moveX;
+            patrol.moveY = -patrol.moveY;
         }
     }
 
-    private List<GridPoint> findPath(int startX, int startY, int targetX, int targetY) {
-        if (isSolid(startX, startY) || isSolid(targetX, targetY)) {
-            return List.of();
-        }
+    private void choosePacmanTurn(TopDownPatrol patrol, int targetX, int targetY) {
+        int tileX = (int) patrol.x;
+        int tileY = (int) patrol.y;
+        int bestX = patrol.moveX;
+        int bestY = patrol.moveY;
+        int bestDistance = Integer.MAX_VALUE;
+        boolean hasForwardChoice = false;
 
-        int height = levelMap.length;
-        int width = levelMap[0].length;
-        int[][] cost = new int[height][width];
-        GridPoint[][] previous = new GridPoint[height][width];
-        for (int[] row : cost) {
-            Arrays.fill(row, Integer.MAX_VALUE);
-        }
-
-        GridPoint start = new GridPoint(startX, startY);
-        GridPoint target = new GridPoint(targetX, targetY);
-        PriorityQueue<PathStep> open = new PriorityQueue<>(Comparator.comparingInt(PathStep::priority));
-        cost[startY][startX] = 0;
-        open.add(new PathStep(start, 0, manhattanDistance(start, target)));
-
-        while (!open.isEmpty()) {
-            PathStep current = open.remove();
-            GridPoint point = current.point;
-            if (current.cost != cost[point.y][point.x]) {
+        for (int[] direction : new int[][]{{0, -1}, {-1, 0}, {0, 1}, {1, 0}}) {
+            int directionX = direction[0];
+            int directionY = direction[1];
+            if (directionX == -patrol.moveX && directionY == -patrol.moveY) {
                 continue;
             }
-            if (point.equals(target)) {
-                return rebuildPath(previous, target);
+            int nextX = tileX + directionX;
+            int nextY = tileY + directionY;
+            if (isSolid(nextX, nextY)) {
+                continue;
             }
-
-            for (int[] direction : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
-                int nextX = point.x + direction[0];
-                int nextY = point.y + direction[1];
-                if (isSolid(nextX, nextY)) {
-                    continue;
-                }
-                int nextCost = current.cost + 1;
-                if (nextCost >= cost[nextY][nextX]) {
-                    continue;
-                }
-                GridPoint next = new GridPoint(nextX, nextY);
-                cost[nextY][nextX] = nextCost;
-                previous[nextY][nextX] = point;
-                open.add(new PathStep(next, nextCost, nextCost + manhattanDistance(next, target)));
+            hasForwardChoice = true;
+            int distance = squaredDistance(nextX, nextY, targetX, targetY);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestX = directionX;
+                bestY = directionY;
             }
         }
-        return List.of();
-    }
 
-    private List<GridPoint> rebuildPath(GridPoint[][] previous, GridPoint target) {
-        List<GridPoint> path = new ArrayList<>();
-        for (GridPoint point = target; point != null; point = previous[point.y][point.x]) {
-            path.add(point);
+        if (!hasForwardChoice) {
+            bestX = -patrol.moveX;
+            bestY = -patrol.moveY;
         }
-        Collections.reverse(path);
-        return path;
+        patrol.moveX = bestX;
+        patrol.moveY = bestY;
+        if (bestX != 0) {
+            patrol.direction = bestX;
+        }
     }
 
-    private static int manhattanDistance(GridPoint first, GridPoint second) {
-        return Math.abs(first.x - second.x) + Math.abs(first.y - second.y);
+    private static boolean isAtCellCenter(double coordinate) {
+        return Math.abs(coordinate - Math.rint(coordinate)) < 0.001;
+    }
+
+    private static int squaredDistance(int firstX, int firstY, int secondX, int secondY) {
+        int dx = firstX - secondX;
+        int dy = firstY - secondY;
+        return dx * dx + dy * dy;
     }
 
     private boolean canPatrolOccupy(double x, double y) {
@@ -694,8 +655,7 @@ public final class Game extends Canvas implements Runnable {
             int spriteH = (int) Math.round(cell * PATROL_HEIGHT_SCALE);
             int spriteW = Math.max(1, (int) Math.round(spriteH * (double) sprite.getWidth(null) / sprite.getHeight(null)));
             int drawX = (int) Math.round(patrol.x * cell - cameraX + (cell - spriteW) / 2.0);
-            int patrolBob = Math.floorMod(patrol.animationTick, 6) < 3 ? 0 : 1;
-            int drawY = (int) Math.round(patrol.y * cell - cameraY + cell - spriteH) + patrolBob;
+            int drawY = (int) Math.round(patrol.y * cell - cameraY + cell - spriteH);
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
             g2.drawImage(sprite, drawX, drawY, spriteW, spriteH, null);
@@ -1091,24 +1051,16 @@ public final class Game extends Canvas implements Runnable {
         private double x;
         private double y;
         private int direction;
+        private int moveX;
+        private int moveY;
         private int animationTick;
-        private List<GridPoint> path = List.of();
-        private int pathIndex;
-        private int targetX = Integer.MIN_VALUE;
-        private int targetY = Integer.MIN_VALUE;
-        private long nextPathAt;
 
         private TopDownPatrol(double x, double y, int direction) {
             this.x = x;
             this.y = y;
             this.direction = direction;
+            this.moveX = direction;
         }
-    }
-
-    private record GridPoint(int x, int y) {
-    }
-
-    private record PathStep(GridPoint point, int cost, int priority) {
     }
 
     private void renderLoadingScreen(String text) {
