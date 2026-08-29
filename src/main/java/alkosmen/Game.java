@@ -703,7 +703,7 @@ public final class Game extends Canvas implements Runnable {
     }
 
     private Image[][] getAlkobotImages() {
-        Image whiteAlkosmen = loadImageResource("/alkosmen/ui/characters/white_alkosmen_hero_v1.png");
+        Image whiteAlkosmen = removeWhiteBackdrop(loadImageResource("/alkosmen/ui/characters/white_alkosmen_hero_v1.png"));
         return new Image[][]{
                 new Image[]{whiteAlkosmen},
                 new Image[]{whiteAlkosmen},
