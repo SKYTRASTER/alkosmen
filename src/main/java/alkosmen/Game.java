@@ -96,6 +96,8 @@ public final class Game extends Canvas implements Runnable {
 
     private static final double MOVE_SPEED = 0.12;
     private static final double TOP_DOWN_SPEED = 0.115;
+    private static final double PATROL_SPEED = 0.032;
+    private static final double BOTTLE_PICKUP_RADIUS = 0.82;
     private static final double GRAVITY = 0.035;
     private static final double JUMP_SPEED = -0.68;
     private static final double MAX_FALL_SPEED = 0.9;
@@ -103,11 +105,11 @@ public final class Game extends Canvas implements Runnable {
     private static final long COYOTE_TIME_MS = 120;
     // While jump key is held and player is moving up, gravity is reduced.
     private static final double JUMP_HOLD_GRAVITY_MULT = 0.55;
-    private static final double PLAYER_SCALE = 1.0;
+    private static final double PLAYER_SCALE = 0.875;
     private static final double PLAYER_COLLISION_MARGIN = 0.18;
     private static final double BOTTLE_SCALE = 2.2;
     private static final double NPC_SCALE = 1.7;
-    private static final double PATROL_SCALE = 1.0;
+    private static final double PATROL_SCALE = 0.875;
     // Bottom HUD height; gameplay camera/render should not overlap this zone.
     private static final int HUD_HEIGHT = 56;
     // Cop patrol tuning: horizontal speed, drop distance on turn, and sight range.
@@ -236,15 +238,10 @@ public final class Game extends Canvas implements Runnable {
         }
         updateCamera();
 
+        collectNearbyBottle();
+
         int px = (int) Math.floor(player.x);
         int py = (int) Math.floor(player.y);
-        if (isInsideMap(px, py) && levelMap[py][px] == 'B') {
-            // Collect bottle on overlap: remove tile, add score, play SFX.
-            levelMap[py][px] = '.';
-            score++;
-            bottleCollectSound.play();
-            levelGoalReached = score >= bottleGoal && bottleGoal > 0;
-        }
         if (isInsideMap(px, py) && levelMap[py][px] == 'E' && levelGoalReached) {
             levelComplete = true;
             leftPressed = false;
@@ -278,9 +275,33 @@ public final class Game extends Canvas implements Runnable {
                 && !isSolid((int) Math.floor(maxX), (int) Math.floor(maxY));
     }
 
+    private void collectNearbyBottle() {
+        double playerCenterX = player.x + 0.5;
+        double playerCenterY = player.y + 0.5;
+        int minX = Math.max(0, (int) Math.floor(playerCenterX - BOTTLE_PICKUP_RADIUS));
+        int maxX = Math.min(levelMap[0].length - 1, (int) Math.floor(playerCenterX + BOTTLE_PICKUP_RADIUS));
+        int minY = Math.max(0, (int) Math.floor(playerCenterY - BOTTLE_PICKUP_RADIUS));
+        int maxY = Math.min(levelMap.length - 1, (int) Math.floor(playerCenterY + BOTTLE_PICKUP_RADIUS));
+
+        for (int y = minY; y <= maxY; y++) {
+            for (int x = minX; x <= maxX; x++) {
+                if (levelMap[y][x] != 'B') {
+                    continue;
+                }
+                if (Math.hypot(playerCenterX - (x + 0.5), playerCenterY - (y + 0.5)) <= BOTTLE_PICKUP_RADIUS) {
+                    levelMap[y][x] = '.';
+                    score++;
+                    bottleCollectSound.play();
+                    levelGoalReached = score >= bottleGoal && bottleGoal > 0;
+                    return;
+                }
+            }
+        }
+    }
+
     private void updatePatrols() {
         for (TopDownPatrol patrol : patrols) {
-            double nextX = patrol.x + patrol.direction * TOP_DOWN_SPEED * 0.72;
+            double nextX = patrol.x + patrol.direction * PATROL_SPEED;
             int tileX = (int) Math.floor(nextX);
             int tileY = (int) Math.floor(patrol.y);
             if (isSolid(tileX, tileY)) {
@@ -487,7 +508,7 @@ public final class Game extends Canvas implements Runnable {
             int playerW = (int) Math.round(cell * PLAYER_SCALE);
             int playerH = (int) Math.round(cell * PLAYER_SCALE);
             int drawX = (int) Math.round(player.x * cell - cameraX - (playerW - cell) / 2.0);
-            int drawY = (int) Math.round(player.y * cell - cameraY - (playerH - cell));
+            int drawY = (int) Math.round(player.y * cell - cameraY + (cell - playerH) / 2.0);
             int maxPlayerY = getHeight() - HUD_HEIGHT - playerH;
             if (drawY > maxPlayerY) {
                 drawY = maxPlayerY;
@@ -539,7 +560,7 @@ public final class Game extends Canvas implements Runnable {
             int spriteW = (int) Math.round(cell * PATROL_SCALE);
             int spriteH = (int) Math.round(cell * PATROL_SCALE);
             int drawX = (int) Math.round(patrol.x * cell - cameraX - (spriteW - cell) / 2.0);
-            int drawY = (int) Math.round(patrol.y * cell - cameraY - (spriteH - cell));
+            int drawY = (int) Math.round(patrol.y * cell - cameraY + (cell - spriteH) / 2.0);
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
             g2.drawImage(sprite, drawX, drawY, spriteW, spriteH, null);
