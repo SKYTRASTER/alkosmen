@@ -769,6 +769,20 @@ public final class Game extends Canvas implements Runnable {
             if (y > 0) addWhiteBackgroundPixel(cleaned, x, y - 1, removed, pending);
             if (y + 1 < height) addWhiteBackgroundPixel(cleaned, x, y + 1, removed, pending);
         }
+
+        // The source art has isolated white background flecks inside the silhouette as well.
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int color = cleaned.getRGB(x, y);
+                int red = (color >>> 16) & 0xFF;
+                int green = (color >>> 8) & 0xFF;
+                int blue = color & 0xFF;
+                int spread = Math.max(red, Math.max(green, blue)) - Math.min(red, Math.min(green, blue));
+                if (red >= 220 && green >= 220 && blue >= 220 && spread <= 18) {
+                    cleaned.setRGB(x, y, color & 0x00FFFFFF);
+                }
+            }
+        }
         return cleaned;
     }
 
