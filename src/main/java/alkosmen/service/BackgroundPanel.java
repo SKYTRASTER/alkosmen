@@ -147,7 +147,6 @@ public class BackgroundPanel extends JPanel {
         drawBackgroundCover(g2, w, h);
         drawAtmospherePass(g2, w, h);
         drawMozolOverlay(g2, w, h);
-        drawEboboOverlay(g2, w, h);
 
         g2.dispose();
     }

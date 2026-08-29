@@ -99,6 +99,7 @@ public final class Game extends Canvas implements Runnable {
     private static final double MOVE_SPEED = 0.12;
     private static final double TOP_DOWN_SPEED = 0.115;
     private static final double PATROL_SPEED = 0.032;
+    private static final double PATROL_COLLISION_MARGIN = 0.06;
     private static final double BOTTLE_PICKUP_RADIUS = 0.82;
     private static final double GRAVITY = 0.035;
     private static final double JUMP_SPEED = -0.68;
@@ -107,8 +108,9 @@ public final class Game extends Canvas implements Runnable {
     private static final long COYOTE_TIME_MS = 120;
     // While jump key is held and player is moving up, gravity is reduced.
     private static final double JUMP_HOLD_GRAVITY_MULT = 0.55;
-    private static final double PLAYER_SCALE = 0.875;
-    private static final double PLAYER_COLLISION_MARGIN = 0.18;
+    // The player art has transparent padding, so the on-screen sprite is larger than its feet hitbox.
+    private static final double PLAYER_SCALE = 1.35;
+    private static final double PLAYER_COLLISION_MARGIN = 0.06;
     private static final double BOTTLE_SCALE = 1.3125;
     private static final double NPC_SCALE = 1.7;
     private static final double PATROL_SCALE = 0.875;
@@ -304,15 +306,24 @@ public final class Game extends Canvas implements Runnable {
     private void updatePatrols() {
         for (TopDownPatrol patrol : patrols) {
             double nextX = patrol.x + patrol.direction * PATROL_SPEED;
-            int tileX = (int) Math.floor(nextX);
-            int tileY = (int) Math.floor(patrol.y);
-            if (isSolid(tileX, tileY)) {
+            if (!canPatrolOccupy(nextX, patrol.y)) {
                 patrol.direction *= -1;
                 continue;
             }
             patrol.x = nextX;
             patrol.animationTick++;
         }
+    }
+
+    private boolean canPatrolOccupy(double x, double y) {
+        double minX = x + PATROL_COLLISION_MARGIN;
+        double maxX = x + 1.0 - PATROL_COLLISION_MARGIN;
+        double minY = y + PATROL_COLLISION_MARGIN;
+        double maxY = y + 1.0 - PATROL_COLLISION_MARGIN;
+        return !isSolid((int) Math.floor(minX), (int) Math.floor(minY))
+                && !isSolid((int) Math.floor(maxX), (int) Math.floor(minY))
+                && !isSolid((int) Math.floor(minX), (int) Math.floor(maxY))
+                && !isSolid((int) Math.floor(maxX), (int) Math.floor(maxY));
     }
 
     private void checkPatrolCollision(long now) {
@@ -703,7 +714,7 @@ public final class Game extends Canvas implements Runnable {
     }
 
     private Image[][] getAlkobotImages() {
-        Image whiteAlkosmen = removeWhiteBackdrop(loadImageResource("/alkosmen/ui/characters/white_alkosmen_hero_v1.png"));
+        Image whiteAlkosmen = loadImageResource("/alkosmen/ui/characters/white_alkosmen_player_pixel_v1.png");
         return new Image[][]{
                 new Image[]{whiteAlkosmen},
                 new Image[]{whiteAlkosmen},
