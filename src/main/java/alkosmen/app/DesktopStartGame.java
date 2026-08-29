@@ -49,7 +49,7 @@ public class DesktopStartGame {
     private static final String MENU_LOGO = "/alkosmen/ui/menu/alkosmeny_title_logo_v1_transparent.png";
     private static final String EBOBO_WALK_RIGHT_PATH = "/alkosmen/ui/intro/ebobo/walk_right";
     private static final String EBOBO_WALK_LEFT_PATH = "/alkosmen/ui/intro/ebobo/walk_left";
-    private static final boolean LEVELS_TEMP_DISABLED = true;
+    private static final boolean LEVELS_TEMP_DISABLED = false;
     private static Properties uiTexts = new Properties();
     private static Properties introTexts = new Properties();
 

@@ -96,6 +96,35 @@ public final class GameHudRenderer {
         g2.drawString(text, textX + 4, textY + 4);
         g2.setColor(new Color(255, 60, 60));
         g2.drawString(text, textX, textY);
+        g2.setFont(new Font("Dialog", Font.BOLD, 22));
+        String restart = "PRESS R TO RESTART";
+        int restartW = g2.getFontMetrics().stringWidth(restart);
+        g2.setColor(Color.WHITE);
+        g2.drawString(restart, (width - restartW) / 2, textY + 44);
+        g2.dispose();
+    }
+
+    public void drawLevelCompleteOverlay(Graphics g, int width, int height, boolean levelComplete) {
+        if (!levelComplete) {
+            return;
+        }
+
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setColor(new Color(0, 40, 20, 185));
+        g2.fillRect(0, 0, width, height);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2.setFont(new Font("Impact", Font.BOLD, Math.max(64, height / 6)));
+        String text = "LEVEL COMPLETE";
+        int textW = g2.getFontMetrics().stringWidth(text);
+        int textX = (width - textW) / 2;
+        int textY = height / 2;
+        g2.setColor(new Color(110, 245, 145));
+        g2.drawString(text, textX, textY);
+        g2.setFont(new Font("Dialog", Font.BOLD, 22));
+        String restart = "PRESS R TO PLAY AGAIN";
+        int restartW = g2.getFontMetrics().stringWidth(restart);
+        g2.setColor(Color.WHITE);
+        g2.drawString(restart, (width - restartW) / 2, textY + 44);
         g2.dispose();
     }
 }

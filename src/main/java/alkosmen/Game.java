@@ -79,6 +79,8 @@ public final class Game extends Canvas implements Runnable {
     private int playerSpawnY;
     private boolean hidePressed;
     private boolean gameOver;
+    private boolean levelComplete;
+    private volatile boolean restartRequested;
     private int lives = MAX_LIVES;
     private boolean spectatorMode;
     private String cityLine = "";
@@ -186,6 +188,20 @@ public final class Game extends Canvas implements Runnable {
         if (player == null || levelMap == null) {
             return;
         }
+
+        if (restartRequested) {
+            restartRequested = false;
+            try {
+                loadLevel(currentLevel);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to restart level", e);
+            }
+            return;
+        }
+        if (gameOver || levelComplete) {
+            return;
+        }
+
         long now = System.currentTimeMillis();
         if (now >= nextCityLineAt) {
             rotateCityLine(now, false);
@@ -235,14 +251,12 @@ public final class Game extends Canvas implements Runnable {
         if (copOutcome == CopSystem.Outcome.GAME_OVER) {
             lives = 0;
             gameOver = true;
-            running = false;
             return;
         }
         if (copOutcome == CopSystem.Outcome.CAUGHT) {
             lives = Math.max(0, lives - 1);
             if (lives == 0) {
                 gameOver = true;
-                running = false;
                 return;
             }
             respawnPlayer();
@@ -256,6 +270,13 @@ public final class Game extends Canvas implements Runnable {
             levelMap[py][px] = '.';
             score++;
             bottleCollectSound.play();
+            if (score >= bottleGoal && bottleGoal > 0) {
+                levelComplete = true;
+                leftPressed = false;
+                rightPressed = false;
+                jumpPressed = false;
+                hidePressed = false;
+            }
         }
 
     }
@@ -467,6 +488,7 @@ public final class Game extends Canvas implements Runnable {
                 System.currentTimeMillis()
         );
         hudRenderer.drawGameOverOverlay(g, getWidth(), getHeight(), gameOver);
+        hudRenderer.drawLevelCompleteOverlay(g, getWidth(), getHeight(), levelComplete);
 
         g.dispose();
         bs.show();
@@ -489,6 +511,7 @@ public final class Game extends Canvas implements Runnable {
                     case KeyEvent.VK_N -> {
                         // Demo mode: single level only.
                     }
+                    case KeyEvent.VK_R -> restartRequested = true;
                     default -> {
                     }
                 }
@@ -702,6 +725,7 @@ public final class Game extends Canvas implements Runnable {
         lastOnGroundAt = 0L;
         hidePressed = false;
         gameOver = false;
+        levelComplete = false;
         lives = MAX_LIVES;
 
         Window w = SwingUtilities.getWindowAncestor(this);
