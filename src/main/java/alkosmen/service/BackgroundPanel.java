@@ -192,12 +192,16 @@ public class BackgroundPanel extends JPanel {
 
         int x = eboboX - targetW / 2;
         int footY = currentFootY(m);
-        int y = footY - targetH;
+        boolean isWalking = eboboPhase != PHASE_WHITE_BUMP_PAUSE;
+        int motionPhase = Math.floorMod(eboboTick, isWalking ? 6 : 14);
+        int bob = isWalking ? (motionPhase < 3 ? 0 : 3) : (motionPhase < 7 ? 0 : 1);
+        int animatedH = targetH - (isWalking && motionPhase == 1 ? 2 : 0);
+        int y = footY - animatedH + bob;
 
         x = Math.max(0, Math.min(x, Math.max(0, w - targetW)));
-        y = Math.max(0, Math.min(y, Math.max(0, h - targetH)));
+        y = Math.max(0, Math.min(y, Math.max(0, h - animatedH)));
 
-        g2.drawImage(eboboOverlay, x, y, targetW, targetH, this);
+        g2.drawImage(eboboOverlay, x, y, targetW, animatedH, this);
     }
 
     private void advanceEboboAnimation() {

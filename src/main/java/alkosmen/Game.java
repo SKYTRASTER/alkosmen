@@ -60,6 +60,7 @@ public final class Game extends Canvas implements Runnable {
     private long lastOnGroundAt;
     private int playerDir = 2; // 0 left, 1 right, 2 idle/dance
     private int animFrame = 0;
+    private int playerMotionTick = 0;
     private long lastAnim = 0;
     private SoundEffectPlayer stepSound;
     private SoundEffectPlayer jumpSound;
@@ -387,13 +388,15 @@ public final class Game extends Canvas implements Runnable {
         }
         if (isWalking && now - lastAnim > 90) {
             animFrame = (animFrame + 1) % frameCount;
+            playerMotionTick++;
             lastAnim = now;
-            if ((animFrame % 3) == 0) {
+            if ((playerMotionTick % 4) == 0) {
                 stepSound.play();
             }
         }
         if (!isWalking && now - lastAnim > 110) {
             animFrame = (animFrame + 1) % frameCount;
+            playerMotionTick++;
             lastAnim = now;
         }
     }
@@ -425,6 +428,7 @@ public final class Game extends Canvas implements Runnable {
         }
 
         Graphics g = bs.getDrawGraphics();
+        long sceneTime = System.currentTimeMillis();
 
         g.setColor(new Color(11, 19, 30));
         g.fillRect(0, 0, getWidth(), getHeight());
@@ -461,7 +465,8 @@ public final class Game extends Canvas implements Runnable {
                         int bottleW = (int) Math.round(cell * BOTTLE_SCALE);
                         int bottleH = (int) Math.round(cell * BOTTLE_SCALE);
                         int bottleX = drawX - (bottleW - cell) / 2;
-                        int bottleY = drawY - (bottleH - cell);
+                        int bottleBob = (int) Math.round(Math.sin((sceneTime + x * 251L + y * 131L) / 280.0));
+                        int bottleY = drawY - (bottleH - cell) + bottleBob;
                         g.drawImage(bottleSprite, bottleX, bottleY, bottleW, bottleH, null);
                         continue;
                     }
@@ -477,7 +482,8 @@ public final class Game extends Canvas implements Runnable {
                             int npcW = (int) Math.round(cell * NPC_SCALE);
                             int npcH = (int) Math.round(cell * NPC_SCALE);
                             int npcX = drawX - (npcW - cell) / 2;
-                            int npcY = drawY - (npcH - cell);
+                            int npcBob = (int) Math.round(Math.sin((sceneTime + x * 173L + y * 97L) / 450.0));
+                            int npcY = drawY - (npcH - cell) + npcBob;
                             g.drawImage(npc, npcX, npcY, npcW, npcH, null);
                         }
                         continue;
@@ -499,7 +505,7 @@ public final class Game extends Canvas implements Runnable {
                     copWalkRightFrames,
                     cameraX,
                     cameraY,
-                    System.currentTimeMillis()
+                    sceneTime
             );
             drawPatrols(g, cell);
         }
@@ -514,16 +520,21 @@ public final class Game extends Canvas implements Runnable {
             if (drawY > maxPlayerY) {
                 drawY = maxPlayerY;
             }
+            boolean playerIsWalking = playerDir != 2;
+            int motionPhase = Math.floorMod(playerMotionTick, playerIsWalking ? 4 : 12);
+            int playerBob = playerIsWalking ? (motionPhase < 2 ? 0 : 2) : (motionPhase < 6 ? 0 : 1);
+            int animatedPlayerH = playerH - (playerIsWalking && motionPhase == 1 ? 1 : 0);
+            drawY += playerBob;
             Image[] track = playerSprites[playerDir];
             Image img = track[Math.floorMod(animFrame, track.length)];
             // Hidden player remains visible with low alpha for gameplay readability.
             if (isPlayerHidden()) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.33f));
-                g2.drawImage(img, drawX, drawY, playerW, playerH, null);
+                g2.drawImage(img, drawX, drawY, playerW, animatedPlayerH, null);
                 g2.dispose();
             } else {
-                g.drawImage(img, drawX, drawY, playerW, playerH, null);
+                g.drawImage(img, drawX, drawY, playerW, animatedPlayerH, null);
             }
         }
 
@@ -540,7 +551,7 @@ public final class Game extends Canvas implements Runnable {
                 gameOver,
                 cityLine,
                 Math.max(copSystem.getLastCaughtAt(), lastPatrolCaughtAt),
-                System.currentTimeMillis()
+                sceneTime
         );
         hudRenderer.drawGameOverOverlay(g, getWidth(), getHeight(), gameOver);
         hudRenderer.drawLevelCompleteOverlay(g, getWidth(), getHeight(), levelComplete);
@@ -561,7 +572,8 @@ public final class Game extends Canvas implements Runnable {
             int spriteW = (int) Math.round(cell * PATROL_SCALE);
             int spriteH = (int) Math.round(cell * PATROL_SCALE);
             int drawX = (int) Math.round(patrol.x * cell - cameraX - (spriteW - cell) / 2.0);
-            int drawY = (int) Math.round(patrol.y * cell - cameraY + (cell - spriteH) / 2.0);
+            int patrolBob = Math.floorMod(patrol.animationTick, 6) < 3 ? 0 : 1;
+            int drawY = (int) Math.round(patrol.y * cell - cameraY + (cell - spriteH) / 2.0) + patrolBob;
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
             g2.drawImage(sprite, drawX, drawY, spriteW, spriteH, null);
@@ -818,6 +830,7 @@ public final class Game extends Canvas implements Runnable {
 
         playerDir = 2;
         animFrame = 0;
+        playerMotionTick = 0;
         cameraX = 0;
         cameraY = 0;
         jumpPressed = false;
