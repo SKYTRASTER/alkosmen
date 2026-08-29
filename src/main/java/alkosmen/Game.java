@@ -29,6 +29,7 @@ import java.awt.image.BufferStrategy;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URL;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -711,9 +712,58 @@ public final class Game extends Canvas implements Runnable {
         Image[] frames = new Image[COP_WALK_FRAME_COUNT];
         for (int i = 0; i < frames.length; i++) {
             String framePath = String.format("/alkosmen/images/objects/cop/male/%s/%02d.png", trackName, i);
-            frames[i] = loadImageResource(framePath);
+            frames[i] = removeWhiteBackdrop(loadImageResource(framePath));
         }
         return frames;
+    }
+
+    private Image removeWhiteBackdrop(Image source) {
+        int width = source.getWidth(null);
+        int height = source.getHeight(null);
+        BufferedImage cleaned = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = cleaned.createGraphics();
+        graphics.drawImage(source, 0, 0, null);
+        graphics.dispose();
+
+        boolean[] removed = new boolean[width * height];
+        ArrayDeque<Integer> pending = new ArrayDeque<>();
+        for (int x = 0; x < width; x++) {
+            addWhiteBackgroundPixel(cleaned, x, 0, removed, pending);
+            addWhiteBackgroundPixel(cleaned, x, height - 1, removed, pending);
+        }
+        for (int y = 1; y < height - 1; y++) {
+            addWhiteBackgroundPixel(cleaned, 0, y, removed, pending);
+            addWhiteBackgroundPixel(cleaned, width - 1, y, removed, pending);
+        }
+
+        while (!pending.isEmpty()) {
+            int index = pending.removeFirst();
+            int x = index % width;
+            int y = index / width;
+            cleaned.setRGB(x, y, cleaned.getRGB(x, y) & 0x00FFFFFF);
+            if (x > 0) addWhiteBackgroundPixel(cleaned, x - 1, y, removed, pending);
+            if (x + 1 < width) addWhiteBackgroundPixel(cleaned, x + 1, y, removed, pending);
+            if (y > 0) addWhiteBackgroundPixel(cleaned, x, y - 1, removed, pending);
+            if (y + 1 < height) addWhiteBackgroundPixel(cleaned, x, y + 1, removed, pending);
+        }
+        return cleaned;
+    }
+
+    private void addWhiteBackgroundPixel(BufferedImage image, int x, int y, boolean[] removed, ArrayDeque<Integer> pending) {
+        int index = y * image.getWidth() + x;
+        if (removed[index]) {
+            return;
+        }
+        int color = image.getRGB(x, y);
+        int red = (color >>> 16) & 0xFF;
+        int green = (color >>> 8) & 0xFF;
+        int blue = color & 0xFF;
+        int spread = Math.max(red, Math.max(green, blue)) - Math.min(red, Math.min(green, blue));
+        if (red < 220 || green < 220 || blue < 220 || spread > 18) {
+            return;
+        }
+        removed[index] = true;
+        pending.addLast(index);
     }
 
     private void loadLevel(int level) throws Exception {
