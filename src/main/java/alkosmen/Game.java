@@ -113,7 +113,7 @@ public final class Game extends Canvas implements Runnable {
     private static final double PLAYER_COLLISION_MARGIN = 0.06;
     private static final double BOTTLE_SCALE = 1.3125;
     private static final double NPC_SCALE = 1.7;
-    private static final double PATROL_SCALE = 0.875;
+    private static final double PATROL_SCALE = 1.35;
     // Bottom HUD height; gameplay camera/render should not overlap this zone.
     private static final int HUD_HEIGHT = 56;
     // Cop patrol tuning: horizontal speed, drop distance on turn, and sight range.
@@ -733,8 +733,9 @@ public final class Game extends Canvas implements Runnable {
 
     private Image[] loadCopTrackFrames(String trackName) {
         Image[] frames = new Image[COP_WALK_FRAME_COUNT];
+        String spriteTrack = trackName.equals("walk_left") ? "run_left" : "run_right";
         for (int i = 0; i < frames.length; i++) {
-            String framePath = String.format("/alkosmen/images/objects/cop/male/%s/%02d.png", trackName, i);
+            String framePath = String.format("/alkosmen/images/objects/cop/male/%s/%02d.png", spriteTrack, i);
             frames[i] = removeWhiteBackdrop(loadImageResource(framePath));
         }
         return frames;
