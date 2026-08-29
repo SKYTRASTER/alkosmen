@@ -107,7 +107,7 @@ public final class Game extends Canvas implements Runnable {
     private static final double JUMP_HOLD_GRAVITY_MULT = 0.55;
     private static final double PLAYER_SCALE = 0.875;
     private static final double PLAYER_COLLISION_MARGIN = 0.18;
-    private static final double BOTTLE_SCALE = 0.875;
+    private static final double BOTTLE_SCALE = 1.3125;
     private static final double NPC_SCALE = 1.7;
     private static final double PATROL_SCALE = 0.875;
     // Bottom HUD height; gameplay camera/render should not overlap this zone.
@@ -718,7 +718,7 @@ public final class Game extends Canvas implements Runnable {
     private Image[] loadCopTrackFrames(String trackName) {
         Image[] frames = new Image[COP_WALK_FRAME_COUNT];
         for (int i = 0; i < frames.length; i++) {
-            String framePath = String.format("/alkosmen/images/objects/cop/male/%s/%02d.png", trackName, i);
+            String framePath = String.format("/alkosmen/images/objects/cop/female/%s/%02d.png", trackName, i);
             frames[i] = loadImageResource(framePath);
         }
         return frames;
