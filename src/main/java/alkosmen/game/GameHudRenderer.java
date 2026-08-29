@@ -41,7 +41,7 @@ public final class GameHudRenderer {
 
         g.setColor(Color.WHITE);
         g.setFont(new Font("Serif", Font.BOLD, 20));
-        g.drawString("A/D or arrows + SPACE, S/Down to hide", 14, 50);
+        g.drawString("WASD or arrows to move, R to restart", 14, 50);
 
         g.setColor(new Color(160, 130, 96));
         g.setFont(new Font("Monospaced", Font.BOLD, 26));
@@ -59,9 +59,9 @@ public final class GameHudRenderer {
             g.drawString("ГОРОД: " + cityLine, 14, y + hudHeight - 6);
         }
 
-        if (score >= bottleGoal) {
+        if (score >= bottleGoal && bottleGoal > 0) {
             g.setColor(new Color(120, 220, 120));
-            g.drawString("YOU WIN!!!", 470, y + 35);
+            g.drawString("FIND THE EXIT", 470, y + 35);
         }
         if (hidden) {
             g.setColor(new Color(150, 220, 255));

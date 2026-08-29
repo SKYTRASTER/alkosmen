@@ -43,11 +43,13 @@ public final class Game extends Canvas implements Runnable {
             "/alkosmen/maps/demo_level.txt"
     };
     private static final String[] LEVEL_BACKGROUNDS = {
-            "/alkosmen/images/objects/maps/demo_map_grid_48x32.png"
+            "/alkosmen/ui/levels/market_square_night_v1.png"
     };
 
     private boolean leftPressed;
     private boolean rightPressed;
+    private boolean upPressed;
+    private boolean downPressed;
     private boolean jumpPressed;
     private boolean jumpQueued;
     private long jumpBufferUntil;
@@ -80,6 +82,7 @@ public final class Game extends Canvas implements Runnable {
     private boolean hidePressed;
     private boolean gameOver;
     private boolean levelComplete;
+    private boolean levelGoalReached;
     private volatile boolean restartRequested;
     private int lives = MAX_LIVES;
     private boolean spectatorMode;
@@ -87,6 +90,7 @@ public final class Game extends Canvas implements Runnable {
     private long nextCityLineAt;
 
     private static final double MOVE_SPEED = 0.12;
+    private static final double TOP_DOWN_SPEED = 0.115;
     private static final double GRAVITY = 0.035;
     private static final double JUMP_SPEED = -0.68;
     private static final double MAX_FALL_SPEED = 0.9;
@@ -94,7 +98,7 @@ public final class Game extends Canvas implements Runnable {
     private static final long COYOTE_TIME_MS = 120;
     // While jump key is held and player is moving up, gravity is reduced.
     private static final double JUMP_HOLD_GRAVITY_MULT = 0.55;
-    private static final double PLAYER_SCALE = 1.95;
+    private static final double PLAYER_SCALE = 1.55;
     private static final double BOTTLE_SCALE = 2.2;
     private static final double NPC_SCALE = 1.7;
     // Bottom HUD height; gameplay camera/render should not overlap this zone.
@@ -206,61 +210,17 @@ public final class Game extends Canvas implements Runnable {
         if (now >= nextCityLineAt) {
             rotateCityLine(now, false);
         }
-        if (player.onGround) {
-            lastOnGroundAt = now;
-        }
-
-        if (!spectatorMode) {
-            double targetVx = 0.0;
-            if (leftPressed && !rightPressed) {
-                targetVx = -MOVE_SPEED;
-                playerDir = 0;
-            } else if (rightPressed && !leftPressed) {
-                targetVx = MOVE_SPEED;
-                playerDir = 1;
-            } else {
-                playerDir = 2;
-            }
-            player.vx = targetVx;
-
-            boolean hasBufferedJump = jumpQueued || now <= jumpBufferUntil;
-            boolean canJumpNow = player.onGround || (now - lastOnGroundAt <= COYOTE_TIME_MS);
-            if (hasBufferedJump && canJumpNow) {
-                // Initial jump impulse applies only from ground.
-                player.vy = JUMP_SPEED;
-                player.onGround = false;
-                jumpSound.play();
-                lastOnGroundAt = 0L;
-                jumpBufferUntil = 0L;
-            }
-            jumpQueued = false;
-
-            double gravityStep = GRAVITY;
-            if (jumpPressed && player.vy < 0) {
-                // Variable jump height: hold key to jump a bit higher.
-                gravityStep *= JUMP_HOLD_GRAVITY_MULT;
-            }
-            player.vy = Math.min(MAX_FALL_SPEED, player.vy + gravityStep);
-
-            moveHorizontal(player.vx);
-            moveVertical(player.vy);
+        double dx = (rightPressed ? 1.0 : 0.0) - (leftPressed ? 1.0 : 0.0);
+        double dy = (downPressed ? 1.0 : 0.0) - (upPressed ? 1.0 : 0.0);
+        if (dx != 0.0 || dy != 0.0) {
+            double length = Math.hypot(dx, dy);
+            moveTopDown(dx / length * TOP_DOWN_SPEED, dy / length * TOP_DOWN_SPEED);
+            playerDir = dx < 0 ? 0 : dx > 0 ? 1 : 2;
+        } else {
+            playerDir = 2;
         }
 
         animatePlayer();
-        CopSystem.Outcome copOutcome = copSystem.tick(levelMap, player, isPlayerHidden(), now, spectatorMode);
-        if (copOutcome == CopSystem.Outcome.GAME_OVER) {
-            lives = 0;
-            gameOver = true;
-            return;
-        }
-        if (copOutcome == CopSystem.Outcome.CAUGHT) {
-            lives = Math.max(0, lives - 1);
-            if (lives == 0) {
-                gameOver = true;
-                return;
-            }
-            respawnPlayer();
-        }
         updateCamera();
 
         int px = (int) Math.floor(player.x);
@@ -270,15 +230,28 @@ public final class Game extends Canvas implements Runnable {
             levelMap[py][px] = '.';
             score++;
             bottleCollectSound.play();
-            if (score >= bottleGoal && bottleGoal > 0) {
-                levelComplete = true;
-                leftPressed = false;
-                rightPressed = false;
-                jumpPressed = false;
-                hidePressed = false;
-            }
+            levelGoalReached = score >= bottleGoal && bottleGoal > 0;
+        }
+        if (isInsideMap(px, py) && levelMap[py][px] == 'E' && levelGoalReached) {
+            levelComplete = true;
+            leftPressed = false;
+            rightPressed = false;
+            upPressed = false;
+            downPressed = false;
         }
 
+    }
+
+    private void moveTopDown(double dx, double dy) {
+        double nextX = player.x + dx;
+        if (!isSolid((int) Math.floor(nextX), (int) Math.floor(player.y))) {
+            player.x = nextX;
+        }
+
+        double nextY = player.y + dy;
+        if (!isSolid((int) Math.floor(player.x), (int) Math.floor(nextY))) {
+            player.y = nextY;
+        }
     }
 
     private void moveHorizontal(double dx) {
@@ -349,8 +322,8 @@ public final class Game extends Canvas implements Runnable {
 
     private void updateCamera() {
         int cell = Constants.Size;
-        double focusX = spectatorMode && copSystem.hasCops() ? copSystem.getFocusX() : player.x;
-        double focusY = spectatorMode && copSystem.hasCops() ? copSystem.getFocusY() : player.y;
+        double focusX = player.x;
+        double focusY = player.y;
         float worldPx = (float) (focusX * cell);
         float worldPy = (float) (focusY * cell);
         int gameplayHeight = Math.max(1, getHeight() - HUD_HEIGHT);
@@ -375,15 +348,13 @@ public final class Game extends Canvas implements Runnable {
 
         Graphics g = bs.getDrawGraphics();
 
-        g.setColor(new Color(120, 190, 255));
+        g.setColor(new Color(11, 19, 30));
         g.fillRect(0, 0, getWidth(), getHeight());
 
         if (levelMap != null) {
             int cell = Constants.Size;
             if (levelBackground != null) {
-                int mapPxW = levelMap[0].length * cell;
-                int mapPxH = levelMap.length * cell;
-                g.drawImage(levelBackground, -(int) cameraX, -(int) cameraY, mapPxW, mapPxH, null);
+                drawLevelBackground(g, getHeight() - HUD_HEIGHT);
             }
 
             int firstTileX = Math.max(0, (int) (cameraX / cell));
@@ -400,12 +371,13 @@ public final class Game extends Canvas implements Runnable {
                         continue;
                     }
 
-                    if (levelBackground != null && c != 'B' && !isNpcTile(c)) {
-                        continue;
-                    }
-
                     int drawX = x * cell - (int) cameraX;
                     int drawY = y * cell - (int) cameraY;
+
+                    if (c == '#') {
+                        drawMazeWall(g, drawX, drawY, cell);
+                        continue;
+                    }
 
                     if (c == 'B' && bottleSprite != null) {
                         int bottleW = (int) Math.round(cell * BOTTLE_SCALE);
@@ -413,6 +385,11 @@ public final class Game extends Canvas implements Runnable {
                         int bottleX = drawX - (bottleW - cell) / 2;
                         int bottleY = drawY - (bottleH - cell);
                         g.drawImage(bottleSprite, bottleX, bottleY, bottleW, bottleH, null);
+                        continue;
+                    }
+
+                    if (c == 'E') {
+                        drawExit(g, drawX, drawY, cell, levelGoalReached);
                         continue;
                     }
 
@@ -428,8 +405,7 @@ public final class Game extends Canvas implements Runnable {
                         continue;
                     }
 
-                    Image img = c == '#' ? tileWall : tileFloor;
-                    g.drawImage(img, drawX, drawY, cell, cell, null);
+                    g.drawImage(tileFloor, drawX, drawY, cell, cell, null);
                 }
             }
         }
@@ -501,16 +477,8 @@ public final class Game extends Canvas implements Runnable {
                 switch (e.getKeyCode()) {
                     case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = true;
                     case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = true;
-                    case KeyEvent.VK_SPACE -> {
-                        jumpPressed = true;
-                        jumpQueued = true;
-                        jumpBufferUntil = System.currentTimeMillis() + JUMP_BUFFER_MS;
-                    }
-                    // Hold S/Down to hide from cop detection.
-                    case KeyEvent.VK_S, KeyEvent.VK_DOWN -> hidePressed = true;
-                    case KeyEvent.VK_N -> {
-                        // Demo mode: single level only.
-                    }
+                    case KeyEvent.VK_W, KeyEvent.VK_UP -> upPressed = true;
+                    case KeyEvent.VK_S, KeyEvent.VK_DOWN -> downPressed = true;
                     case KeyEvent.VK_R -> restartRequested = true;
                     default -> {
                     }
@@ -522,8 +490,8 @@ public final class Game extends Canvas implements Runnable {
                 switch (e.getKeyCode()) {
                     case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = false;
                     case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = false;
-                    case KeyEvent.VK_SPACE -> jumpPressed = false;
-                    case KeyEvent.VK_S, KeyEvent.VK_DOWN -> hidePressed = false;
+                    case KeyEvent.VK_W, KeyEvent.VK_UP -> upPressed = false;
+                    case KeyEvent.VK_S, KeyEvent.VK_DOWN -> downPressed = false;
                     default -> {
                     }
                 }
@@ -624,25 +592,20 @@ public final class Game extends Canvas implements Runnable {
     }
 
     private Image[][] getAlkobotImages() {
-        try {
-            return new Image[][]{
-                    loadTrackFrames("left"),
-                    loadTrackFrames("right"),
-                    loadTrackFrames("idle")
-            };
-        } catch (RuntimeException ex) {
-            // Fallback to legacy 4x2 sprites if frame sequence is missing.
-            Image[][] ar = new Image[3][2];
-            ar[0][0] = getImage("alkleft0.png");
-            ar[0][1] = getImage("alkleft1.png");
+        return new Image[][]{
+                loadMenuHeroFrames("walk_left", 6),
+                loadMenuHeroFrames("walk_right", 6),
+                loadMenuHeroFrames("idle", 7)
+        };
+    }
 
-            ar[1][0] = getImage("alkright0.png");
-            ar[1][1] = getImage("alkright1.png");
-
-            ar[2][0] = getImage("alkdown0.png");
-            ar[2][1] = getImage("alkdown1.png");
-            return ar;
+    private Image[] loadMenuHeroFrames(String trackName, int frameCount) {
+        Image[] frames = new Image[frameCount];
+        for (int i = 0; i < frameCount; i++) {
+            String framePath = String.format("/alkosmen/ui/menu/ebobo_overlay_sheet_sprites/%s/%02d.png", trackName, i);
+            frames[i] = loadImageResource(framePath);
         }
+        return frames;
     }
 
     private Image[] loadTrackFrames(String trackName) {
@@ -691,16 +654,13 @@ public final class Game extends Canvas implements Runnable {
         player = null;
         copSystem.reset();
 
-        // Scan full map: spawn player and convert all cop markers into dynamic NPCs.
+        // NPC markers remain on the map: they are visual and deliberately passable.
         for (int y = 0; y < levelMap.length; y++) {
             for (int x = 0; x < levelMap[0].length; x++) {
                 if (levelMap[y][x] == 'P') {
                     playerSpawnX = x;
                     playerSpawnY = y;
                     player = new Player(x, y);
-                    levelMap[y][x] = '.';
-                } else if (levelMap[y][x] == 'C') {
-                    copSystem.addCop(x, y);
                     levelMap[y][x] = '.';
                 }
             }
@@ -710,10 +670,7 @@ public final class Game extends Canvas implements Runnable {
             throw new RuntimeException("No 'P' (player start) in map: " + path);
         }
 
-        spectatorMode = !copSystem.hasCops();
-        if (spectatorMode) {
-            spawnRandomCops(DEMO_RANDOM_COPS);
-        }
+        spectatorMode = false;
 
         playerDir = 2;
         animFrame = 0;
@@ -724,8 +681,11 @@ public final class Game extends Canvas implements Runnable {
         jumpBufferUntil = 0L;
         lastOnGroundAt = 0L;
         hidePressed = false;
+        upPressed = false;
+        downPressed = false;
         gameOver = false;
         levelComplete = false;
+        levelGoalReached = false;
         lives = MAX_LIVES;
 
         Window w = SwingUtilities.getWindowAncestor(this);
@@ -797,6 +757,38 @@ public final class Game extends Canvas implements Runnable {
             copSystem.addCop(x, y);
             added++;
         }
+    }
+
+    private void drawLevelBackground(Graphics g, int gameplayHeight) {
+        int sourceW = levelBackground.getWidth(null);
+        int sourceH = levelBackground.getHeight(null);
+        double scale = Math.max(getWidth() / (double) sourceW, gameplayHeight / (double) sourceH);
+        int drawW = (int) Math.ceil(sourceW * scale);
+        int drawH = (int) Math.ceil(sourceH * scale);
+        int drawX = (getWidth() - drawW) / 2;
+        int drawY = (gameplayHeight - drawH) / 2;
+        g.drawImage(levelBackground, drawX, drawY, drawW, drawH, null);
+    }
+
+    private void drawMazeWall(Graphics g, int x, int y, int cell) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setColor(new Color(16, 22, 30, 220));
+        g2.fillRoundRect(x + 2, y + 2, cell - 4, cell - 4, 6, 6);
+        g2.setColor(new Color(94, 106, 119));
+        g2.drawRoundRect(x + 2, y + 2, cell - 5, cell - 5, 6, 6);
+        g2.setColor(new Color(42, 50, 62));
+        g2.drawLine(x + 5, y + cell / 2, x + cell - 5, y + cell / 2);
+        g2.drawLine(x + cell / 2, y + 5, x + cell / 2, y + cell - 5);
+        g2.dispose();
+    }
+
+    private void drawExit(Graphics g, int x, int y, int cell, boolean active) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setColor(active ? new Color(85, 240, 180, 210) : new Color(80, 80, 90, 190));
+        g2.fillOval(x + 4, y + 4, cell - 8, cell - 8);
+        g2.setColor(active ? Color.WHITE : new Color(170, 170, 175));
+        g2.drawOval(x + 4, y + 4, cell - 8, cell - 8);
+        g2.dispose();
     }
 
     private void renderLoadingScreen(String text) {
