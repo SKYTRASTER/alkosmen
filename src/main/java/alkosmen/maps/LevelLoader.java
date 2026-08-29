@@ -1,7 +1,5 @@
 package alkosmen.maps;
 
-import alkosmen.shared.GridMapParser;
-
 import java.io.IOException;
 
 public final class LevelLoader {
@@ -17,7 +15,19 @@ public final class LevelLoader {
             java.util.List<String> lines = br.lines().toList();
 
             if (lines.isEmpty()) return null;
-            return GridMapParser.parseRectangular(lines).tiles();
+
+            int width = lines.get(0).length();
+            if (width == 0) return null;
+
+            char[][] map = new char[lines.size()][width];
+            for (int y = 0; y < lines.size(); y++) {
+                String line = lines.get(y);
+                if (line.length() != width) {
+                    throw new IOException("Bad map: different line lengths at row " + y);
+                }
+                map[y] = line.toCharArray();
+            }
+            return map;
         }
     }
 }

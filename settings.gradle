@@ -18,7 +18,3 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "alkosmen"
-include("common")
-include("androidapp")
-project(":common").projectDir = file("shared")
-project(":androidapp").projectDir = file("androidApp")

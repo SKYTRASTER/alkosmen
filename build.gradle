@@ -18,7 +18,4 @@ application {
     mainClass = 'alkosmen.app.DesktopStartGame'
 }
 
-dependencies {
-    implementation project(':common')
-}
 
