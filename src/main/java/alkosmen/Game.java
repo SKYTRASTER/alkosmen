@@ -113,7 +113,7 @@ public final class Game extends Canvas implements Runnable {
     private static final double PLAYER_COLLISION_MARGIN = 0.06;
     private static final double BOTTLE_SCALE = 1.3125;
     private static final double NPC_SCALE = 1.7;
-    private static final double PATROL_SCALE = 1.35;
+    private static final double PATROL_HEIGHT_SCALE = 1.18;
     // Bottom HUD height; gameplay camera/render should not overlap this zone.
     private static final int HUD_HEIGHT = 56;
     // Cop patrol tuning: horizontal speed, drop distance on turn, and sight range.
@@ -580,11 +580,11 @@ public final class Game extends Canvas implements Runnable {
             Image sprite = frames == null || frames.length == 0
                     ? npcCopSprite
                     : frames[Math.floorMod(patrol.animationTick / 7, frames.length)];
-            int spriteW = (int) Math.round(cell * PATROL_SCALE);
-            int spriteH = (int) Math.round(cell * PATROL_SCALE);
-            int drawX = (int) Math.round(patrol.x * cell - cameraX - (spriteW - cell) / 2.0);
+            int spriteH = (int) Math.round(cell * PATROL_HEIGHT_SCALE);
+            int spriteW = Math.max(1, (int) Math.round(spriteH * (double) sprite.getWidth(null) / sprite.getHeight(null)));
+            int drawX = (int) Math.round(patrol.x * cell - cameraX + (cell - spriteW) / 2.0);
             int patrolBob = Math.floorMod(patrol.animationTick, 6) < 3 ? 0 : 1;
-            int drawY = (int) Math.round(patrol.y * cell - cameraY + (cell - spriteH) / 2.0) + patrolBob;
+            int drawY = (int) Math.round(patrol.y * cell - cameraY + cell - spriteH) + patrolBob;
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
             g2.drawImage(sprite, drawX, drawY, spriteW, spriteH, null);
@@ -733,9 +733,8 @@ public final class Game extends Canvas implements Runnable {
 
     private Image[] loadCopTrackFrames(String trackName) {
         Image[] frames = new Image[COP_WALK_FRAME_COUNT];
-        String spriteTrack = trackName.equals("walk_left") ? "run_left" : "run_right";
         for (int i = 0; i < frames.length; i++) {
-            String framePath = String.format("/alkosmen/images/objects/cop/male/%s/%02d.png", spriteTrack, i);
+            String framePath = String.format("/alkosmen/images/objects/cop/male/%s/%02d.png", trackName, i);
             frames[i] = removeWhiteBackdrop(loadImageResource(framePath));
         }
         return frames;
