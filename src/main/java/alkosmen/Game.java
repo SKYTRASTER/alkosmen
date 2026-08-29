@@ -718,7 +718,7 @@ public final class Game extends Canvas implements Runnable {
     private Image[] loadCopTrackFrames(String trackName) {
         Image[] frames = new Image[COP_WALK_FRAME_COUNT];
         for (int i = 0; i < frames.length; i++) {
-            String framePath = String.format("/alkosmen/images/objects/cop/female/%s/%02d.png", trackName, i);
+            String framePath = String.format("/alkosmen/images/objects/cop/male/%s/%02d.png", trackName, i);
             frames[i] = loadImageResource(framePath);
         }
         return frames;
