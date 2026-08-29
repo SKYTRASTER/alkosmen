@@ -103,7 +103,8 @@ public final class Game extends Canvas implements Runnable {
     private static final long COYOTE_TIME_MS = 120;
     // While jump key is held and player is moving up, gravity is reduced.
     private static final double JUMP_HOLD_GRAVITY_MULT = 0.55;
-    private static final double PLAYER_SCALE = 1.55;
+    private static final double PLAYER_SCALE = 1.0;
+    private static final double PLAYER_COLLISION_MARGIN = 0.18;
     private static final double BOTTLE_SCALE = 2.2;
     private static final double NPC_SCALE = 1.7;
     private static final double PATROL_SCALE = 1.0;
@@ -256,14 +257,25 @@ public final class Game extends Canvas implements Runnable {
 
     private void moveTopDown(double dx, double dy) {
         double nextX = player.x + dx;
-        if (!isSolid((int) Math.floor(nextX), (int) Math.floor(player.y))) {
+        if (canOccupy(nextX, player.y)) {
             player.x = nextX;
         }
 
         double nextY = player.y + dy;
-        if (!isSolid((int) Math.floor(player.x), (int) Math.floor(nextY))) {
+        if (canOccupy(player.x, nextY)) {
             player.y = nextY;
         }
+    }
+
+    private boolean canOccupy(double x, double y) {
+        double minX = x + PLAYER_COLLISION_MARGIN;
+        double maxX = x + 1.0 - PLAYER_COLLISION_MARGIN;
+        double minY = y + PLAYER_COLLISION_MARGIN;
+        double maxY = y + 1.0 - PLAYER_COLLISION_MARGIN;
+        return !isSolid((int) Math.floor(minX), (int) Math.floor(minY))
+                && !isSolid((int) Math.floor(maxX), (int) Math.floor(minY))
+                && !isSolid((int) Math.floor(minX), (int) Math.floor(maxY))
+                && !isSolid((int) Math.floor(maxX), (int) Math.floor(maxY));
     }
 
     private void updatePatrols() {
