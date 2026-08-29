@@ -88,6 +88,7 @@ public final class Game extends Canvas implements Runnable {
     private boolean levelComplete;
     private boolean levelGoalReached;
     private volatile boolean restartRequested;
+    private long lastPatrolCaughtAt;
     private int lives = MAX_LIVES;
     private boolean spectatorMode;
     private String cityLine = "";
@@ -113,6 +114,7 @@ public final class Game extends Canvas implements Runnable {
     private static final double COP_DROP_STEP = 1.0;
     private static final double COP_VIEW_DISTANCE = 4.5;
     private static final long COP_CAUGHT_COOLDOWN_MS = 900;
+    private static final long PATROL_CAUGHT_COOLDOWN_MS = 1_000;
     private static final long COP_CAUGHT_TEXT_MS = 1200;
     private static final long FRAME_DELAY_MS = 16L;
     private static final long CITY_LINE_REFRESH_MS = 9_000L;
@@ -227,6 +229,10 @@ public final class Game extends Canvas implements Runnable {
 
         animatePlayer();
         updatePatrols();
+        checkPatrolCollision(now);
+        if (gameOver) {
+            return;
+        }
         updateCamera();
 
         int px = (int) Math.floor(player.x);
@@ -271,6 +277,24 @@ public final class Game extends Canvas implements Runnable {
             }
             patrol.x = nextX;
             patrol.animationTick++;
+        }
+    }
+
+    private void checkPatrolCollision(long now) {
+        if (now - lastPatrolCaughtAt < PATROL_CAUGHT_COOLDOWN_MS) {
+            return;
+        }
+        for (TopDownPatrol patrol : patrols) {
+            if (Math.abs(player.x - patrol.x) < 0.55 && Math.abs(player.y - patrol.y) < 0.55) {
+                lastPatrolCaughtAt = now;
+                lives = Math.max(0, lives - 1);
+                if (lives == 0) {
+                    gameOver = true;
+                } else {
+                    respawnPlayer();
+                }
+                return;
+            }
         }
     }
 
@@ -319,7 +343,7 @@ public final class Game extends Canvas implements Runnable {
     }
 
     private void animatePlayer() {
-        boolean isWalking = Math.abs(player.vx) > 0.0001 && player.onGround;
+        boolean isWalking = leftPressed || rightPressed || upPressed || downPressed;
         long now = System.currentTimeMillis();
         int frameCount = playerSprites != null && playerDir >= 0 && playerDir < playerSprites.length
                 ? playerSprites[playerDir].length
@@ -481,7 +505,7 @@ public final class Game extends Canvas implements Runnable {
                 isPlayerHidden(),
                 gameOver,
                 cityLine,
-                copSystem.getLastCaughtAt(),
+                Math.max(copSystem.getLastCaughtAt(), lastPatrolCaughtAt),
                 System.currentTimeMillis()
         );
         hudRenderer.drawGameOverOverlay(g, getWidth(), getHeight(), gameOver);
@@ -731,6 +755,7 @@ public final class Game extends Canvas implements Runnable {
         gameOver = false;
         levelComplete = false;
         levelGoalReached = false;
+        lastPatrolCaughtAt = 0L;
         lives = MAX_LIVES;
 
         Window w = SwingUtilities.getWindowAncestor(this);
@@ -760,6 +785,8 @@ public final class Game extends Canvas implements Runnable {
         player.onGround = false;
         leftPressed = false;
         rightPressed = false;
+        upPressed = false;
+        downPressed = false;
         jumpPressed = false;
         jumpQueued = false;
         hidePressed = false;
