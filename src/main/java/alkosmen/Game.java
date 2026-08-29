@@ -28,6 +28,8 @@ import java.awt.image.BufferStrategy;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class Game extends Canvas implements Runnable {
@@ -76,6 +78,7 @@ public final class Game extends Canvas implements Runnable {
     private float cameraY;
     private final GameHudRenderer hudRenderer = new GameHudRenderer(HUD_HEIGHT, COP_CAUGHT_TEXT_MS);
     private final CopSystem copSystem = new CopSystem(COP_SPEED, COP_DROP_STEP, COP_VIEW_DISTANCE, COP_CAUGHT_COOLDOWN_MS);
+    private final List<TopDownPatrol> patrols = new ArrayList<>();
     private final LoreRepository lore = LoreRepository.loadDefault();
     private int playerSpawnX;
     private int playerSpawnY;
@@ -221,6 +224,7 @@ public final class Game extends Canvas implements Runnable {
         }
 
         animatePlayer();
+        updatePatrols();
         updateCamera();
 
         int px = (int) Math.floor(player.x);
@@ -251,6 +255,20 @@ public final class Game extends Canvas implements Runnable {
         double nextY = player.y + dy;
         if (!isSolid((int) Math.floor(player.x), (int) Math.floor(nextY))) {
             player.y = nextY;
+        }
+    }
+
+    private void updatePatrols() {
+        for (TopDownPatrol patrol : patrols) {
+            double nextX = patrol.x + patrol.direction * TOP_DOWN_SPEED * 0.72;
+            int tileX = (int) Math.floor(nextX);
+            int tileY = (int) Math.floor(patrol.y);
+            if (isSolid(tileX, tileY)) {
+                patrol.direction *= -1;
+                continue;
+            }
+            patrol.x = nextX;
+            patrol.animationTick++;
         }
     }
 
@@ -423,6 +441,7 @@ public final class Game extends Canvas implements Runnable {
                     cameraY,
                     System.currentTimeMillis()
             );
+            drawPatrols(g, cell);
         }
 
         if (!spectatorMode && player != null && playerSprites != null) {
@@ -468,6 +487,23 @@ public final class Game extends Canvas implements Runnable {
 
         g.dispose();
         bs.show();
+    }
+
+    private void drawPatrols(Graphics g, int cell) {
+        if (npcCopSprite == null) {
+            return;
+        }
+        for (TopDownPatrol patrol : patrols) {
+            Image[] frames = patrol.direction < 0 ? copWalkLeftFrames : copWalkRightFrames;
+            Image sprite = frames == null || frames.length == 0
+                    ? npcCopSprite
+                    : frames[Math.floorMod(patrol.animationTick / 7, frames.length)];
+            int spriteW = (int) Math.round(cell * NPC_SCALE);
+            int spriteH = (int) Math.round(cell * NPC_SCALE);
+            int drawX = (int) Math.round(patrol.x * cell - cameraX - (spriteW - cell) / 2.0);
+            int drawY = (int) Math.round(patrol.y * cell - cameraY - (spriteH - cell));
+            g.drawImage(sprite, drawX, drawY, spriteW, spriteH, null);
+        }
     }
 
     private void enableKeys() {
@@ -653,14 +689,18 @@ public final class Game extends Canvas implements Runnable {
         bottleGoal = countTiles('B');
         player = null;
         copSystem.reset();
+        patrols.clear();
 
-        // NPC markers remain on the map: they are visual and deliberately passable.
+        // Patrols are passable; only wall tiles block the player.
         for (int y = 0; y < levelMap.length; y++) {
             for (int x = 0; x < levelMap[0].length; x++) {
                 if (levelMap[y][x] == 'P') {
                     playerSpawnX = x;
                     playerSpawnY = y;
                     player = new Player(x, y);
+                    levelMap[y][x] = '.';
+                } else if (levelMap[y][x] == 'C') {
+                    patrols.add(new TopDownPatrol(x, y, patrols.size() % 2 == 0 ? 1 : -1));
                     levelMap[y][x] = '.';
                 }
             }
@@ -789,6 +829,19 @@ public final class Game extends Canvas implements Runnable {
         g2.setColor(active ? Color.WHITE : new Color(170, 170, 175));
         g2.drawOval(x + 4, y + 4, cell - 8, cell - 8);
         g2.dispose();
+    }
+
+    private static final class TopDownPatrol {
+        private double x;
+        private final double y;
+        private int direction;
+        private int animationTick;
+
+        private TopDownPatrol(double x, double y, int direction) {
+            this.x = x;
+            this.y = y;
+            this.direction = direction;
+        }
     }
 
     private void renderLoadingScreen(String text) {

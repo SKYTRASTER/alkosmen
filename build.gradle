@@ -29,6 +29,8 @@ tasks.register('packageWindowsExe', Exec) {
 
     def portableDir = layout.buildDirectory.dir('portable')
     outputs.dir(portableDir)
+    // jpackage embeds the whole app image, so stale output is worse than a short rebuild.
+    outputs.upToDateWhen { false }
 
     doFirst {
         def jdkHome = packagingToolchain.get().metadata.installationPath.asFile
