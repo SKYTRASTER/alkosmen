@@ -11,16 +11,13 @@ import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.RenderingHints;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class BackgroundPanel extends JPanel {
 
     private static final String PRIMARY_MENU_BG = "/alkosmen/ui/menu/main_menu_background.png";
     private static final String FALLBACK_MENU_BG = "/alkosmen/ui/menu/main_menu_bg.png";
     private static final String MOZOL_OVERLAY = "/alkosmen/ui/menu/mozol_overlay.png";
-    private static final String EBOBO_WALK_RIGHT = "/alkosmen/ui/menu/ebobo_overlay_sheet_sprites/walk_right";
-    private static final String EBOBO_WALK_LEFT = "/alkosmen/ui/menu/ebobo_overlay_sheet_sprites/walk_left";
+    private static final String WHITE_ALKOSMEN_HERO = "/alkosmen/ui/characters/white_alkosmen_hero_v1.png";
 
     private Image background;
     private Image mozolOverlay;
@@ -49,8 +46,10 @@ public class BackgroundPanel extends JPanel {
             background = loadBackground(FALLBACK_MENU_BG);
         }
         mozolOverlay = loadBackground(MOZOL_OVERLAY);
-        eboboWalkRight = loadAnimationTrack(EBOBO_WALK_RIGHT);
-        eboboWalkLeft = loadAnimationTrack(EBOBO_WALK_LEFT);
+        Image whiteAlkosmen = loadBackground(WHITE_ALKOSMEN_HERO);
+        // One clean hero sprite is enough here: the path animation supplies the movement.
+        eboboWalkRight = new Image[]{whiteAlkosmen};
+        eboboWalkLeft = new Image[]{whiteAlkosmen};
 
         eboboTimer = new Timer(95, e -> {
             advanceEboboAnimation();
@@ -65,18 +64,6 @@ public class BackgroundPanel extends JPanel {
         } catch (IOException | IllegalArgumentException e) {
             return null;
         }
-    }
-
-    private static Image[] loadAnimationTrack(String folderPath) {
-        List<Image> frames = new ArrayList<>();
-        for (int i = 0; i < 60; i++) {
-            Image frame = loadBackground(folderPath + "/" + String.format("%02d", i) + ".png");
-            if (frame == null) {
-                break;
-            }
-            frames.add(frame);
-        }
-        return frames.toArray(new Image[0]);
     }
 
     @Override

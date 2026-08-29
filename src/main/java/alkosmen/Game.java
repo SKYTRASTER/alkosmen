@@ -690,20 +690,12 @@ public final class Game extends Canvas implements Runnable {
     }
 
     private Image[][] getAlkobotImages() {
+        Image whiteAlkosmen = loadImageResource("/alkosmen/ui/characters/white_alkosmen_hero_v1.png");
         return new Image[][]{
-                loadMenuHeroFrames("walk_left", 6),
-                loadMenuHeroFrames("walk_right", 6),
-                loadMenuHeroFrames("idle", 7)
+                new Image[]{whiteAlkosmen},
+                new Image[]{whiteAlkosmen},
+                new Image[]{whiteAlkosmen}
         };
-    }
-
-    private Image[] loadMenuHeroFrames(String trackName, int frameCount) {
-        Image[] frames = new Image[frameCount];
-        for (int i = 0; i < frameCount; i++) {
-            String framePath = String.format("/alkosmen/ui/menu/ebobo_overlay_sheet_sprites/%s/%02d.png", trackName, i);
-            frames[i] = loadImageResource(framePath);
-        }
-        return frames;
     }
 
     private Image[] loadTrackFrames(String trackName) {
