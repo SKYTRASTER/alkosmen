@@ -18,4 +18,39 @@ application {
     mainClass = 'alkosmen.app.DesktopStartGame'
 }
 
+def packagingToolchain = javaToolchains.launcherFor {
+    languageVersion = JavaLanguageVersion.of(21)
+}
+
+tasks.register('packageWindowsExe', Exec) {
+    group = 'distribution'
+    description = 'Builds a portable self-contained Windows application with an .exe launcher.'
+    dependsOn tasks.installDist
+
+    def portableDir = layout.buildDirectory.dir('portable')
+    outputs.dir(portableDir)
+
+    doFirst {
+        def jdkHome = packagingToolchain.get().metadata.installationPath.asFile
+        def jpackage = new File(jdkHome, 'bin/jpackage.exe')
+        if (!jpackage.isFile()) {
+            throw new GradleException("jpackage.exe was not found in ${jdkHome}")
+        }
+
+        delete(portableDir)
+        executable jpackage.absolutePath
+        args(
+                '--type', 'app-image',
+                '--dest', portableDir.get().asFile.absolutePath,
+                '--name', 'Alkosmen',
+                '--app-version', '0.1.0',
+                '--vendor', 'Alkosmen',
+                '--description', '2D game',
+                '--input', layout.buildDirectory.dir("install/${application.applicationName}/lib").get().asFile.absolutePath,
+                '--main-jar', tasks.jar.archiveFileName.get(),
+                '--main-class', application.mainClass.get(),
+                '--add-modules', 'java.desktop,java.logging,java.management,java.naming,java.rmi,java.sql,jdk.unsupported'
+        )
+    }
+}
 

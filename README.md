@@ -32,6 +32,14 @@
 .\gradlew.bat run
 ```
 
+## Windows `.exe`
+
+```powershell
+.\gradlew.bat packageWindowsExe
+```
+
+Готовое приложение появится в `build/portable/Alkosmen/Alkosmen.exe`. Рядом с ним лежит встроенная Java Runtime, поэтому на целевом Windows-компьютере не нужны Gradle и JDK. Копируй целиком папку `build/portable/Alkosmen`, а не один `.exe`.
+
 Точка входа приложения: `alkosmen.app.DesktopStartGame`.
 
 ## Управление
