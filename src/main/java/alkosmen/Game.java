@@ -4,6 +4,8 @@ import alkosmen.audio.MidiPlayer;
 import alkosmen.audio.SoundEffectPlayer;
 import alkosmen.game.CopSystem;
 import alkosmen.game.GameHudRenderer;
+import alkosmen.game.PatrolSystem;
+import alkosmen.game.TopDownPatrol;
 import alkosmen.gfx.CharacterSpriteAssets;
 import alkosmen.gfx.SpriteSheet;
 import alkosmen.lore.LoreCharacter;
@@ -85,6 +87,7 @@ public final class Game extends Canvas implements Runnable {
    private float cameraY;
    private final GameHudRenderer hudRenderer = new GameHudRenderer(56, 1200L);
    private final CopSystem copSystem = new CopSystem(0.045, (double)1.0F, (double)4.5F, 900L);
+   private final PatrolSystem patrolSystem = new PatrolSystem();
    private final List<TopDownPatrol> patrols = new ArrayList<>();
    private final LoreRepository lore = LoreRepository.loadDefault();
    private LocalGameStore gameStore;
@@ -123,7 +126,6 @@ public final class Game extends Canvas implements Runnable {
    private double secretY = (double)5.0F;
    private static final double MOVE_SPEED = 0.12;
    private static final double TOP_DOWN_SPEED = 0.115;
-   private static final double PATROL_SPEED = 0.032;
    private static final double PATROL_COLLISION_MARGIN = 0.06;
    private static final double BOTTLE_PICKUP_RADIUS = 0.82;
    private static final double GRAVITY = 0.035;
@@ -552,10 +554,10 @@ public final class Game extends Canvas implements Runnable {
    }
 
    private boolean canOccupy(double x, double y) {
-      double minX = x + 0.06;
-      double maxX = x + (double)1.0F - 0.06;
-      double minY = y + 0.06;
-      double maxY = y + (double)1.0F - 0.06;
+      double minX = x + PATROL_COLLISION_MARGIN;
+      double maxX = x + (double)1.0F - PATROL_COLLISION_MARGIN;
+      double minY = y + PATROL_COLLISION_MARGIN;
+      double maxY = y + (double)1.0F - PATROL_COLLISION_MARGIN;
       return !this.isSolid((int)Math.floor(minX), (int)Math.floor(minY)) && !this.isSolid((int)Math.floor(maxX), (int)Math.floor(minY)) && !this.isSolid((int)Math.floor(minX), (int)Math.floor(maxY)) && !this.isSolid((int)Math.floor(maxX), (int)Math.floor(maxY));
    }
 
@@ -596,119 +598,7 @@ public final class Game extends Canvas implements Runnable {
    }
 
    private void updatePatrols() {
-      long now = System.currentTimeMillis();
-
-      for(TopDownPatrol patrol : this.patrols) {
-         this.movePatrolAlongRoute(patrol, now);
-      }
-
-   }
-
-   private void movePatrolAlongRoute(TopDownPatrol patrol, long now) {
-      if (!patrol.route.isEmpty()) {
-         LocalGameStore.Waypoint target = (LocalGameStore.Waypoint)patrol.route.get(patrol.waypointIndex);
-         double dx = (double)target.x() - patrol.x;
-         double dy = (double)target.y() - patrol.y;
-         if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) {
-            if (patrol.waitUntil == 0L) {
-               patrol.waitUntil = now + (long)Math.max(1, target.pauseMs());
-            } else if (now >= patrol.waitUntil) {
-               patrol.waypointIndex = (patrol.waypointIndex + 1) % patrol.route.size();
-               patrol.waitUntil = 0L;
-            }
-
-         } else {
-            double stepX = Math.abs(dx) > 0.001 ? Math.copySign(Math.min(0.032, Math.abs(dx)), dx) : (double)0.0F;
-            double stepY = stepX == (double)0.0F ? Math.copySign(Math.min(0.032, Math.abs(dy)), dy) : (double)0.0F;
-            if (!this.canPatrolOccupy(patrol.x + stepX, patrol.y + stepY)) {
-               patrol.waypointIndex = (patrol.waypointIndex + 1) % patrol.route.size();
-            } else {
-               patrol.x += stepX;
-               patrol.y += stepY;
-               ++patrol.animationTick;
-               patrol.facing = stepX < (double)0.0F ? 0 : (stepX > (double)0.0F ? 1 : (stepY < (double)0.0F ? 2 : 3));
-            }
-         }
-      }
-   }
-
-   private void movePatrolLikePacman(TopDownPatrol patrol, int targetX, int targetY) {
-      if (isAtCellCenter(patrol.x) && isAtCellCenter(patrol.y)) {
-         patrol.x = Math.rint(patrol.x);
-         patrol.y = Math.rint(patrol.y);
-         this.choosePacmanTurn(patrol, targetX, targetY);
-      }
-
-      double stepX = (double)patrol.moveX * 0.032;
-      double stepY = (double)patrol.moveY * 0.032;
-      if (patrol.moveX != 0) {
-         double boundary = patrol.moveX > 0 ? Math.floor(patrol.x) + (double)1.0F : Math.ceil(patrol.x) - (double)1.0F;
-         stepX = Math.copySign(Math.min(Math.abs(stepX), Math.abs(boundary - patrol.x)), stepX);
-      }
-
-      if (patrol.moveY != 0) {
-         double boundary = patrol.moveY > 0 ? Math.floor(patrol.y) + (double)1.0F : Math.ceil(patrol.y) - (double)1.0F;
-         stepY = Math.copySign(Math.min(Math.abs(stepY), Math.abs(boundary - patrol.y)), stepY);
-      }
-
-      if (this.canPatrolOccupy(patrol.x + stepX, patrol.y + stepY)) {
-         patrol.x += stepX;
-         patrol.y += stepY;
-         ++patrol.animationTick;
-      } else {
-         patrol.moveX = -patrol.moveX;
-         patrol.moveY = -patrol.moveY;
-      }
-
-   }
-
-   private void choosePacmanTurn(TopDownPatrol patrol, int targetX, int targetY) {
-      int tileX = (int)patrol.x;
-      int tileY = (int)patrol.y;
-      int bestX = patrol.moveX;
-      int bestY = patrol.moveY;
-      int bestDistance = Integer.MAX_VALUE;
-      boolean hasForwardChoice = false;
-
-      for(int[] direction : new int[][]{{0, -1}, {-1, 0}, {0, 1}, {1, 0}}) {
-         int directionX = direction[0];
-         int directionY = direction[1];
-         if (directionX != -patrol.moveX || directionY != -patrol.moveY) {
-            int nextX = tileX + directionX;
-            int nextY = tileY + directionY;
-            if (!this.isSolid(nextX, nextY)) {
-               hasForwardChoice = true;
-               int distance = squaredDistance(nextX, nextY, targetX, targetY);
-               if (distance < bestDistance) {
-                  bestDistance = distance;
-                  bestX = directionX;
-                  bestY = directionY;
-               }
-            }
-         }
-      }
-
-      if (!hasForwardChoice) {
-         bestX = -patrol.moveX;
-         bestY = -patrol.moveY;
-      }
-
-      patrol.moveX = bestX;
-      patrol.moveY = bestY;
-      if (bestX != 0) {
-         patrol.direction = bestX;
-      }
-
-   }
-
-   private static boolean isAtCellCenter(double coordinate) {
-      return Math.abs(coordinate - Math.rint(coordinate)) < 0.001;
-   }
-
-   private static int squaredDistance(int firstX, int firstY, int secondX, int secondY) {
-      int dx = firstX - secondX;
-      int dy = firstY - secondY;
-      return dx * dx + dy * dy;
+      this.patrolSystem.update(this.patrols, System.currentTimeMillis(), this::canPatrolOccupy);
    }
 
    private boolean canPatrolOccupy(double x, double y) {
@@ -723,7 +613,7 @@ public final class Game extends Canvas implements Runnable {
       if (this.currentLevel != 1) {
          if (now - this.lastPatrolCaughtAt >= 1000L) {
             for(TopDownPatrol patrol : this.patrols) {
-               if (Math.abs(this.player.x - patrol.x) < 0.55 && Math.abs(this.player.y - patrol.y) < 0.55) {
+               if (Math.abs(this.player.x - patrol.x()) < 0.55 && Math.abs(this.player.y - patrol.y()) < 0.55) {
                   this.lastPatrolCaughtAt = now;
                   this.lives = Math.max(0, this.lives - 1);
                   if (this.lives == 0) {
@@ -958,7 +848,7 @@ public final class Game extends Canvas implements Runnable {
       if (this.npcCopSprite != null) {
          for(TopDownPatrol patrol : this.patrols) {
             Image[] var10000;
-            switch (patrol.facing) {
+            switch (patrol.facing()) {
                case 0:
                   var10000 = this.copWalkLeftFrames;
                   break;
@@ -974,11 +864,11 @@ public final class Game extends Canvas implements Runnable {
             }
 
             Image[] frames = var10000;
-            Image sprite = frames != null && frames.length != 0 ? frames[Math.floorMod(patrol.animationTick / 7, frames.length)] : this.npcCopSprite;
+            Image sprite = frames != null && frames.length != 0 ? frames[Math.floorMod(patrol.animationTick() / 7, frames.length)] : this.npcCopSprite;
             int spriteH = (int)Math.round((double)cell * 1.18);
             int spriteW = Math.max(1, (int)Math.round((double)spriteH * (double)sprite.getWidth((ImageObserver)null) / (double)sprite.getHeight((ImageObserver)null)));
-            int drawX = (int)Math.round(patrol.x * (double)cell - (double)this.cameraX + (double)(cell - spriteW) / (double)2.0F);
-            int drawY = (int)Math.round(patrol.y * (double)cell - (double)this.cameraY + (double)cell - (double)spriteH);
+            int drawX = (int)Math.round(patrol.x() * (double)cell - (double)this.cameraX + (double)(cell - spriteW) / (double)2.0F);
+            int drawY = (int)Math.round(patrol.y() * (double)cell - (double)this.cameraY + (double)cell - (double)spriteH);
             Graphics2D g2 = (Graphics2D)g.create();
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
             g2.drawImage(sprite, drawX, drawY, spriteW, spriteH, (ImageObserver)null);
@@ -1763,25 +1653,5 @@ public final class Game extends Canvas implements Runnable {
    private static record QuestPanel(String questId, String title, String body, String button, PanelAction action) {
    }
 
-   private static final class TopDownPatrol {
-      private double x;
-      private double y;
-      private int direction;
-      private int moveX;
-      private int moveY;
-      private int animationTick;
-      private int facing;
-      private final List route;
-      private int waypointIndex;
-      private long waitUntil;
 
-      private TopDownPatrol(double x, double y, int direction, List route) {
-         this.x = x;
-         this.y = y;
-         this.direction = direction;
-         this.moveX = direction;
-         this.facing = direction < 0 ? 0 : 1;
-         this.route = route;
-      }
-   }
 }
