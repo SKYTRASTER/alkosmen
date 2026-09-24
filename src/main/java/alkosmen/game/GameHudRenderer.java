@@ -15,7 +15,7 @@ public final class GameHudRenderer {
       this.caughtTextMs = caughtTextMs;
    }
 
-   public void drawHud(Graphics g, int width, int height, int level, int score, int bottleGoal, String objective, int lives, int maxLives, boolean hidden, boolean gameOver, String cityLine, long lastCaughtAt, long now) {
+   public void drawHud(Graphics g, int width, int height, int level, int score, int bottleGoal, String objective, int lives, int maxLives, boolean hidden, boolean gameOver, String cityLine, long lastCaughtAt, long now, boolean cellar) {
       int y = height - this.hudHeight;
       g.setColor(new Color(28, 22, 20));
       g.fillRect(0, y, width, this.hudHeight);
@@ -25,11 +25,13 @@ public final class GameHudRenderer {
       if (level == 1) {
          g.setColor(new Color(255, 219, 165));
          g.setFont(new Font("Dialog", 1, 20));
-         g.drawString("ПЛОЩАДЬ ЗУЕВКИ", 18, y + 23);
+         g.drawString(cellar ? "ПОДВАЛ ЗУЕВКИ" : "ПЛОЩАДЬ ЗУЕВКИ", 18, y + 23);
          g.setColor(new Color(225, 230, 235));
          g.setFont(new Font("Dialog", 0, 15));
          g.drawString(objective, 18, y + 45);
-         g.drawString("WASD — ходить    ЛКМ — NPC / точка    M — карта", 650, y + 34);
+         if (!cellar && width > 1100) {
+            g.drawString("WASD — ходить    ЛКМ — NPC / точка    M — карта", 650, y + 34);
+         }
       } else {
          g.setColor(Color.WHITE);
          g.setFont(new Font("Serif", 1, 20));
