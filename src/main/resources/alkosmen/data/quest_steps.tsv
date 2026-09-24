@@ -1,0 +1,11 @@
+# quest_id|stage|tile_x|tile_y|dialogue_key. Existing SQLite edits are preserved.
+ebobo_ufo|0|7|5|ebobo.photo.0
+ebobo_ufo|1|32|5|ebobo.photo.1
+ebobo_ufo|2|7|14|ebobo.photo.2
+ebobo_ufo|3|32|14|ebobo.photo.3
+sacred_tich|0|11|4|sacred.cache.0
+sacred_tich|1|29|8|sacred.cache.1
+sacred_tich|2|7|14|sacred.cache.2.v2
+sacred_tich|3|32|15|sacred.cache.3
+sacred_tich|4|17|15|sacred.cache.4
+secret_entrance|0|35|4|quest.secret.enter

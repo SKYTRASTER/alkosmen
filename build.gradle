@@ -11,7 +11,11 @@ java {
 
 javafx {
     version = "21"
-    modules = [ 'javafx.controls', 'javafx.graphics' ]
+    modules = [ 'javafx.controls', 'javafx.graphics', 'javafx.media' ]
+}
+
+dependencies {
+    implementation 'org.xerial:sqlite-jdbc:3.53.4.0'
 }
 
 application {

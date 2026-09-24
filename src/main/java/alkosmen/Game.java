@@ -1,18 +1,17 @@
 package alkosmen;
 
 import alkosmen.audio.MidiPlayer;
-import alkosmen.settings.Constants;
 import alkosmen.audio.SoundEffectPlayer;
 import alkosmen.game.CopSystem;
 import alkosmen.game.GameHudRenderer;
+import alkosmen.gfx.CharacterSpriteAssets;
 import alkosmen.gfx.SpriteSheet;
 import alkosmen.lore.LoreCharacter;
 import alkosmen.lore.LoreRepository;
 import alkosmen.maps.LevelLoader;
 import alkosmen.objects.Player;
-
-import javax.imageio.ImageIO;
-import javax.swing.SwingUtilities;
+import alkosmen.persistence.LocalGameStore;
+import alkosmen.settings.Constants;
 import java.awt.AlphaComposite;
 import java.awt.Canvas;
 import java.awt.Color;
@@ -21,1078 +20,1768 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Window;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferStrategy;
 import java.awt.image.BufferedImage;
+import java.awt.image.ImageObserver;
 import java.io.IOException;
 import java.net.URL;
+import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import javax.imageio.ImageIO;
+import javax.swing.SwingUtilities;
 
 public final class Game extends Canvas implements Runnable {
-    private int currentLevel = 1;
-    private int score = 0;
-    private int bottleGoal = 8;
-    private volatile boolean running;
-    private BufferStrategy strategy;
-    private Image[][] playerSprites;
-    private Player player;
-    private char[][] levelMap;
-    private static final String[] LEVELS = {
-            "/alkosmen/maps/demo_level.txt"
-    };
-    private static final String[] LEVEL_BACKGROUNDS = {
-            "/alkosmen/ui/levels/market_square_night_v1.png"
-    };
+   private int currentLevel = 1;
+   private int score = 0;
+   private int bottleGoal = 8;
+   private volatile boolean running;
+   private BufferStrategy strategy;
+   private Image[][] playerSprites;
+   private Player player;
+   private char[][] levelMap;
+   private static final String[] LEVELS = new String[]{"/alkosmen/maps/demo_level.txt"};
+   private static final String[] LEVEL_BACKGROUNDS = new String[]{"/alkosmen/ui/levels/market_square_walk_v1.png"};
+   private boolean leftPressed;
+   private boolean rightPressed;
+   private boolean upPressed;
+   private boolean downPressed;
+   private boolean jumpPressed;
+   private boolean jumpQueued;
+   private long jumpBufferUntil;
+   private long lastOnGroundAt;
+   private int playerDir = 2;
+   private int animFrame = 0;
+   private int playerMotionTick = 0;
+   private long lastAnim = 0L;
+   private SoundEffectPlayer stepSound;
+   private SoundEffectPlayer jumpSound;
+   private SoundEffectPlayer bottleCollectSound;
+   private SpriteSheet sheet;
+   private Image tileFloor;
+   private Image tileWall;
+   private Image levelBackground;
+   private Image bottleSprite;
+   private Image npcBoy1Sprite;
+   private Image npcBoy2Sprite;
+   private Image npcTolyaSprite;
+   private Image npcEboboSprite;
+   private Image npcCopSprite;
+   private Image[] copWalkLeftFrames;
+   private Image[] copWalkRightFrames;
+   private Image[] copWalkUpFrames;
+   private Image[] copWalkDownFrames;
+   private MidiPlayer levelMidi;
+   private float cameraX;
+   private float cameraY;
+   private final GameHudRenderer hudRenderer = new GameHudRenderer(56, 1200L);
+   private final CopSystem copSystem = new CopSystem(0.045, (double)1.0F, (double)4.5F, 900L);
+   private final List<TopDownPatrol> patrols = new ArrayList<>();
+   private final LoreRepository lore = LoreRepository.loadDefault();
+   private LocalGameStore gameStore;
+   private int playerSpawnX;
+   private int playerSpawnY;
+   private boolean hidePressed;
+   private boolean gameOver;
+   private boolean levelComplete;
+   private boolean levelGoalReached;
+   private volatile boolean restartRequested;
+   private long lastPatrolCaughtAt;
+   private int lives = 3;
+   private boolean spectatorMode;
+   private String cityLine = "";
+   private long nextCityLineAt;
+   private boolean interactionRequested;
+   private String dialogueLine = "";
+   private long dialogueUntil;
+   private boolean tolyaQuestAccepted;
+   private boolean tolyaQuestComplete;
+   private LocalGameStore.StoryState eboboQuest = new LocalGameStore.StoryState(false, false, 0);
+   private LocalGameStore.StoryState sacredQuest = new LocalGameStore.StoryState(false, false, 0);
+   private List eboboPhotos = List.of();
+   private List sacredCaches = List.of();
+   private LocalGameStore.Tile secretEntrance;
+   private String sacredMapTitle = "";
+   private List sacredHints = List.of();
+   private QuestPanel questPanel;
+   private volatile long pendingClick = -1L;
+   private long photoFlashUntil;
+   private long ufoUntil;
+   private long ufoStartedAt;
+   private boolean secretArea;
+   private volatile boolean questMapOpen;
+   private double secretX = (double)2.0F;
+   private double secretY = (double)5.0F;
+   private static final double MOVE_SPEED = 0.12;
+   private static final double TOP_DOWN_SPEED = 0.115;
+   private static final double PATROL_SPEED = 0.032;
+   private static final double PATROL_COLLISION_MARGIN = 0.06;
+   private static final double BOTTLE_PICKUP_RADIUS = 0.82;
+   private static final double GRAVITY = 0.035;
+   private static final double JUMP_SPEED = -0.68;
+   private static final double MAX_FALL_SPEED = 0.9;
+   private static final long JUMP_BUFFER_MS = 140L;
+   private static final long COYOTE_TIME_MS = 120L;
+   private static final double JUMP_HOLD_GRAVITY_MULT = 0.55;
+   private static final double PLAYER_SCALE = 1.7;
+   private static final double PLAYER_COLLISION_MARGIN = 0.06;
+   private static final double BOTTLE_SCALE = (double)1.3125F;
+   private static final double NPC_SCALE = 1.7;
+   private static final double PATROL_HEIGHT_SCALE = 1.18;
+   private static final int HUD_HEIGHT = 56;
+   private static final double COP_SPEED = 0.045;
+   private static final double COP_DROP_STEP = (double)1.0F;
+   private static final double COP_VIEW_DISTANCE = (double)4.5F;
+   private static final long COP_CAUGHT_COOLDOWN_MS = 900L;
+   private static final long PATROL_CAUGHT_COOLDOWN_MS = 1000L;
+   private static final long COP_CAUGHT_TEXT_MS = 1200L;
+   private static final long FRAME_DELAY_MS = 16L;
+   private static final long CITY_LINE_REFRESH_MS = 9000L;
+   private static final int MAX_LIVES = 3;
+   private static final int DEMO_RANDOM_COPS = 12;
+   private static final int DEMO_RANDOM_COP_ATTEMPTS = 800;
+   private static final int COP_WALK_FRAME_COUNT = 8;
 
-    private boolean leftPressed;
-    private boolean rightPressed;
-    private boolean upPressed;
-    private boolean downPressed;
-    private boolean jumpPressed;
-    private boolean jumpQueued;
-    private long jumpBufferUntil;
-    private long lastOnGroundAt;
-    private int playerDir = 2; // 0 left, 1 right, 2 idle/dance
-    private int animFrame = 0;
-    private int playerMotionTick = 0;
-    private long lastAnim = 0;
-    private SoundEffectPlayer stepSound;
-    private SoundEffectPlayer jumpSound;
-    private SoundEffectPlayer bottleCollectSound;
-    private SpriteSheet sheet;
-    private Image tileFloor;
-    private Image tileWall;
-    private Image levelBackground;
-    private Image bottleSprite;
-    private Image npcBoy1Sprite;
-    private Image npcBoy2Sprite;
-    private Image npcCopSprite;
-    private Image[] copWalkLeftFrames;
-    private Image[] copWalkRightFrames;
-    private MidiPlayer levelMidi;
+   public void run() {
+      try {
+         this.init();
+      } catch (Exception e) {
+         throw new RuntimeException(e);
+      }
 
-    private float cameraX;
-    private float cameraY;
-    private final GameHudRenderer hudRenderer = new GameHudRenderer(HUD_HEIGHT, COP_CAUGHT_TEXT_MS);
-    private final CopSystem copSystem = new CopSystem(COP_SPEED, COP_DROP_STEP, COP_VIEW_DISTANCE, COP_CAUGHT_COOLDOWN_MS);
-    private final List<TopDownPatrol> patrols = new ArrayList<>();
-    private final LoreRepository lore = LoreRepository.loadDefault();
-    private int playerSpawnX;
-    private int playerSpawnY;
-    private boolean hidePressed;
-    private boolean gameOver;
-    private boolean levelComplete;
-    private boolean levelGoalReached;
-    private volatile boolean restartRequested;
-    private long lastPatrolCaughtAt;
-    private int lives = MAX_LIVES;
-    private boolean spectatorMode;
-    private String cityLine = "";
-    private long nextCityLineAt;
+      while(this.running) {
+         this.update();
+         this.render();
 
-    private static final double MOVE_SPEED = 0.12;
-    private static final double TOP_DOWN_SPEED = 0.115;
-    private static final double PATROL_SPEED = 0.032;
-    private static final double PATROL_COLLISION_MARGIN = 0.06;
-    private static final double BOTTLE_PICKUP_RADIUS = 0.82;
-    private static final double GRAVITY = 0.035;
-    private static final double JUMP_SPEED = -0.68;
-    private static final double MAX_FALL_SPEED = 0.9;
-    private static final long JUMP_BUFFER_MS = 140;
-    private static final long COYOTE_TIME_MS = 120;
-    // While jump key is held and player is moving up, gravity is reduced.
-    private static final double JUMP_HOLD_GRAVITY_MULT = 0.55;
-    // The player art has transparent padding, so the on-screen sprite is larger than its feet hitbox.
-    private static final double PLAYER_SCALE = 1.35;
-    private static final double PLAYER_COLLISION_MARGIN = 0.06;
-    private static final double BOTTLE_SCALE = 1.3125;
-    private static final double NPC_SCALE = 1.7;
-    private static final double PATROL_HEIGHT_SCALE = 1.18;
-    // Bottom HUD height; gameplay camera/render should not overlap this zone.
-    private static final int HUD_HEIGHT = 56;
-    // Cop patrol tuning: horizontal speed, drop distance on turn, and sight range.
-    private static final double COP_SPEED = 0.045;
-    private static final double COP_DROP_STEP = 1.0;
-    private static final double COP_VIEW_DISTANCE = 4.5;
-    private static final long COP_CAUGHT_COOLDOWN_MS = 900;
-    private static final long PATROL_CAUGHT_COOLDOWN_MS = 1_000;
-    private static final long COP_CAUGHT_TEXT_MS = 1200;
-    private static final long FRAME_DELAY_MS = 16L;
-    private static final long CITY_LINE_REFRESH_MS = 9_000L;
-    private static final int MAX_LIVES = 3;
-    private static final int DEMO_RANDOM_COPS = 12;
-    private static final int DEMO_RANDOM_COP_ATTEMPTS = 800;
-    private static final int COP_WALK_FRAME_COUNT = 8;
+         try {
+            Thread.sleep(16L);
+         } catch (InterruptedException var2) {
+            Thread.currentThread().interrupt();
+         }
+      }
 
-    @Override
-    public void run() {
-        try {
-            init();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+      this.stopAudio();
+   }
 
-        while (running) {
-            update();
-            render();
+   public Dimension getPreferredSize() {
+      return new Dimension(Constants.Width, Constants.Height);
+   }
+
+   private void init() throws Exception {
+      this.running = true;
+      this.setFocusable(true);
+      this.requestFocus();
+      this.enableKeys();
+      this.enableMouse();
+
+      while(!this.isDisplayable()) {
+         Thread.yield();
+      }
+
+      this.createBufferStrategy(2);
+      this.strategy = this.getBufferStrategy();
+      this.renderLoadingScreen("Loading assets...");
+      this.sheet = new SpriteSheet("/alkosmen/images/grass_tileset_16x16/grass_tileset_16x16.png", 16);
+      this.tileFloor = this.sheet.tile(0, 0);
+      this.tileWall = this.sheet.tile(1, 0);
+      this.bottleSprite = this.loadImageResource("/alkosmen/images/objects/bottle/bottle_tich_gold.png");
+      this.npcBoy1Sprite = this.loadFirstExistingImage("/alkosmen/images/objects/glack/boy1.png", "/alkosmen/images/objects/boy/boy1.png");
+      this.npcBoy2Sprite = this.loadFirstExistingImage("/alkosmen/images/objects/glack/boy2.png", "/alkosmen/images/objects/boy/boy2.png");
+      this.npcCopSprite = this.loadImageResource("/alkosmen/images/objects/cop/copdown0.png");
+      BufferedImage tolyaSheet = (BufferedImage)this.loadImageResource("/alkosmen/ui/characters/tolya_zuevka_sheet.png");
+      this.npcTolyaSprite = tolyaSheet.getSubimage(50, 480, 460, 480);
+      this.npcEboboSprite = this.loadImageResource("/alkosmen/ui/intro/ebobo/walk_right/00.png");
+      this.copWalkLeftFrames = this.loadCopTrackFrames("walk_left");
+      this.copWalkRightFrames = this.loadCopTrackFrames("walk_right");
+      this.copWalkUpFrames = this.loadCopTrackFrames("walk_up");
+      this.copWalkDownFrames = this.loadCopTrackFrames("walk_down");
+      this.stepSound = new SoundEffectPlayer("/alkosmen/sounds/step.wav");
+      this.jumpSound = new SoundEffectPlayer("/alkosmen/sounds/jump.wav");
+      this.bottleCollectSound = new SoundEffectPlayer("/alkosmen/sounds/scratch_bottle.wav");
+      this.levelMidi = new MidiPlayer();
+      if (Constants.GameMusicEnabled) {
+         this.levelMidi.playLoop("/alkosmen/sounds/Caribbean-Blue.mid", 70);
+      }
+
+      this.playerSprites = this.getAlkobotImages();
+      this.renderLoadingScreen("Loading level...");
+      this.gameStore = LocalGameStore.openDefault();
+      this.loadLevel(1);
+      this.rotateCityLine(System.currentTimeMillis(), true);
+   }
+
+   private void update() {
+      if (this.player != null && this.levelMap != null) {
+         if (this.restartRequested) {
+            this.restartRequested = false;
+
             try {
-                Thread.sleep(FRAME_DELAY_MS);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-            }
-        }
-
-        stopAudio();
-    }
-
-    @Override
-    public Dimension getPreferredSize() {
-        return new Dimension(Constants.Width, Constants.Height);
-    }
-
-    private void init() throws Exception {
-        running = true;
-        setFocusable(true);
-        requestFocus();
-        enableKeys();
-
-        while (!isDisplayable()) {
-            Thread.yield();
-        }
-
-        createBufferStrategy(2);
-        strategy = getBufferStrategy();
-        renderLoadingScreen("Loading assets...");
-
-        sheet = new SpriteSheet(
-                "/alkosmen/images/grass_tileset_16x16/grass_tileset_16x16.png",
-                16
-        );
-        tileFloor = sheet.tile(0, 0);
-        tileWall = sheet.tile(1, 0);
-        bottleSprite = loadImageResource("/alkosmen/images/objects/bottle/bottle_tich_gold.png");
-        npcBoy1Sprite = loadFirstExistingImage(
-                "/alkosmen/images/objects/glack/boy1.png",
-                "/alkosmen/images/objects/boy/boy1.png"
-        );
-        npcBoy2Sprite = loadFirstExistingImage(
-                "/alkosmen/images/objects/glack/boy2.png",
-                "/alkosmen/images/objects/boy/boy2.png"
-        );
-        npcCopSprite = loadImageResource("/alkosmen/images/objects/cop/copdown0.png");
-        copWalkLeftFrames = loadCopTrackFrames("walk_left");
-        copWalkRightFrames = loadCopTrackFrames("walk_right");
-        stepSound = new SoundEffectPlayer("/alkosmen/sounds/step.wav");
-        jumpSound = new SoundEffectPlayer("/alkosmen/sounds/jump.wav");
-        bottleCollectSound = new SoundEffectPlayer("/alkosmen/sounds/scratch_bottle.wav");
-        levelMidi = new MidiPlayer();
-        if (Constants.GameMusicEnabled) {
-            levelMidi.playLoop("/alkosmen/sounds/Caribbean-Blue.mid", 70);
-        }
-        playerSprites = getAlkobotImages();
-        renderLoadingScreen("Loading level...");
-
-        loadLevel(1);
-        rotateCityLine(System.currentTimeMillis(), true);
-    }
-
-    private void update() {
-        if (player == null || levelMap == null) {
-            return;
-        }
-
-        if (restartRequested) {
-            restartRequested = false;
-            try {
-                loadLevel(currentLevel);
+               this.loadLevel(this.currentLevel);
             } catch (Exception e) {
-                throw new RuntimeException("Failed to restart level", e);
+               throw new RuntimeException("Failed to restart level", e);
             }
-            return;
-        }
-        if (gameOver || levelComplete) {
-            return;
-        }
-
-        long now = System.currentTimeMillis();
-        if (now >= nextCityLineAt) {
-            rotateCityLine(now, false);
-        }
-        double dx = (rightPressed ? 1.0 : 0.0) - (leftPressed ? 1.0 : 0.0);
-        double dy = (downPressed ? 1.0 : 0.0) - (upPressed ? 1.0 : 0.0);
-        if (dx != 0.0 || dy != 0.0) {
-            double length = Math.hypot(dx, dy);
-            moveTopDown(dx / length * TOP_DOWN_SPEED, dy / length * TOP_DOWN_SPEED);
-            playerDir = dx < 0 ? 0 : dx > 0 ? 1 : 2;
-        } else {
-            playerDir = 2;
-        }
-
-        animatePlayer();
-        updatePatrols();
-        checkPatrolCollision(now);
-        if (gameOver) {
-            return;
-        }
-        updateCamera();
-
-        collectNearbyBottle();
-
-        int px = (int) Math.floor(player.x);
-        int py = (int) Math.floor(player.y);
-        if (isInsideMap(px, py) && levelMap[py][px] == 'E' && levelGoalReached) {
-            levelComplete = true;
-            leftPressed = false;
-            rightPressed = false;
-            upPressed = false;
-            downPressed = false;
-        }
-
-    }
-
-    private void moveTopDown(double dx, double dy) {
-        double nextX = player.x + dx;
-        if (canOccupy(nextX, player.y)) {
-            player.x = nextX;
-        }
-
-        double nextY = player.y + dy;
-        if (canOccupy(player.x, nextY)) {
-            player.y = nextY;
-        }
-    }
-
-    private boolean canOccupy(double x, double y) {
-        double minX = x + PLAYER_COLLISION_MARGIN;
-        double maxX = x + 1.0 - PLAYER_COLLISION_MARGIN;
-        double minY = y + PLAYER_COLLISION_MARGIN;
-        double maxY = y + 1.0 - PLAYER_COLLISION_MARGIN;
-        return !isSolid((int) Math.floor(minX), (int) Math.floor(minY))
-                && !isSolid((int) Math.floor(maxX), (int) Math.floor(minY))
-                && !isSolid((int) Math.floor(minX), (int) Math.floor(maxY))
-                && !isSolid((int) Math.floor(maxX), (int) Math.floor(maxY));
-    }
-
-    private void collectNearbyBottle() {
-        double playerCenterX = player.x + 0.5;
-        double playerCenterY = player.y + 0.5;
-        int minX = Math.max(0, (int) Math.floor(playerCenterX - BOTTLE_PICKUP_RADIUS));
-        int maxX = Math.min(levelMap[0].length - 1, (int) Math.floor(playerCenterX + BOTTLE_PICKUP_RADIUS));
-        int minY = Math.max(0, (int) Math.floor(playerCenterY - BOTTLE_PICKUP_RADIUS));
-        int maxY = Math.min(levelMap.length - 1, (int) Math.floor(playerCenterY + BOTTLE_PICKUP_RADIUS));
-
-        for (int y = minY; y <= maxY; y++) {
-            for (int x = minX; x <= maxX; x++) {
-                if (levelMap[y][x] != 'B') {
-                    continue;
-                }
-                if (Math.hypot(playerCenterX - (x + 0.5), playerCenterY - (y + 0.5)) <= BOTTLE_PICKUP_RADIUS) {
-                    levelMap[y][x] = '.';
-                    score++;
-                    bottleCollectSound.play();
-                    levelGoalReached = score >= bottleGoal && bottleGoal > 0;
-                    return;
-                }
+         } else if (!this.gameOver && !this.levelComplete) {
+            long now = System.currentTimeMillis();
+            long click = this.pendingClick;
+            if (click != -1L) {
+               this.pendingClick = -1L;
+               this.handleClick((int)(click >>> 32), (int)click, now);
             }
-        }
-    }
 
-    private void updatePatrols() {
-        int targetX = (int) Math.floor(player.x + 0.5);
-        int targetY = (int) Math.floor(player.y + 0.5);
-        for (TopDownPatrol patrol : patrols) {
-            movePatrolLikePacman(patrol, targetX, targetY);
-        }
-    }
+            if (this.secretArea) {
+               this.updateSecretArea();
+            } else if (!this.questMapOpen) {
+               if (this.questPanel == null) {
+                  if (now < this.ufoUntil) {
+                     this.playerDir = 4;
+                  } else {
+                     if (now >= this.nextCityLineAt) {
+                        this.rotateCityLine(now, false);
+                     }
 
-    private void movePatrolLikePacman(TopDownPatrol patrol, int targetX, int targetY) {
-        if (isAtCellCenter(patrol.x) && isAtCellCenter(patrol.y)) {
-            patrol.x = Math.rint(patrol.x);
-            patrol.y = Math.rint(patrol.y);
-            choosePacmanTurn(patrol, targetX, targetY);
-        }
+                     double dx = (this.rightPressed ? (double)1.0F : (double)0.0F) - (this.leftPressed ? (double)1.0F : (double)0.0F);
+                     double dy = (this.downPressed ? (double)1.0F : (double)0.0F) - (this.upPressed ? (double)1.0F : (double)0.0F);
+                     if (dx == (double)0.0F && dy == (double)0.0F) {
+                        this.playerDir = 2;
+                     } else {
+                        double length = Math.hypot(dx, dy);
+                        this.moveTopDown(dx / length * 0.115, dy / length * 0.115);
+                        this.playerDir = Math.abs(dy) > Math.abs(dx) ? (dy < (double)0.0F ? 3 : 4) : (dx < (double)0.0F ? 0 : 1);
+                     }
 
-        double stepX = patrol.moveX * PATROL_SPEED;
-        double stepY = patrol.moveY * PATROL_SPEED;
-        if (patrol.moveX != 0) {
-            double boundary = patrol.moveX > 0 ? Math.floor(patrol.x) + 1.0 : Math.ceil(patrol.x) - 1.0;
-            stepX = Math.copySign(Math.min(Math.abs(stepX), Math.abs(boundary - patrol.x)), stepX);
-        }
-        if (patrol.moveY != 0) {
-            double boundary = patrol.moveY > 0 ? Math.floor(patrol.y) + 1.0 : Math.ceil(patrol.y) - 1.0;
-            stepY = Math.copySign(Math.min(Math.abs(stepY), Math.abs(boundary - patrol.y)), stepY);
-        }
-        if (canPatrolOccupy(patrol.x + stepX, patrol.y + stepY)) {
-            patrol.x += stepX;
-            patrol.y += stepY;
-            patrol.animationTick++;
-        } else {
-            patrol.moveX = -patrol.moveX;
-            patrol.moveY = -patrol.moveY;
-        }
-    }
+                     this.animatePlayer();
+                     if (this.interactionRequested) {
+                        this.interactionRequested = false;
+                        this.interactWithNearbyNpc(now);
+                     }
 
-    private void choosePacmanTurn(TopDownPatrol patrol, int targetX, int targetY) {
-        int tileX = (int) patrol.x;
-        int tileY = (int) patrol.y;
-        int bestX = patrol.moveX;
-        int bestY = patrol.moveY;
-        int bestDistance = Integer.MAX_VALUE;
-        boolean hasForwardChoice = false;
+                     this.updatePatrols();
+                     this.checkPatrolCollision(now);
+                     if (!this.gameOver) {
+                        this.updateCamera();
+                        this.collectNearbyBottle();
+                        int px = (int)Math.floor(this.player.x);
+                        int py = (int)Math.floor(this.player.y);
+                        if (this.isInsideMap(px, py) && this.levelMap[py][px] == 'E' && this.levelGoalReached) {
+                           this.levelComplete = true;
+                           this.leftPressed = false;
+                           this.rightPressed = false;
+                           this.upPressed = false;
+                           this.downPressed = false;
+                        }
 
-        for (int[] direction : new int[][]{{0, -1}, {-1, 0}, {0, 1}, {1, 0}}) {
-            int directionX = direction[0];
-            int directionY = direction[1];
-            if (directionX == -patrol.moveX && directionY == -patrol.moveY) {
-                continue;
+                     }
+                  }
+               }
             }
+         }
+      }
+   }
+
+   private void moveTopDown(double dx, double dy) {
+      double nextX = this.player.x + dx;
+      if (this.canOccupy(nextX, this.player.y)) {
+         this.player.x = nextX;
+      }
+
+      double nextY = this.player.y + dy;
+      if (this.canOccupy(this.player.x, nextY)) {
+         this.player.y = nextY;
+      }
+
+   }
+
+   private void interactWithNearbyNpc(long now) {
+      char nearest = 0;
+      double bestDistance = 2.2;
+
+      for(int y = 0; y < this.levelMap.length; ++y) {
+         for(int x = 0; x < this.levelMap[y].length; ++x) {
+            char tile = this.levelMap[y][x];
+            if (this.isNpcTile(tile)) {
+               double distance = Math.hypot(this.player.x - (double)x, this.player.y - (double)y);
+               if (distance < bestDistance) {
+                  bestDistance = distance;
+                  nearest = tile;
+               }
+            }
+         }
+      }
+
+      String var10001;
+      switch (nearest) {
+         case 'G' -> var10001 = this.dbText("npc.cop");
+         case 'M' -> var10001 = this.dbText("npc.merchant");
+         case 'N' -> var10001 = this.openTolyaPanel();
+         case 'V' -> var10001 = this.openEboboPanel();
+         default -> var10001 = this.dbText("npc.near");
+      }
+
+      this.dialogueLine = var10001;
+      if (this.questPanel == null) {
+         this.dialogueUntil = now + 5000L;
+      }
+
+   }
+
+   private String dbText(String key) {
+      try {
+         return this.gameStore.text(key);
+      } catch (SQLException error) {
+         System.err.println("Dialogue load failed: " + error.getMessage());
+         return key;
+      }
+   }
+
+   private void showLine(String line, long now) {
+      this.dialogueLine = line;
+      this.dialogueUntil = now + 5000L;
+   }
+
+   private String openTolyaPanel() {
+      if (!this.tolyaQuestAccepted) {
+         this.offer("tolya_bottles", "quest.tolya.offer");
+      } else if (!this.tolyaQuestComplete && this.score >= this.bottleGoal) {
+         this.turnIn("tolya_bottles", "quest.tolya.finish");
+      } else if (!this.tolyaQuestComplete) {
+         this.info("tolya_bottles", "quest.tolya.progress", this.dbText("quest.tolya.progress.body").replace("{count}", Integer.toString(this.score)).replace("{total}", Integer.toString(this.bottleGoal)));
+      } else if (!this.sacredQuest.accepted()) {
+         this.offer("sacred_tich", "quest.sacred.offer.v2");
+      } else if (!this.sacredQuest.completed() && this.sacredQuest.stage() >= this.sacredCaches.size()) {
+         this.turnIn("sacred_tich", "quest.sacred.finish");
+      } else {
+         this.info("sacred_tich", "quest.sacred.progress", this.dbText(this.sacredQuest.completed() ? "quest.sacred.done.body" : "quest.sacred.progress.body"));
+      }
+
+      return "";
+   }
+
+   private String openEboboPanel() {
+      if (!this.eboboQuest.accepted()) {
+         this.offer("ebobo_ufo", "quest.ebobo.offer");
+      } else if (!this.eboboQuest.completed() && this.eboboQuest.stage() >= this.eboboPhotos.size()) {
+         this.turnIn("ebobo_ufo", "quest.ebobo.finish");
+      } else {
+         this.info("ebobo_ufo", "quest.ebobo.progress", this.eboboQuest.completed() ? this.dbText("quest.ebobo.done.body") : this.dbText("quest.ebobo.progress.body").replace("{count}", Integer.toString(this.eboboQuest.stage())).replace("{total}", Integer.toString(this.eboboPhotos.size())));
+      }
+
+      return "";
+   }
+
+   private void offer(String questId, String prefix) {
+      this.questPanel = new QuestPanel(questId, this.dbText(prefix + ".title"), this.dbText(prefix + ".body"), "Принять", Game.PanelAction.ACCEPT);
+   }
+
+   private void turnIn(String questId, String prefix) {
+      this.questPanel = new QuestPanel(questId, this.dbText(prefix + ".title"), this.dbText(prefix + ".body"), "Завершить", Game.PanelAction.TURN_IN);
+   }
+
+   private void info(String questId, String prefix, String body) {
+      this.questPanel = new QuestPanel(questId, this.dbText(prefix + ".title"), body, "Закрыть", Game.PanelAction.CLOSE);
+   }
+
+   private void enableMouse() {
+      this.addMouseListener(new MouseAdapter() {
+         public void mousePressed(MouseEvent event) {
+            if (event.getButton() == 1) {
+               Game.this.pendingClick = (long)event.getX() << 32 | (long)event.getY() & 4294967295L;
+            }
+
+         }
+      });
+   }
+
+   private void handleClick(int screenX, int screenY, long now) {
+      if (this.questPanel != null) {
+         this.handlePanelClick(screenX, screenY, now);
+      } else if (this.questMapOpen) {
+         this.questMapOpen = false;
+      } else if (!this.secretArea) {
+         int cell = Constants.Size;
+
+         for(int y = 0; y < this.levelMap.length; ++y) {
+            for(int x = 0; x < this.levelMap[y].length; ++x) {
+               char npc = this.levelMap[y][x];
+               if (npc == 'N' || npc == 'V' || npc == 'M' || npc == 'G') {
+                  int size = (int)Math.round((double)cell * 1.7);
+                  int left = (int)((double)((float)(x * cell) - this.cameraX) - (double)(size - cell) / (double)2.0F);
+                  int top = (int)((float)(y * cell) - this.cameraY - (float)(size - cell));
+                  if ((new Rectangle(left, top, size, size)).contains(screenX, screenY)) {
+                     if (Math.hypot(this.player.x - (double)x, this.player.y - (double)y) > 2.4) {
+                        this.showLine(this.dbText("npc.far"), now);
+                     } else if (npc == 'N') {
+                        this.openTolyaPanel();
+                     } else if (npc == 'V') {
+                        this.openEboboPanel();
+                     } else {
+                        this.showLine(this.dbText(npc == 'M' ? "npc.merchant" : "npc.cop"), now);
+                     }
+
+                     return;
+                  }
+               }
+            }
+         }
+
+         if (!this.tryClueClick(screenX, screenY, now, "ebobo_ufo", this.eboboQuest, this.eboboPhotos)) {
+            if (!this.tryClueClick(screenX, screenY, now, "sacred_tich", this.sacredQuest, this.sacredCaches)) {
+               if (this.sacredQuest.completed() && this.secretEntrance != null && this.hitTile(screenX, screenY, this.secretEntrance, 0.8)) {
+                  if (Math.hypot(this.player.x - (double)this.secretEntrance.x(), this.player.y - (double)this.secretEntrance.y()) > 1.8) {
+                     this.showLine(this.dbText("npc.far"), now);
+                  } else {
+                     this.secretArea = true;
+                     this.secretX = (double)2.0F;
+                     this.secretY = (double)5.0F;
+                     this.showLine(this.dbText("quest.secret.enter"), now);
+                  }
+               }
+
+            }
+         }
+      }
+   }
+
+   private boolean tryClueClick(int sx, int sy, long now, String questId, LocalGameStore.StoryState state, List clues) {
+      if (state.accepted() && !state.completed() && state.stage() < clues.size()) {
+         LocalGameStore.QuestStep clue = (LocalGameStore.QuestStep)clues.get(state.stage());
+         if (!this.hitTile(sx, sy, clue.tile(), 0.8)) {
+            return false;
+         } else if (Math.hypot(this.player.x - (double)clue.tile().x(), this.player.y - (double)clue.tile().y()) > 1.8) {
+            this.showLine(this.dbText("npc.far"), now);
+            return true;
+         } else {
+            LocalGameStore.StoryState next = new LocalGameStore.StoryState(true, false, state.stage() + 1);
+
+            try {
+               this.gameStore.saveStory(questId, next);
+            } catch (SQLException var11) {
+               this.showLine(this.dbText("save.error"), now);
+               return true;
+            }
+
+            if ("ebobo_ufo".equals(questId)) {
+               this.eboboQuest = next;
+               this.photoFlashUntil = now + 180L;
+               if (next.stage() == clues.size()) {
+                  this.ufoStartedAt = now;
+                  this.ufoUntil = now + 3500L;
+                  this.playerDir = 4;
+               }
+            } else {
+               this.sacredQuest = next;
+            }
+
+            this.showLine(this.dbText(clue.textKey()), now);
+            return true;
+         }
+      } else {
+         return false;
+      }
+   }
+
+   private boolean hitTile(int sx, int sy, LocalGameStore.Tile tile, double radius) {
+      int cell = Constants.Size;
+      double centerX = ((double)tile.x() + (double)0.5F) * (double)cell - (double)this.cameraX;
+      double centerY = ((double)tile.y() + (double)0.5F) * (double)cell - (double)this.cameraY;
+      return Math.hypot((double)sx - centerX, (double)sy - centerY) < (double)cell * radius;
+   }
+
+   private void handlePanelClick(int sx, int sy, long now) {
+      Rectangle panel = this.questPanelBounds();
+      Rectangle button = new Rectangle(panel.x + panel.width - 185, panel.y + panel.height - 59, 155, 38);
+      Rectangle close = new Rectangle(panel.x + panel.width - 40, panel.y + 12, 28, 28);
+      if (!close.contains(sx, sy) && panel.contains(sx, sy)) {
+         if (button.contains(sx, sy)) {
+            QuestPanel selected = this.questPanel;
+            if (selected.action() == Game.PanelAction.CLOSE) {
+               this.questPanel = null;
+            } else {
+               try {
+                  if ("tolya_bottles".equals(selected.questId())) {
+                     boolean finished = selected.action() == Game.PanelAction.TURN_IN;
+                     this.gameStore.saveTolyaQuest(true, finished);
+                     this.tolyaQuestAccepted = true;
+                     this.tolyaQuestComplete = finished;
+                     if (finished) {
+                        this.showLine(this.dbText("quest.tolya.finish.line"), now);
+                     }
+                  } else {
+                     LocalGameStore.StoryState old = "ebobo_ufo".equals(selected.questId()) ? this.eboboQuest : this.sacredQuest;
+                     boolean finished = selected.action() == Game.PanelAction.TURN_IN;
+                     LocalGameStore.StoryState next = new LocalGameStore.StoryState(true, finished, old.stage());
+                     this.gameStore.saveStory(selected.questId(), next);
+                     if ("ebobo_ufo".equals(selected.questId())) {
+                        this.eboboQuest = next;
+                        if (finished) {
+                           this.showLine(this.dbText("quest.ebobo.finish.line"), now);
+                        }
+                     } else {
+                        this.sacredQuest = next;
+                        if (finished) {
+                           this.showLine(this.dbText("quest.sacred.finish.line"), now);
+                        }
+                     }
+                  }
+
+                  this.questPanel = null;
+               } catch (SQLException var12) {
+                  this.questPanel = null;
+                  this.showLine(this.dbText("save.error"), now);
+               }
+
+            }
+         }
+      } else {
+         this.questPanel = null;
+      }
+   }
+
+   private Rectangle questPanelBounds() {
+      int width = Math.min(620, this.getWidth() - 40);
+      int height = 278;
+      return new Rectangle((this.getWidth() - width) / 2, (this.getHeight() - height) / 2, width, height);
+   }
+
+   private boolean canOccupy(double x, double y) {
+      double minX = x + 0.06;
+      double maxX = x + (double)1.0F - 0.06;
+      double minY = y + 0.06;
+      double maxY = y + (double)1.0F - 0.06;
+      return !this.isSolid((int)Math.floor(minX), (int)Math.floor(minY)) && !this.isSolid((int)Math.floor(maxX), (int)Math.floor(minY)) && !this.isSolid((int)Math.floor(minX), (int)Math.floor(maxY)) && !this.isSolid((int)Math.floor(maxX), (int)Math.floor(maxY));
+   }
+
+   private void collectNearbyBottle() {
+      if (this.tolyaQuestAccepted && !this.tolyaQuestComplete) {
+         double playerCenterX = this.player.x + (double)0.5F;
+         double playerCenterY = this.player.y + (double)0.5F;
+         int minX = Math.max(0, (int)Math.floor(playerCenterX - 0.82));
+         int maxX = Math.min(this.levelMap[0].length - 1, (int)Math.floor(playerCenterX + 0.82));
+         int minY = Math.max(0, (int)Math.floor(playerCenterY - 0.82));
+         int maxY = Math.min(this.levelMap.length - 1, (int)Math.floor(playerCenterY + 0.82));
+
+         for(int y = minY; y <= maxY; ++y) {
+            for(int x = minX; x <= maxX; ++x) {
+               if (this.levelMap[y][x] == 'B' && Math.hypot(playerCenterX - ((double)x + (double)0.5F), playerCenterY - ((double)y + (double)0.5F)) <= 0.82) {
+                  try {
+                     if (!this.gameStore.collectTolyaBottle(x, y)) {
+                        this.levelMap[y][x] = '.';
+                        return;
+                     }
+                  } catch (SQLException error) {
+                     System.err.println("Bottle save failed: " + error.getMessage());
+                     this.dialogueLine = this.dbText("save.error");
+                     this.dialogueUntil = System.currentTimeMillis() + 3000L;
+                     return;
+                  }
+
+                  this.levelMap[y][x] = '.';
+                  ++this.score;
+                  this.bottleCollectSound.play();
+                  this.levelGoalReached = this.score >= this.bottleGoal && this.bottleGoal > 0;
+                  return;
+               }
+            }
+         }
+
+      }
+   }
+
+   private void updatePatrols() {
+      long now = System.currentTimeMillis();
+
+      for(TopDownPatrol patrol : this.patrols) {
+         this.movePatrolAlongRoute(patrol, now);
+      }
+
+   }
+
+   private void movePatrolAlongRoute(TopDownPatrol patrol, long now) {
+      if (!patrol.route.isEmpty()) {
+         LocalGameStore.Waypoint target = (LocalGameStore.Waypoint)patrol.route.get(patrol.waypointIndex);
+         double dx = (double)target.x() - patrol.x;
+         double dy = (double)target.y() - patrol.y;
+         if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) {
+            if (patrol.waitUntil == 0L) {
+               patrol.waitUntil = now + (long)Math.max(1, target.pauseMs());
+            } else if (now >= patrol.waitUntil) {
+               patrol.waypointIndex = (patrol.waypointIndex + 1) % patrol.route.size();
+               patrol.waitUntil = 0L;
+            }
+
+         } else {
+            double stepX = Math.abs(dx) > 0.001 ? Math.copySign(Math.min(0.032, Math.abs(dx)), dx) : (double)0.0F;
+            double stepY = stepX == (double)0.0F ? Math.copySign(Math.min(0.032, Math.abs(dy)), dy) : (double)0.0F;
+            if (!this.canPatrolOccupy(patrol.x + stepX, patrol.y + stepY)) {
+               patrol.waypointIndex = (patrol.waypointIndex + 1) % patrol.route.size();
+            } else {
+               patrol.x += stepX;
+               patrol.y += stepY;
+               ++patrol.animationTick;
+               patrol.facing = stepX < (double)0.0F ? 0 : (stepX > (double)0.0F ? 1 : (stepY < (double)0.0F ? 2 : 3));
+            }
+         }
+      }
+   }
+
+   private void movePatrolLikePacman(TopDownPatrol patrol, int targetX, int targetY) {
+      if (isAtCellCenter(patrol.x) && isAtCellCenter(patrol.y)) {
+         patrol.x = Math.rint(patrol.x);
+         patrol.y = Math.rint(patrol.y);
+         this.choosePacmanTurn(patrol, targetX, targetY);
+      }
+
+      double stepX = (double)patrol.moveX * 0.032;
+      double stepY = (double)patrol.moveY * 0.032;
+      if (patrol.moveX != 0) {
+         double boundary = patrol.moveX > 0 ? Math.floor(patrol.x) + (double)1.0F : Math.ceil(patrol.x) - (double)1.0F;
+         stepX = Math.copySign(Math.min(Math.abs(stepX), Math.abs(boundary - patrol.x)), stepX);
+      }
+
+      if (patrol.moveY != 0) {
+         double boundary = patrol.moveY > 0 ? Math.floor(patrol.y) + (double)1.0F : Math.ceil(patrol.y) - (double)1.0F;
+         stepY = Math.copySign(Math.min(Math.abs(stepY), Math.abs(boundary - patrol.y)), stepY);
+      }
+
+      if (this.canPatrolOccupy(patrol.x + stepX, patrol.y + stepY)) {
+         patrol.x += stepX;
+         patrol.y += stepY;
+         ++patrol.animationTick;
+      } else {
+         patrol.moveX = -patrol.moveX;
+         patrol.moveY = -patrol.moveY;
+      }
+
+   }
+
+   private void choosePacmanTurn(TopDownPatrol patrol, int targetX, int targetY) {
+      int tileX = (int)patrol.x;
+      int tileY = (int)patrol.y;
+      int bestX = patrol.moveX;
+      int bestY = patrol.moveY;
+      int bestDistance = Integer.MAX_VALUE;
+      boolean hasForwardChoice = false;
+
+      for(int[] direction : new int[][]{{0, -1}, {-1, 0}, {0, 1}, {1, 0}}) {
+         int directionX = direction[0];
+         int directionY = direction[1];
+         if (directionX != -patrol.moveX || directionY != -patrol.moveY) {
             int nextX = tileX + directionX;
             int nextY = tileY + directionY;
-            if (isSolid(nextX, nextY)) {
-                continue;
+            if (!this.isSolid(nextX, nextY)) {
+               hasForwardChoice = true;
+               int distance = squaredDistance(nextX, nextY, targetX, targetY);
+               if (distance < bestDistance) {
+                  bestDistance = distance;
+                  bestX = directionX;
+                  bestY = directionY;
+               }
             }
-            hasForwardChoice = true;
-            int distance = squaredDistance(nextX, nextY, targetX, targetY);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestX = directionX;
-                bestY = directionY;
+         }
+      }
+
+      if (!hasForwardChoice) {
+         bestX = -patrol.moveX;
+         bestY = -patrol.moveY;
+      }
+
+      patrol.moveX = bestX;
+      patrol.moveY = bestY;
+      if (bestX != 0) {
+         patrol.direction = bestX;
+      }
+
+   }
+
+   private static boolean isAtCellCenter(double coordinate) {
+      return Math.abs(coordinate - Math.rint(coordinate)) < 0.001;
+   }
+
+   private static int squaredDistance(int firstX, int firstY, int secondX, int secondY) {
+      int dx = firstX - secondX;
+      int dy = firstY - secondY;
+      return dx * dx + dy * dy;
+   }
+
+   private boolean canPatrolOccupy(double x, double y) {
+      double minX = x + 0.06;
+      double maxX = x + (double)1.0F - 0.06;
+      double minY = y + 0.06;
+      double maxY = y + (double)1.0F - 0.06;
+      return !this.isSolid((int)Math.floor(minX), (int)Math.floor(minY)) && !this.isSolid((int)Math.floor(maxX), (int)Math.floor(minY)) && !this.isSolid((int)Math.floor(minX), (int)Math.floor(maxY)) && !this.isSolid((int)Math.floor(maxX), (int)Math.floor(maxY));
+   }
+
+   private void checkPatrolCollision(long now) {
+      if (this.currentLevel != 1) {
+         if (now - this.lastPatrolCaughtAt >= 1000L) {
+            for(TopDownPatrol patrol : this.patrols) {
+               if (Math.abs(this.player.x - patrol.x) < 0.55 && Math.abs(this.player.y - patrol.y) < 0.55) {
+                  this.lastPatrolCaughtAt = now;
+                  this.lives = Math.max(0, this.lives - 1);
+                  if (this.lives == 0) {
+                     this.gameOver = true;
+                  } else {
+                     this.respawnPlayer();
+                  }
+
+                  return;
+               }
             }
-        }
 
-        if (!hasForwardChoice) {
-            bestX = -patrol.moveX;
-            bestY = -patrol.moveY;
-        }
-        patrol.moveX = bestX;
-        patrol.moveY = bestY;
-        if (bestX != 0) {
-            patrol.direction = bestX;
-        }
-    }
+         }
+      }
+   }
 
-    private static boolean isAtCellCenter(double coordinate) {
-        return Math.abs(coordinate - Math.rint(coordinate)) < 0.001;
-    }
-
-    private static int squaredDistance(int firstX, int firstY, int secondX, int secondY) {
-        int dx = firstX - secondX;
-        int dy = firstY - secondY;
-        return dx * dx + dy * dy;
-    }
-
-    private boolean canPatrolOccupy(double x, double y) {
-        double minX = x + PATROL_COLLISION_MARGIN;
-        double maxX = x + 1.0 - PATROL_COLLISION_MARGIN;
-        double minY = y + PATROL_COLLISION_MARGIN;
-        double maxY = y + 1.0 - PATROL_COLLISION_MARGIN;
-        return !isSolid((int) Math.floor(minX), (int) Math.floor(minY))
-                && !isSolid((int) Math.floor(maxX), (int) Math.floor(minY))
-                && !isSolid((int) Math.floor(minX), (int) Math.floor(maxY))
-                && !isSolid((int) Math.floor(maxX), (int) Math.floor(maxY));
-    }
-
-    private void checkPatrolCollision(long now) {
-        if (now - lastPatrolCaughtAt < PATROL_CAUGHT_COOLDOWN_MS) {
-            return;
-        }
-        for (TopDownPatrol patrol : patrols) {
-            if (Math.abs(player.x - patrol.x) < 0.55 && Math.abs(player.y - patrol.y) < 0.55) {
-                lastPatrolCaughtAt = now;
-                lives = Math.max(0, lives - 1);
-                if (lives == 0) {
-                    gameOver = true;
-                } else {
-                    respawnPlayer();
-                }
-                return;
-            }
-        }
-    }
-
-    private void moveHorizontal(double dx) {
-        if (dx == 0.0) {
-            return;
-        }
-
-        double nx = player.x + dx;
-        int tx = (int) Math.floor(nx);
-        int ty = (int) Math.floor(player.y);
-
-        if (isSolid(tx, ty)) {
-            if (dx > 0) {
-                player.x = tx - 0.001;
+   private void moveHorizontal(double dx) {
+      if (dx != (double)0.0F) {
+         double nx = this.player.x + dx;
+         int tx = (int)Math.floor(nx);
+         int ty = (int)Math.floor(this.player.y);
+         if (this.isSolid(tx, ty)) {
+            if (dx > (double)0.0F) {
+               this.player.x = (double)tx - 0.001;
             } else {
-                player.x = tx + 1.001;
+               this.player.x = (double)tx + 1.001;
             }
-            player.vx = 0.0;
-        } else {
-            player.x = nx;
-        }
-    }
 
-    private void moveVertical(double dy) {
-        if (dy == 0.0) {
-            return;
-        }
+            this.player.vx = (double)0.0F;
+         } else {
+            this.player.x = nx;
+         }
 
-        double ny = player.y + dy;
-        int tx = (int) Math.floor(player.x);
-        int ty = (int) Math.floor(ny);
+      }
+   }
 
-        if (isSolid(tx, ty)) {
-            if (dy > 0) {
-                player.y = ty - 0.001;
-                player.onGround = true;
+   private void moveVertical(double dy) {
+      if (dy != (double)0.0F) {
+         double ny = this.player.y + dy;
+         int tx = (int)Math.floor(this.player.x);
+         int ty = (int)Math.floor(ny);
+         if (this.isSolid(tx, ty)) {
+            if (dy > (double)0.0F) {
+               this.player.y = (double)ty - 0.001;
+               this.player.onGround = true;
             } else {
-                player.y = ty + 1.001;
+               this.player.y = (double)ty + 1.001;
             }
-            player.vy = 0.0;
-        } else {
-            player.y = ny;
-            player.onGround = false;
-        }
-    }
 
-    private void animatePlayer() {
-        boolean isWalking = leftPressed || rightPressed || upPressed || downPressed;
-        long now = System.currentTimeMillis();
-        int frameCount = playerSprites != null && playerDir >= 0 && playerDir < playerSprites.length
-                ? playerSprites[playerDir].length
-                : 0;
-        if (frameCount <= 0) {
-            return;
-        }
-        if (isWalking && now - lastAnim > 90) {
-            animFrame = (animFrame + 1) % frameCount;
-            playerMotionTick++;
-            lastAnim = now;
-            if ((playerMotionTick % 4) == 0) {
-                stepSound.play();
+            this.player.vy = (double)0.0F;
+         } else {
+            this.player.y = ny;
+            this.player.onGround = false;
+         }
+
+      }
+   }
+
+   private void animatePlayer() {
+      boolean isWalking = this.leftPressed || this.rightPressed || this.upPressed || this.downPressed;
+      long now = System.currentTimeMillis();
+      int frameCount = this.playerSprites != null && this.playerDir >= 0 && this.playerDir < this.playerSprites.length ? this.playerSprites[this.playerDir].length : 0;
+      if (frameCount > 0) {
+         if (isWalking && now - this.lastAnim > 90L) {
+            this.animFrame = (this.animFrame + 1) % frameCount;
+            ++this.playerMotionTick;
+            this.lastAnim = now;
+            if (this.playerMotionTick % 4 == 0) {
+               this.stepSound.play();
             }
-        }
-        if (!isWalking && now - lastAnim > 110) {
-            animFrame = (animFrame + 1) % frameCount;
-            playerMotionTick++;
-            lastAnim = now;
-        }
-    }
+         }
 
-    private void updateCamera() {
-        int cell = Constants.Size;
-        double focusX = player.x;
-        double focusY = player.y;
-        float worldPx = (float) (focusX * cell);
-        float worldPy = (float) (focusY * cell);
-        int gameplayHeight = Math.max(1, getHeight() - HUD_HEIGHT);
+         if (!isWalking && now - this.lastAnim > 110L) {
+            this.animFrame = (this.animFrame + 1) % frameCount;
+            ++this.playerMotionTick;
+            this.lastAnim = now;
+         }
 
-        int mapPxW = levelMap[0].length * cell;
-        int mapPxH = levelMap.length * cell;
+      }
+   }
 
-        cameraX = worldPx - getWidth() / 2f + cell / 2f;
-        cameraY = worldPy - gameplayHeight / 2f + cell / 2f;
+   private void updateCamera() {
+      int cell = Constants.Size;
+      double focusX = this.player.x;
+      double focusY = this.player.y;
+      float worldPx = (float)(focusX * (double)cell);
+      float worldPy = (float)(focusY * (double)cell);
+      int gameplayHeight = Math.max(1, this.getHeight() - 56);
+      int mapPxW = this.levelMap[0].length * cell;
+      int mapPxH = this.levelMap.length * cell;
+      this.cameraX = worldPx - (float)this.getWidth() / 2.0F + (float)cell / 2.0F;
+      this.cameraY = worldPy - (float)gameplayHeight / 2.0F + (float)cell / 2.0F;
+      float maxX = (float)Math.max(0, mapPxW - this.getWidth());
+      float maxY = (float)Math.max(0, mapPxH - gameplayHeight);
+      this.cameraX = clamp(this.cameraX, 0.0F, maxX);
+      this.cameraY = clamp(this.cameraY, 0.0F, maxY);
+   }
 
-        float maxX = Math.max(0, mapPxW - getWidth());
-        float maxY = Math.max(0, mapPxH - gameplayHeight);
-        cameraX = clamp(cameraX, 0, maxX);
-        cameraY = clamp(cameraY, 0, maxY);
-    }
-
-    private void render() {
-        BufferStrategy bs = strategy;
-        if (bs == null) {
-            return;
-        }
-
-        Graphics g = bs.getDrawGraphics();
-        long sceneTime = System.currentTimeMillis();
-
-        g.setColor(new Color(11, 19, 30));
-        g.fillRect(0, 0, getWidth(), getHeight());
-
-        if (levelMap != null) {
+   private void render() {
+      BufferStrategy bs = this.strategy;
+      if (bs != null) {
+         Graphics g = bs.getDrawGraphics();
+         long sceneTime = System.currentTimeMillis();
+         g.setColor(new Color(11, 19, 30));
+         g.fillRect(0, 0, this.getWidth(), this.getHeight());
+         if (!this.secretArea && this.levelMap != null) {
             int cell = Constants.Size;
-            if (levelBackground != null) {
-                drawLevelBackground(g, getHeight() - HUD_HEIGHT);
+            if (this.levelBackground != null) {
+               this.drawLevelBackground(g, this.getHeight() - 56);
             }
 
-            int firstTileX = Math.max(0, (int) (cameraX / cell));
-            int firstTileY = Math.max(0, (int) (cameraY / cell));
-            int visibleX = getWidth() / cell + 3;
-            int visibleY = getHeight() / cell + 3;
-            int lastTileX = Math.min(levelMap[0].length, firstTileX + visibleX);
-            int lastTileY = Math.min(levelMap.length, firstTileY + visibleY);
+            int firstTileX = Math.max(0, (int)(this.cameraX / (float)cell));
+            int firstTileY = Math.max(0, (int)(this.cameraY / (float)cell));
+            int visibleX = this.getWidth() / cell + 3;
+            int visibleY = this.getHeight() / cell + 3;
+            int lastTileX = Math.min(this.levelMap[0].length, firstTileX + visibleX);
+            int lastTileY = Math.min(this.levelMap.length, firstTileY + visibleY);
 
-            for (int y = firstTileY; y < lastTileY; y++) {
-                for (int x = firstTileX; x < lastTileX; x++) {
-                    char c = levelMap[y][x];
-                    if (c == '.') {
-                        continue;
-                    }
+            for(int y = firstTileY; y < lastTileY; ++y) {
+               for(int x = firstTileX; x < lastTileX; ++x) {
+                  char c = this.levelMap[y][x];
+                  if (c != '.') {
+                     int drawX = x * cell - (int)this.cameraX;
+                     int drawY = y * cell - (int)this.cameraY;
+                     if (c != '#') {
+                        if (c == 'B' && this.bottleSprite != null) {
+                           int bottleW = (int)Math.round((double)cell * (double)1.3125F);
+                           int bottleH = (int)Math.round((double)cell * (double)1.3125F);
+                           int bottleX = drawX - (bottleW - cell) / 2;
+                           int bottleBob = (int)Math.round(Math.sin((double)(sceneTime + (long)x * 251L + (long)y * 131L) / (double)280.0F));
+                           int bottleY = drawY - (bottleH - cell) + bottleBob;
+                           g.drawImage(this.bottleSprite, bottleX, bottleY, bottleW, bottleH, (ImageObserver)null);
+                        } else if (c == 'E') {
+                           this.drawExit(g, drawX, drawY, cell, this.levelGoalReached);
+                        } else if (this.isNpcTile(c)) {
+                           Image npc = this.npcImageFor(c);
+                           if (npc != null) {
+                              int npcW = (int)Math.round((double)cell * 1.7);
+                              int npcH = (int)Math.round((double)cell * 1.7);
+                              int npcX = drawX - (npcW - cell) / 2;
+                              int npcBob = (int)Math.round(Math.sin((double)(sceneTime + (long)x * 173L + (long)y * 97L) / (double)450.0F));
+                              int npcY = drawY - (npcH - cell) + npcBob;
+                              g.drawImage(npc, npcX, npcY, npcW, npcH, (ImageObserver)null);
+                              this.drawNpcLabel(g, c, drawX + cell / 2, npcY - 4);
+                              if (c == 'N') {
+                                 if (this.tolyaQuestAccepted && (!this.tolyaQuestComplete || this.sacredQuest.accepted())) {
+                                    if (this.score >= this.bottleGoal && !this.tolyaQuestComplete || this.sacredQuest.accepted() && !this.sacredQuest.completed() && this.sacredQuest.stage() >= this.sacredCaches.size()) {
+                                       this.drawQuestMarker(g, drawX + cell / 2, npcY - 27, "?", true);
+                                    }
+                                 } else {
+                                    this.drawQuestMarker(g, drawX + cell / 2, npcY - 27, "!", true);
+                                 }
+                              }
 
-                    int drawX = x * cell - (int) cameraX;
-                    int drawY = y * cell - (int) cameraY;
-
-                    if (c == '#') {
-                        drawMazeWall(g, drawX, drawY, cell);
-                        continue;
-                    }
-
-                    if (c == 'B' && bottleSprite != null) {
-                        int bottleW = (int) Math.round(cell * BOTTLE_SCALE);
-                        int bottleH = (int) Math.round(cell * BOTTLE_SCALE);
-                        int bottleX = drawX - (bottleW - cell) / 2;
-                        int bottleBob = (int) Math.round(Math.sin((sceneTime + x * 251L + y * 131L) / 280.0));
-                        int bottleY = drawY - (bottleH - cell) + bottleBob;
-                        g.drawImage(bottleSprite, bottleX, bottleY, bottleW, bottleH, null);
-                        continue;
-                    }
-
-                    if (c == 'E') {
-                        drawExit(g, drawX, drawY, cell, levelGoalReached);
-                        continue;
-                    }
-
-                    if (isNpcTile(c)) {
-                        Image npc = npcImageFor(c);
-                        if (npc != null) {
-                            int npcW = (int) Math.round(cell * NPC_SCALE);
-                            int npcH = (int) Math.round(cell * NPC_SCALE);
-                            int npcX = drawX - (npcW - cell) / 2;
-                            int npcBob = (int) Math.round(Math.sin((sceneTime + x * 173L + y * 97L) / 450.0));
-                            int npcY = drawY - (npcH - cell) + npcBob;
-                            g.drawImage(npc, npcX, npcY, npcW, npcH, null);
+                              if (c == 'V') {
+                                 this.drawQuestMarker(g, drawX + cell / 2, npcY - 27, "?", this.eboboQuest.completed());
+                              }
+                           }
+                        } else {
+                           g.drawImage(this.tileFloor, drawX, drawY, cell, cell, (ImageObserver)null);
                         }
-                        continue;
-                    }
-
-                    g.drawImage(tileFloor, drawX, drawY, cell, cell, null);
-                }
+                     }
+                  }
+               }
             }
-        }
+         }
 
-        if (levelMap != null) {
+         if (!this.secretArea && this.levelMap != null) {
+            this.drawStorySites(g);
+            this.drawUfo(g, sceneTime);
             int cell = Constants.Size;
-            copSystem.draw(
-                    g,
-                    cell,
-                    NPC_SCALE,
-                    npcCopSprite,
-                    copWalkLeftFrames,
-                    copWalkRightFrames,
-                    cameraX,
-                    cameraY,
-                    sceneTime
-            );
-            drawPatrols(g, cell);
-        }
+            this.copSystem.draw(g, cell, 1.7, this.npcCopSprite, this.copWalkLeftFrames, this.copWalkRightFrames, this.cameraX, this.cameraY, sceneTime);
+            this.drawPatrols(g, cell);
+         }
 
-        if (!spectatorMode && player != null && playerSprites != null) {
+         if (!this.secretArea && !this.spectatorMode && this.player != null && this.playerSprites != null) {
             int cell = Constants.Size;
-            int playerW = (int) Math.round(cell * PLAYER_SCALE);
-            int playerH = (int) Math.round(cell * PLAYER_SCALE);
-            int drawX = (int) Math.round(player.x * cell - cameraX - (playerW - cell) / 2.0);
-            int drawY = (int) Math.round(player.y * cell - cameraY + (cell - playerH) / 2.0);
-            int maxPlayerY = getHeight() - HUD_HEIGHT - playerH;
+            int playerW = (int)Math.round((double)cell * 1.7);
+            int playerH = (int)Math.round((double)cell * 1.7);
+            int drawX = (int)Math.round(this.player.x * (double)cell - (double)this.cameraX - (double)(playerW - cell) / (double)2.0F);
+            int drawY = (int)Math.round(this.player.y * (double)cell - (double)this.cameraY + (double)cell - (double)playerH);
+            int maxPlayerY = this.getHeight() - 56 - playerH;
             if (drawY > maxPlayerY) {
-                drawY = maxPlayerY;
+               drawY = maxPlayerY;
             }
-            boolean playerIsWalking = playerDir != 2;
-            int motionPhase = Math.floorMod(playerMotionTick, playerIsWalking ? 4 : 12);
-            int playerBob = playerIsWalking ? (motionPhase < 2 ? 0 : 2) : (motionPhase < 6 ? 0 : 1);
-            int animatedPlayerH = playerH - (playerIsWalking && motionPhase == 1 ? 1 : 0);
-            drawY += playerBob;
-            Image[] track = playerSprites[playerDir];
-            Image img = track[Math.floorMod(animFrame, track.length)];
-            // Hidden player remains visible with low alpha for gameplay readability.
-            if (isPlayerHidden()) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.33f));
-                g2.drawImage(img, drawX, drawY, playerW, animatedPlayerH, null);
-                g2.dispose();
+
+            boolean playerIsWalking = this.playerDir != 2;
+            Image[] track = this.playerSprites[this.playerDir];
+            Image img = track[Math.floorMod(this.animFrame, track.length)];
+            if (this.isPlayerHidden()) {
+               Graphics2D g2 = (Graphics2D)g.create();
+               g2.setComposite(AlphaComposite.getInstance(3, 0.33F));
+               g2.drawImage(img, drawX, drawY, playerW, playerH, (ImageObserver)null);
+               g2.dispose();
             } else {
-                g.drawImage(img, drawX, drawY, playerW, animatedPlayerH, null);
+               g.drawImage(img, drawX, drawY, playerW, playerH, (ImageObserver)null);
             }
-        }
+         }
 
-        hudRenderer.drawHud(
-                g,
-                getWidth(),
-                getHeight(),
-                currentLevel,
-                score,
-                bottleGoal,
-                lives,
-                MAX_LIVES,
-                isPlayerHidden(),
-                gameOver,
-                cityLine,
-                Math.max(copSystem.getLastCaughtAt(), lastPatrolCaughtAt),
-                sceneTime
-        );
-        hudRenderer.drawGameOverOverlay(g, getWidth(), getHeight(), gameOver);
-        hudRenderer.drawLevelCompleteOverlay(g, getWidth(), getHeight(), levelComplete);
+         if (this.secretArea) {
+            this.drawSecretArea(g);
+         }
 
-        g.dispose();
-        bs.show();
-    }
+         if (sceneTime < this.photoFlashUntil) {
+            Graphics2D flash = (Graphics2D)g.create();
+            flash.setColor(new Color(236, 249, 255, 90));
+            flash.fillRect(0, 0, this.getWidth(), this.getHeight() - 56);
+            flash.dispose();
+         }
 
-    private void drawPatrols(Graphics g, int cell) {
-        if (npcCopSprite == null) {
-            return;
-        }
-        for (TopDownPatrol patrol : patrols) {
-            Image[] frames = patrol.direction < 0 ? copWalkLeftFrames : copWalkRightFrames;
-            Image sprite = frames == null || frames.length == 0
-                    ? npcCopSprite
-                    : frames[Math.floorMod(patrol.animationTick / 7, frames.length)];
-            int spriteH = (int) Math.round(cell * PATROL_HEIGHT_SCALE);
-            int spriteW = Math.max(1, (int) Math.round(spriteH * (double) sprite.getWidth(null) / sprite.getHeight(null)));
-            int drawX = (int) Math.round(patrol.x * cell - cameraX + (cell - spriteW) / 2.0);
-            int drawY = (int) Math.round(patrol.y * cell - cameraY + cell - spriteH);
-            Graphics2D g2 = (Graphics2D) g.create();
+         if (sceneTime < this.dialogueUntil) {
+            this.drawDialogue(g, this.dialogueLine);
+         }
+
+         this.hudRenderer.drawHud(g, this.getWidth(), this.getHeight(), this.currentLevel, this.score, this.bottleGoal, this.questObjective(), this.lives, 3, this.isPlayerHidden(), this.gameOver, this.cityLine, Math.max(this.copSystem.getLastCaughtAt(), this.lastPatrolCaughtAt), sceneTime);
+         this.hudRenderer.drawGameOverOverlay(g, this.getWidth(), this.getHeight(), this.gameOver);
+         this.hudRenderer.drawLevelCompleteOverlay(g, this.getWidth(), this.getHeight(), this.levelComplete);
+         if (this.questMapOpen) {
+            this.drawQuestMap(g);
+         }
+
+         if (this.questPanel != null) {
+            this.drawQuestPanel(g);
+         }
+
+         g.dispose();
+         bs.show();
+      }
+   }
+
+   private void drawPatrols(Graphics g, int cell) {
+      if (this.npcCopSprite != null) {
+         for(TopDownPatrol patrol : this.patrols) {
+            Image[] var10000;
+            switch (patrol.facing) {
+               case 0:
+                  var10000 = this.copWalkLeftFrames;
+                  break;
+               case 1:
+               default:
+                  var10000 = this.copWalkRightFrames;
+                  break;
+               case 2:
+                  var10000 = this.copWalkUpFrames;
+                  break;
+               case 3:
+                  var10000 = this.copWalkDownFrames;
+            }
+
+            Image[] frames = var10000;
+            Image sprite = frames != null && frames.length != 0 ? frames[Math.floorMod(patrol.animationTick / 7, frames.length)] : this.npcCopSprite;
+            int spriteH = (int)Math.round((double)cell * 1.18);
+            int spriteW = Math.max(1, (int)Math.round((double)spriteH * (double)sprite.getWidth((ImageObserver)null) / (double)sprite.getHeight((ImageObserver)null)));
+            int drawX = (int)Math.round(patrol.x * (double)cell - (double)this.cameraX + (double)(cell - spriteW) / (double)2.0F);
+            int drawY = (int)Math.round(patrol.y * (double)cell - (double)this.cameraY + (double)cell - (double)spriteH);
+            Graphics2D g2 = (Graphics2D)g.create();
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-            g2.drawImage(sprite, drawX, drawY, spriteW, spriteH, null);
+            g2.drawImage(sprite, drawX, drawY, spriteW, spriteH, (ImageObserver)null);
             g2.dispose();
-        }
-    }
+         }
 
-    private void enableKeys() {
-        addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                switch (e.getKeyCode()) {
-                    case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = true;
-                    case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = true;
-                    case KeyEvent.VK_W, KeyEvent.VK_UP -> upPressed = true;
-                    case KeyEvent.VK_S, KeyEvent.VK_DOWN -> downPressed = true;
-                    case KeyEvent.VK_R -> restartRequested = true;
-                    default -> {
-                    }
-                }
+      }
+   }
+
+   private void drawNpcLabel(Graphics g, char npc, int centerX, int y) {
+      String var10000;
+      switch (npc) {
+         case 'G' -> var10000 = "ПОЛИЦИЯ";
+         case 'M' -> var10000 = "ТОРГОВЕЦ";
+         case 'N' -> var10000 = "ТОЛЯ";
+         case 'V' -> var10000 = "ЕБобо";
+         default -> var10000 = "";
+      }
+
+      String name = var10000;
+      Graphics2D g2 = (Graphics2D)g.create();
+      g2.setFont(new Font("Dialog", 1, 11));
+      int width = g2.getFontMetrics().stringWidth(name) + 12;
+      g2.setColor(new Color(8, 13, 27, 205));
+      g2.fillRoundRect(centerX - width / 2, y - 15, width, 17, 6, 6);
+      g2.setColor(new Color(255, 220, 164));
+      g2.drawString(name, centerX - width / 2 + 6, y - 3);
+      g2.dispose();
+   }
+
+   private void drawQuestMarker(Graphics g, int centerX, int y, String symbol, boolean gold) {
+      Graphics2D g2 = (Graphics2D)g.create();
+      g2.setFont(new Font("Dialog", 1, 27));
+      g2.setColor(new Color(15, 12, 16));
+      g2.drawString(symbol, centerX - 6, y + 2);
+      g2.setColor(gold ? new Color(255, 207, 58) : new Color(205, 218, 235));
+      g2.drawString(symbol, centerX - 7, y);
+      g2.dispose();
+   }
+
+   private void drawStorySites(Graphics g) {
+      if (this.eboboQuest.accepted() && !this.eboboQuest.completed() && this.eboboQuest.stage() < this.eboboPhotos.size()) {
+         this.drawSite(g, ((LocalGameStore.QuestStep)this.eboboPhotos.get(this.eboboQuest.stage())).tile(), true);
+      }
+
+      if (this.sacredQuest.accepted() && !this.sacredQuest.completed() && this.sacredQuest.stage() < this.sacredCaches.size()) {
+         this.drawSite(g, ((LocalGameStore.QuestStep)this.sacredCaches.get(this.sacredQuest.stage())).tile(), false);
+      }
+
+      if (this.sacredQuest.completed() && this.secretEntrance != null) {
+         this.drawSite(g, this.secretEntrance, false);
+      }
+
+   }
+
+   private void drawSite(Graphics g, LocalGameStore.Tile tile, boolean camera) {
+      int cell = Constants.Size;
+      int x = (int)Math.round(((double)tile.x() + (double)0.5F) * (double)cell - (double)this.cameraX);
+      int y = (int)Math.round(((double)tile.y() + (double)0.5F) * (double)cell - (double)this.cameraY);
+      if (x >= -cell && x <= this.getWidth() + cell && y >= -cell && y <= this.getHeight() - 56 + cell) {
+         Graphics2D g2 = (Graphics2D)g.create();
+         g2.setColor(new Color(10, 16, 27, 220));
+         g2.fillRoundRect(x - 19, y - 21, 38, 38, 12, 12);
+         g2.setColor(camera ? new Color(185, 223, 249) : new Color(255, 209, 86));
+         g2.drawRoundRect(x - 19, y - 21, 37, 37, 12, 12);
+         if (camera) {
+            g2.fillRoundRect(x - 12, y - 9, 24, 17, 3, 3);
+            g2.fillRect(x - 6, y - 13, 10, 5);
+            g2.setColor(new Color(10, 16, 27));
+            g2.fillOval(x - 5, y - 7, 10, 10);
+         } else {
+            g2.setFont(new Font("Dialog", 1, 27));
+            g2.drawString("?", x - 8, y + 10);
+         }
+
+         g2.dispose();
+      }
+   }
+
+   private void drawUfo(Graphics g, long now) {
+      if (now < this.ufoUntil) {
+         Graphics2D g2 = (Graphics2D)g.create();
+         int x = (int)((now - this.ufoStartedAt) * ((long)this.getWidth() + 130L) / 3500L) - 65;
+         int y = Math.max(55, this.getHeight() / 6);
+         g2.setColor(new Color(85, 215, 225, 80));
+         g2.fillOval(x - 30, y - 16, 110, 38);
+         g2.setColor(new Color(30, 51, 71));
+         g2.fillOval(x, y, 55, 14);
+         g2.setColor(new Color(168, 242, 250));
+         g2.fillArc(x + 13, y - 11, 29, 19, 0, 180);
+         g2.fillOval(x + 10, y + 9, 7, 4);
+         g2.fillOval(x + 39, y + 9, 7, 4);
+         g2.dispose();
+      }
+   }
+
+   private void drawQuestPanel(Graphics g) {
+      Rectangle panel = this.questPanelBounds();
+      Graphics2D g2 = (Graphics2D)g.create();
+      g2.setColor(new Color(4, 8, 17, 175));
+      g2.fillRect(0, 0, this.getWidth(), this.getHeight());
+      g2.setColor(new Color(24, 30, 43));
+      g2.fillRoundRect(panel.x, panel.y, panel.width, panel.height, 14, 14);
+      g2.setColor(new Color(190, 155, 88));
+      g2.drawRoundRect(panel.x, panel.y, panel.width, panel.height, 14, 14);
+      g2.setFont(new Font("Dialog", 1, 23));
+      g2.setColor(new Color(255, 222, 161));
+      g2.drawString(this.questPanel.title(), panel.x + 28, panel.y + 44);
+      g2.setFont(new Font("Dialog", 0, 17));
+      g2.setColor(new Color(236, 232, 217));
+      String[] lines = this.questPanel.body().split("\n");
+
+      for(int i = 0; i < lines.length; ++i) {
+         g2.drawString(lines[i], panel.x + 28, panel.y + 91 + i * 30);
+      }
+
+      Rectangle button = new Rectangle(panel.x + panel.width - 185, panel.y + panel.height - 59, 155, 38);
+      g2.setColor(new Color(87, 57, 31));
+      g2.fillRoundRect(button.x, button.y, button.width, button.height, 8, 8);
+      g2.setColor(new Color(247, 193, 98));
+      g2.drawRoundRect(button.x, button.y, button.width, button.height, 8, 8);
+      g2.setFont(new Font("Dialog", 1, 17));
+      g2.drawString(this.questPanel.button(), button.x + 21, button.y + 25);
+      g2.drawString("×", panel.x + panel.width - 34, panel.y + 34);
+      g2.dispose();
+   }
+
+   private void drawQuestMap(Graphics g) {
+      int width = Math.min(700, this.getWidth() - 48);
+      int height = 440;
+      int left = (this.getWidth() - width) / 2;
+      int top = (this.getHeight() - height) / 2;
+      Graphics2D g2 = (Graphics2D)g.create();
+      g2.setColor(new Color(5, 9, 15, 190));
+      g2.fillRect(0, 0, this.getWidth(), this.getHeight());
+      g2.setColor(new Color(186, 157, 112));
+      g2.fillRoundRect(left, top, width, height, 12, 12);
+      g2.setColor(new Color(91, 64, 39));
+      g2.drawRoundRect(left, top, width - 1, height - 1, 12, 12);
+      g2.setFont(new Font("Dialog", 1, 22));
+      g2.drawString(this.sacredMapTitle, left + 28, top + 38);
+      int mapLeft = left + 70;
+      int mapTop = top + 70;
+      int mapWidth = width - 140;
+      int mapHeight = 260;
+      double scaleX = (double)mapWidth / (double)this.levelMap[0].length;
+      double scaleY = (double)mapHeight / (double)this.levelMap.length;
+      g2.setColor(new Color(207, 186, 143));
+      g2.fillRect(mapLeft, mapTop, mapWidth, mapHeight);
+      g2.setColor(new Color(118, 100, 71));
+
+      for(int y = 0; y < this.levelMap.length; ++y) {
+         for(int x = 0; x < this.levelMap[y].length; ++x) {
+            if (this.levelMap[y][x] == '#') {
+               int px = mapLeft + (int)((double)x * scaleX);
+               int py = mapTop + (int)((double)y * scaleY);
+               g2.fillRect(px, py, (int)Math.ceil(scaleX), (int)Math.ceil(scaleY));
+            }
+         }
+      }
+
+      g2.setFont(new Font("Dialog", 1, 22));
+
+      for(int i = 0; i < this.sacredCaches.size(); ++i) {
+         LocalGameStore.Tile tile = ((LocalGameStore.QuestStep)this.sacredCaches.get(i)).tile();
+         int px = mapLeft + (int)(((double)tile.x() + (double)0.5F) * scaleX);
+         int py = mapTop + (int)(((double)tile.y() + (double)0.5F) * scaleY);
+         g2.setColor(i < this.sacredQuest.stage() ? new Color(99, 90, 72) : (i == this.sacredQuest.stage() ? new Color(178, 65, 30) : new Color(135, 111, 77)));
+         g2.drawString("×", px - 6, py + 7);
+      }
+
+      int heroX = mapLeft + (int)((this.player.x + (double)0.5F) * scaleX);
+      int heroY = mapTop + (int)((this.player.y + (double)0.5F) * scaleY);
+      g2.setColor(new Color(225, 42, 45));
+      g2.fillOval(heroX - 4, heroY - 4, 9, 9);
+      int hint = Math.min(this.sacredQuest.stage(), this.sacredCaches.size() - 1);
+      g2.setFont(new Font("Dialog", 1, 16));
+      g2.setColor(new Color(62, 42, 28));
+      if (hint >= 0 && hint < this.sacredHints.size()) {
+         g2.drawString((String)this.sacredHints.get(hint), left + 28, top + 374);
+      }
+
+      g2.setFont(new Font("Dialog", 0, 14));
+      g2.drawString("Красная точка — ты. Крестики — тайники. M или клик — закрыть.", left + 28, top + 412);
+      g2.dispose();
+   }
+
+   private String questObjective() {
+      if (this.secretArea) {
+         return "СЕКРЕТНЫЙ ПОДВАЛ: исследуй комнату, выход слева";
+      } else if (this.eboboQuest.accepted() && !this.eboboQuest.completed()) {
+         return this.eboboQuest.stage() >= this.eboboPhotos.size() ? "НЛО: вернись к ЕБобо" : "НЛО: фото " + this.eboboQuest.stage() + "/" + this.eboboPhotos.size() + " — найди серебряную камеру";
+      } else if (this.sacredQuest.accepted() && !this.sacredQuest.completed()) {
+         return this.sacredQuest.stage() >= this.sacredCaches.size() ? "«Тич» найден — вернись к Толе" : "«Тич»: тайник " + (this.sacredQuest.stage() + 1) + "/" + this.sacredCaches.size() + " — жёлтый знак [M: карта]";
+      } else if (!this.tolyaQuestAccepted) {
+         return "Кликни на Толю и прими задание";
+      } else if (!this.tolyaQuestComplete) {
+         return this.score >= this.bottleGoal ? "Все бутылки собраны — вернись к Толе" : "Бутылки для Толи: " + this.score + "/" + this.bottleGoal;
+      } else {
+         return !this.sacredQuest.accepted() ? "У Толи есть новая легенда — кликни на него" : "Секретный подвал открыт на северо-востоке площади";
+      }
+   }
+
+   private void updateSecretArea() {
+      double dx = (this.rightPressed ? (double)1.0F : (double)0.0F) - (this.leftPressed ? (double)1.0F : (double)0.0F);
+      double dy = (this.downPressed ? (double)1.0F : (double)0.0F) - (this.upPressed ? (double)1.0F : (double)0.0F);
+      if (dx == (double)0.0F && dy == (double)0.0F) {
+         this.playerDir = 2;
+      } else {
+         double length = Math.hypot(dx, dy);
+         this.secretX = Math.max((double)1.0F, Math.min((double)8.0F, this.secretX + dx / length * 0.115));
+         this.secretY = Math.max((double)1.0F, Math.min((double)6.0F, this.secretY + dy / length * 0.115));
+         this.playerDir = Math.abs(dy) > Math.abs(dx) ? (dy < (double)0.0F ? 3 : 4) : (dx < (double)0.0F ? 0 : 1);
+      }
+
+      this.animatePlayer();
+      if (this.secretX < 1.3 && this.secretY > 4.4) {
+         this.secretArea = false;
+         this.showLine(this.dbText("quest.secret.exit"), System.currentTimeMillis());
+      }
+
+   }
+
+   private void drawSecretArea(Graphics g) {
+      int tile = Math.min(64, Math.max(32, (this.getHeight() - 56 - 70) / 8));
+      int originX = (this.getWidth() - 10 * tile) / 2;
+      int originY = (this.getHeight() - 56 - 8 * tile) / 2;
+      Graphics2D g2 = (Graphics2D)g.create();
+      g2.setColor(new Color(8, 13, 19));
+      g2.fillRect(0, 0, this.getWidth(), this.getHeight() - 56);
+
+      for(int y = 0; y < 8; ++y) {
+         for(int x = 0; x < 10; ++x) {
+            boolean wall = x == 0 || x == 9 || y == 0 || y == 7;
+            g2.setColor(wall ? new Color(41, 50, 57) : ((x + y) % 2 == 0 ? new Color(79, 72, 64) : new Color(69, 64, 60)));
+            g2.fillRect(originX + x * tile, originY + y * tile, tile, tile);
+            g2.setColor(new Color(19, 23, 27, 85));
+            g2.drawRect(originX + x * tile, originY + y * tile, tile, tile);
+         }
+      }
+
+      g2.setFont(new Font("Dialog", 1, 22));
+      g2.setColor(new Color(255, 208, 133));
+      g2.drawString("ЗАБРОШЕННЫЙ ПОДВАЛ ЗУЕВКИ", originX + tile, originY + tile + 8);
+      g2.setColor(new Color(224, 166, 85));
+      g2.fillRoundRect(originX + tile, originY + 5 * tile, tile, tile, 7, 7);
+      g2.setColor(new Color(21, 27, 32));
+      g2.drawString("ВЫХОД", originX + tile - 8, originY + 5 * tile + tile / 2);
+      g2.setColor(new Color(127, 75, 30));
+      g2.fillRect(originX + 6 * tile, originY + 3 * tile, tile * 2, tile);
+      g2.setColor(new Color(255, 228, 158));
+      g2.drawString("ПУСТОЙ «ТИЧ»", originX + 5 * tile, originY + 3 * tile - 8);
+      if (this.playerSprites != null) {
+         Image[] track = this.playerSprites[this.playerDir];
+         Image frame = track[Math.floorMod(this.animFrame, track.length)];
+         int size = (int)Math.round((double)tile * 1.7);
+         int px = originX + (int)(this.secretX * (double)tile) - (size - tile) / 2;
+         int py = originY + (int)(this.secretY * (double)tile) - (size - tile);
+         g2.drawImage(frame, px, py, size, size, (ImageObserver)null);
+      }
+
+      g2.dispose();
+   }
+
+   private void drawDialogue(Graphics g, String line) {
+      Graphics2D g2 = (Graphics2D)g.create();
+      int y = this.getHeight() - 56 - 70;
+      g2.setColor(new Color(12, 18, 30, 225));
+      g2.fillRoundRect(24, y, this.getWidth() - 48, 54, 12, 12);
+      g2.setColor(new Color(236, 174, 105));
+      g2.drawRoundRect(24, y, this.getWidth() - 49, 53, 12, 12);
+      g2.setFont(new Font("Dialog", 1, 18));
+      g2.setColor(new Color(255, 237, 209));
+      g2.drawString(line, 42, y + 34);
+      g2.dispose();
+   }
+
+   private void enableKeys() {
+      this.addKeyListener(new KeyAdapter() {
+         public void keyPressed(KeyEvent e) {
+            switch (e.getKeyCode()) {
+               case 37:
+               case 65:
+                  Game.this.leftPressed = true;
+                  break;
+               case 38:
+               case 87:
+                  Game.this.upPressed = true;
+                  break;
+               case 39:
+               case 68:
+                  Game.this.rightPressed = true;
+                  break;
+               case 40:
+               case 83:
+                  Game.this.downPressed = true;
+                  break;
+               case 69:
+                  Game.this.interactionRequested = true;
+                  break;
+               case 77:
+                  if (Game.this.sacredQuest.accepted() && !Game.this.secretArea && Game.this.questPanel == null) {
+                     Game.this.questMapOpen = !Game.this.questMapOpen;
+                  }
+                  break;
+               case 82:
+                  Game.this.restartRequested = true;
             }
 
-            @Override
-            public void keyReleased(KeyEvent e) {
-                switch (e.getKeyCode()) {
-                    case KeyEvent.VK_A, KeyEvent.VK_LEFT -> leftPressed = false;
-                    case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = false;
-                    case KeyEvent.VK_W, KeyEvent.VK_UP -> upPressed = false;
-                    case KeyEvent.VK_S, KeyEvent.VK_DOWN -> downPressed = false;
-                    default -> {
-                    }
-                }
+         }
+
+         public void keyReleased(KeyEvent e) {
+            switch (e.getKeyCode()) {
+               case 37:
+               case 65:
+                  Game.this.leftPressed = false;
+                  break;
+               case 38:
+               case 87:
+                  Game.this.upPressed = false;
+                  break;
+               case 39:
+               case 68:
+                  Game.this.rightPressed = false;
+                  break;
+               case 40:
+               case 83:
+                  Game.this.downPressed = false;
             }
-        });
-    }
 
-    public void start() {
-        if (running) {
-            return;
-        }
-        running = true;
-        Thread loopThread = new Thread(this, "alkosmen-game-loop");
-        loopThread.start();
-    }
+         }
+      });
+   }
 
-    public void stopGame() {
-        running = false;
-    }
+   public void start() {
+      if (!this.running) {
+         this.running = true;
+         Thread loopThread = new Thread(this, "alkosmen-game-loop");
+         loopThread.start();
+      }
+   }
 
-    private void stopAudio() {
-        if (levelMidi != null) {
-            levelMidi.stop();
-        }
-    }
+   public void stopGame() {
+      this.running = false;
+   }
 
-    private boolean isInsideMap(int x, int y) {
-        return y >= 0 && y < levelMap.length && x >= 0 && x < levelMap[0].length;
-    }
+   private void stopAudio() {
+      if (this.levelMidi != null) {
+         this.levelMidi.stop();
+      }
 
-    private boolean isSolid(int x, int y) {
-        if (!isInsideMap(x, y)) {
-            return true;
-        }
-        return levelMap[y][x] == '#';
-    }
+   }
 
-    private static float clamp(float value, float min, float max) {
-        return Math.max(min, Math.min(max, value));
-    }
+   private boolean isInsideMap(int x, int y) {
+      return y >= 0 && y < this.levelMap.length && x >= 0 && x < this.levelMap[0].length;
+   }
 
-    private Image getImage(String fileName) {
-        BufferedImage sourceImage;
+   private boolean isSolid(int x, int y) {
+      if (!this.isInsideMap(x, y)) {
+         return true;
+      } else {
+         return this.levelMap[y][x] == '#';
+      }
+   }
 
-        try {
-            String full = "alkosmen/images/objects/alkoman/" + fileName;
-            URL url = this.getClass().getClassLoader().getResource(full);
-            if (url == null) {
-                throw new RuntimeException("Image not found: " + full);
-            }
-            sourceImage = ImageIO.read(url);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+   private static float clamp(float value, float min, float max) {
+      return Math.max(min, Math.min(max, value));
+   }
 
-        return sourceImage;
-    }
+   private Image getImage(String fileName) {
+      try {
+         String full = "alkosmen/images/objects/alkoman/" + fileName;
+         URL url = this.getClass().getClassLoader().getResource(full);
+         if (url == null) {
+            throw new RuntimeException("Image not found: " + full);
+         } else {
+            BufferedImage sourceImage = ImageIO.read(url);
+            return sourceImage;
+         }
+      } catch (IOException e) {
+         throw new RuntimeException(e);
+      }
+   }
 
-    private Image loadImageResource(String path) {
-        String normalized = path.startsWith("/") ? path.substring(1) : path;
-        URL url = this.getClass().getClassLoader().getResource(normalized);
-        if (url == null) {
-            throw new RuntimeException("Image not found: " + path);
-        }
-        try {
+   private Image loadImageResource(String path) {
+      String normalized = path.startsWith("/") ? path.substring(1) : path;
+      URL url = this.getClass().getClassLoader().getResource(normalized);
+      if (url == null) {
+         throw new RuntimeException("Image not found: " + path);
+      } else {
+         try {
             return ImageIO.read(url);
-        } catch (IOException e) {
+         } catch (IOException e) {
             throw new RuntimeException("Failed to read image: " + path, e);
-        }
-    }
+         }
+      }
+   }
 
-    private Image loadFirstExistingImage(String... paths) {
-        for (String path : paths) {
-            String normalized = path.startsWith("/") ? path.substring(1) : path;
-            URL url = this.getClass().getClassLoader().getResource(normalized);
-            if (url != null) {
-                try {
-                    return ImageIO.read(url);
-                } catch (IOException e) {
-                    throw new RuntimeException("Failed to read image: " + path, e);
-                }
+   private Image loadFirstExistingImage(String... paths) {
+      for(String path : paths) {
+         String normalized = path.startsWith("/") ? path.substring(1) : path;
+         URL url = this.getClass().getClassLoader().getResource(normalized);
+         if (url != null) {
+            try {
+               return ImageIO.read(url);
+            } catch (IOException e) {
+               throw new RuntimeException("Failed to read image: " + path, e);
             }
-        }
-        throw new RuntimeException("Image not found. Tried: " + String.join(", ", paths));
-    }
+         }
+      }
 
-    private boolean isNpcTile(char c) {
-        return c == 'N' || c == 'M' || c == 'C';
-    }
+      throw new RuntimeException("Image not found. Tried: " + String.join(", ", paths));
+   }
 
-    private Image npcImageFor(char c) {
-        return switch (c) {
-            case 'N' -> npcBoy1Sprite;
-            case 'M' -> npcBoy2Sprite;
-            case 'C' -> npcCopSprite;
-            default -> null;
-        };
-    }
+   private boolean isNpcTile(char c) {
+      return c == 'N' || c == 'M' || c == 'V' || c == 'G' || c == 'C';
+   }
 
-    private Image[][] getAlkobotImages() {
-        Image whiteAlkosmen = loadImageResource("/alkosmen/ui/characters/white_alkosmen_player_pixel_v1.png");
-        return new Image[][]{
-                new Image[]{whiteAlkosmen},
-                new Image[]{whiteAlkosmen},
-                new Image[]{whiteAlkosmen}
-        };
-    }
+   private Image npcImageFor(char c) {
+      Image var10000;
+      switch (c) {
+         case 'C' -> var10000 = this.npcCopSprite;
+         case 'G' -> var10000 = this.npcCopSprite;
+         case 'M' -> var10000 = this.npcBoy2Sprite;
+         case 'N' -> var10000 = this.npcTolyaSprite;
+         case 'V' -> var10000 = this.npcEboboSprite;
+         default -> var10000 = null;
+      }
 
-    private Image[] loadTrackFrames(String trackName) {
-        Image[] frames = new Image[10];
-        for (int i = 0; i < frames.length; i++) {
-            String framePath = String.format("/alkosmen/images/objects/alkoman/frames/alk_%s_%02d.png", trackName, i);
-            frames[i] = loadImageResource(framePath);
-        }
-        return frames;
-    }
+      return var10000;
+   }
 
-    private Image[] loadCopTrackFrames(String trackName) {
-        Image[] frames = new Image[COP_WALK_FRAME_COUNT];
-        for (int i = 0; i < frames.length; i++) {
-            String framePath = String.format("/alkosmen/images/objects/cop/male/%s/%02d.png", trackName, i);
-            frames[i] = removeWhiteBackdrop(loadImageResource(framePath));
-        }
-        return frames;
-    }
+   private Image[][] getAlkobotImages() {
+      try {
+         BufferedImage[][] atlas = CharacterSpriteAssets.loadGridAtlas("/alkosmen/ui/sprites/alkosmen/walk_atlas_v1.png", 4, 5, 30);
+         return new Image[][]{atlas[2], atlas[1], atlas[0], atlas[4], atlas[3]};
+      } catch (IOException error) {
+         throw new IllegalStateException("Could not load Alkosmen walk atlas", error);
+      }
+   }
 
-    private Image removeWhiteBackdrop(Image source) {
-        int width = source.getWidth(null);
-        int height = source.getHeight(null);
-        BufferedImage cleaned = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D graphics = cleaned.createGraphics();
-        graphics.drawImage(source, 0, 0, null);
-        graphics.dispose();
+   private Image[] loadTrackFrames(String trackName) {
+      Image[] frames = new Image[10];
 
-        boolean[] removed = new boolean[width * height];
-        ArrayDeque<Integer> pending = new ArrayDeque<>();
-        for (int x = 0; x < width; x++) {
-            addWhiteBackgroundPixel(cleaned, x, 0, removed, pending);
-            addWhiteBackgroundPixel(cleaned, x, height - 1, removed, pending);
-        }
-        for (int y = 1; y < height - 1; y++) {
-            addWhiteBackgroundPixel(cleaned, 0, y, removed, pending);
-            addWhiteBackgroundPixel(cleaned, width - 1, y, removed, pending);
-        }
+      for(int i = 0; i < frames.length; ++i) {
+         String framePath = String.format("/alkosmen/images/objects/alkoman/frames/alk_%s_%02d.png", trackName, i);
+         frames[i] = this.loadImageResource(framePath);
+      }
 
-        while (!pending.isEmpty()) {
-            int index = pending.removeFirst();
-            int x = index % width;
-            int y = index / width;
-            cleaned.setRGB(x, y, cleaned.getRGB(x, y) & 0x00FFFFFF);
-            if (x > 0) addWhiteBackgroundPixel(cleaned, x - 1, y, removed, pending);
-            if (x + 1 < width) addWhiteBackgroundPixel(cleaned, x + 1, y, removed, pending);
-            if (y > 0) addWhiteBackgroundPixel(cleaned, x, y - 1, removed, pending);
-            if (y + 1 < height) addWhiteBackgroundPixel(cleaned, x, y + 1, removed, pending);
-        }
+      return frames;
+   }
 
-        // The source art has isolated white background flecks inside the silhouette as well.
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int color = cleaned.getRGB(x, y);
-                int red = (color >>> 16) & 0xFF;
-                int green = (color >>> 8) & 0xFF;
-                int blue = color & 0xFF;
-                int spread = Math.max(red, Math.max(green, blue)) - Math.min(red, Math.min(green, blue));
-                if (red >= 220 && green >= 220 && blue >= 220 && spread <= 18) {
-                    cleaned.setRGB(x, y, color & 0x00FFFFFF);
-                }
+   private Image[] loadCopTrackFrames(String trackName) {
+      Image[] frames = new Image[8];
+
+      for(int i = 0; i < frames.length; ++i) {
+         String framePath = String.format("/alkosmen/images/objects/cop/male/%s/%02d.png", trackName, i);
+         frames[i] = this.removeWhiteBackdrop(this.loadImageResource(framePath));
+      }
+
+      return frames;
+   }
+
+   private Image removeWhiteBackdrop(Image source) {
+      int width = source.getWidth((ImageObserver)null);
+      int height = source.getHeight((ImageObserver)null);
+      BufferedImage cleaned = new BufferedImage(width, height, 2);
+      Graphics2D graphics = cleaned.createGraphics();
+      graphics.drawImage(source, 0, 0, (ImageObserver)null);
+      graphics.dispose();
+      boolean[] removed = new boolean[width * height];
+      ArrayDeque<Integer> pending = new ArrayDeque();
+
+      for(int x = 0; x < width; ++x) {
+         this.addWhiteBackgroundPixel(cleaned, x, 0, removed, pending);
+         this.addWhiteBackgroundPixel(cleaned, x, height - 1, removed, pending);
+      }
+
+      for(int y = 1; y < height - 1; ++y) {
+         this.addWhiteBackgroundPixel(cleaned, 0, y, removed, pending);
+         this.addWhiteBackgroundPixel(cleaned, width - 1, y, removed, pending);
+      }
+
+      while(!pending.isEmpty()) {
+         int index = (Integer)pending.removeFirst();
+         int x = index % width;
+         int y = index / width;
+         cleaned.setRGB(x, y, cleaned.getRGB(x, y) & 16777215);
+         if (x > 0) {
+            this.addWhiteBackgroundPixel(cleaned, x - 1, y, removed, pending);
+         }
+
+         if (x + 1 < width) {
+            this.addWhiteBackgroundPixel(cleaned, x + 1, y, removed, pending);
+         }
+
+         if (y > 0) {
+            this.addWhiteBackgroundPixel(cleaned, x, y - 1, removed, pending);
+         }
+
+         if (y + 1 < height) {
+            this.addWhiteBackgroundPixel(cleaned, x, y + 1, removed, pending);
+         }
+      }
+
+      for(int y = 0; y < height; ++y) {
+         for(int x = 0; x < width; ++x) {
+            int color = cleaned.getRGB(x, y);
+            int red = color >>> 16 & 255;
+            int green = color >>> 8 & 255;
+            int blue = color & 255;
+            int spread = Math.max(red, Math.max(green, blue)) - Math.min(red, Math.min(green, blue));
+            if (red >= 220 && green >= 220 && blue >= 220 && spread <= 18) {
+               cleaned.setRGB(x, y, color & 16777215);
             }
-        }
-        return cleaned;
-    }
+         }
+      }
 
-    private void addWhiteBackgroundPixel(BufferedImage image, int x, int y, boolean[] removed, ArrayDeque<Integer> pending) {
-        int index = y * image.getWidth() + x;
-        if (removed[index]) {
-            return;
-        }
-        int color = image.getRGB(x, y);
-        int red = (color >>> 16) & 0xFF;
-        int green = (color >>> 8) & 0xFF;
-        int blue = color & 0xFF;
-        int spread = Math.max(red, Math.max(green, blue)) - Math.min(red, Math.min(green, blue));
-        if (red < 220 || green < 220 || blue < 220 || spread > 18) {
-            return;
-        }
-        removed[index] = true;
-        pending.addLast(index);
-    }
+      return cleaned;
+   }
 
-    private void loadLevel(int level) throws Exception {
-        if (level < 1 || level > LEVELS.length) {
-            throw new IllegalArgumentException("Bad level: " + level);
-        }
+   private void addWhiteBackgroundPixel(BufferedImage image, int x, int y, boolean[] removed, ArrayDeque pending) {
+      int index = y * image.getWidth() + x;
+      if (!removed[index]) {
+         int color = image.getRGB(x, y);
+         int red = color >>> 16 & 255;
+         int green = color >>> 8 & 255;
+         int blue = color & 255;
+         int spread = Math.max(red, Math.max(green, blue)) - Math.min(red, Math.min(green, blue));
+         if (red >= 220 && green >= 220 && blue >= 220 && spread <= 18) {
+            removed[index] = true;
+            pending.addLast(index);
+         }
+      }
+   }
 
-        String path = LEVELS[level - 1];
-        URL url = LevelLoader.class.getResource(path);
-        if (url == null) {
+   private void loadLevel(int level) throws Exception {
+      if (level >= 1 && level <= LEVELS.length) {
+         String path = LEVELS[level - 1];
+         URL url = LevelLoader.class.getResource(path);
+         if (url == null) {
             throw new RuntimeException("Level resource not found: " + path);
-        }
+         } else {
+            this.levelMap = LevelLoader.load(path);
+            if (this.levelMap == null) {
+               throw new RuntimeException("LevelLoader.load returned NULL for: " + path);
+            } else if (this.levelMap.length != 0 && this.levelMap[0].length != 0) {
+               String backgroundPath = LEVEL_BACKGROUNDS[level - 1];
+               this.levelBackground = backgroundPath == null ? null : this.loadImageResource(backgroundPath);
+               this.currentLevel = level;
+               this.score = 0;
+               this.bottleGoal = this.countTiles('B');
+               this.player = null;
+               this.copSystem.reset();
+               this.patrols.clear();
 
-        levelMap = LevelLoader.load(path);
-        if (levelMap == null) {
-            throw new RuntimeException("LevelLoader.load returned NULL for: " + path);
-        }
-        if (levelMap.length == 0 || levelMap[0].length == 0) {
-            throw new RuntimeException("Loaded empty map for: " + path);
-        }
+               for(int y = 0; y < this.levelMap.length; ++y) {
+                  for(int x = 0; x < this.levelMap[0].length; ++x) {
+                     if (this.levelMap[y][x] == 'P') {
+                        this.playerSpawnX = x;
+                        this.playerSpawnY = y;
+                        this.player = new Player(x, y);
+                        this.levelMap[y][x] = '.';
+                     } else if (this.levelMap[y][x] == 'C') {
+                        int index = this.patrols.size();
+                        this.patrols.add(new TopDownPatrol((double)x, (double)y, index % 2 == 0 ? 1 : -1, this.gameStore.loadRoute("patrol_" + index)));
+                        this.levelMap[y][x] = '.';
+                     }
+                  }
+               }
 
-        String backgroundPath = LEVEL_BACKGROUNDS[level - 1];
-        levelBackground = backgroundPath == null ? null : loadImageResource(backgroundPath);
+               if (this.player == null) {
+                  throw new RuntimeException("No 'P' (player start) in map: " + path);
+               } else {
+                  this.spectatorMode = false;
+                  this.playerDir = 2;
+                  this.animFrame = 0;
+                  this.playerMotionTick = 0;
+                  this.cameraX = 0.0F;
+                  this.cameraY = 0.0F;
+                  this.jumpPressed = false;
+                  this.jumpQueued = false;
+                  this.jumpBufferUntil = 0L;
+                  this.lastOnGroundAt = 0L;
+                  this.hidePressed = false;
+                  this.interactionRequested = false;
+                  this.dialogueLine = "";
+                  this.dialogueUntil = 0L;
+                  this.tolyaQuestAccepted = false;
+                  this.tolyaQuestComplete = false;
+                  this.questPanel = null;
+                  this.secretArea = false;
+                  this.questMapOpen = false;
+                  this.ufoUntil = 0L;
+                  this.pendingClick = -1L;
+                  this.upPressed = false;
+                  this.downPressed = false;
+                  this.gameOver = false;
+                  this.levelComplete = false;
+                  this.levelGoalReached = false;
+                  this.lastPatrolCaughtAt = 0L;
+                  this.lives = 3;
+                  LocalGameStore.QuestState savedQuest = this.gameStore.loadTolyaQuest();
+                  this.eboboPhotos = this.gameStore.loadQuestSteps("ebobo_ufo");
+                  this.sacredCaches = this.gameStore.loadQuestSteps("sacred_tich");
+                  this.sacredMapTitle = this.gameStore.text("quest.sacred.map.title");
+                  List<String> hints = new ArrayList();
 
-        currentLevel = level;
-        score = 0;
-        bottleGoal = countTiles('B');
-        player = null;
-        copSystem.reset();
-        patrols.clear();
+                  for(int i = 0; i < this.sacredCaches.size(); ++i) {
+                     hints.add(this.gameStore.text("quest.sacred.hint." + i));
+                  }
 
-        // Patrols are passable; only wall tiles block the player.
-        for (int y = 0; y < levelMap.length; y++) {
-            for (int x = 0; x < levelMap[0].length; x++) {
-                if (levelMap[y][x] == 'P') {
-                    playerSpawnX = x;
-                    playerSpawnY = y;
-                    player = new Player(x, y);
-                    levelMap[y][x] = '.';
-                } else if (levelMap[y][x] == 'C') {
-                    patrols.add(new TopDownPatrol(x, y, patrols.size() % 2 == 0 ? 1 : -1));
-                    levelMap[y][x] = '.';
-                }
+                  this.sacredHints = List.copyOf(hints);
+                  List<LocalGameStore.QuestStep> exits = this.gameStore.loadQuestSteps("secret_entrance");
+                  this.secretEntrance = exits.isEmpty() ? null : ((LocalGameStore.QuestStep)exits.get(0)).tile();
+                  this.eboboQuest = this.gameStore.loadStory("ebobo_ufo");
+                  this.sacredQuest = this.gameStore.loadStory("sacred_tich");
+                  this.tolyaQuestAccepted = savedQuest.accepted();
+                  this.tolyaQuestComplete = savedQuest.completed();
+
+                  for(LocalGameStore.Tile tile : savedQuest.collected()) {
+                     if (this.isInsideMap(tile.x(), tile.y()) && this.levelMap[tile.y()][tile.x()] == 'B') {
+                        this.levelMap[tile.y()][tile.x()] = '.';
+                        ++this.score;
+                     }
+                  }
+
+                  this.levelGoalReached = this.score >= this.bottleGoal && this.bottleGoal > 0;
+                  Window w = SwingUtilities.getWindowAncestor(this);
+                  if (w != null) {
+                     w.pack();
+                  }
+
+               }
+            } else {
+               throw new RuntimeException("Loaded empty map for: " + path);
             }
-        }
+         }
+      } else {
+         throw new IllegalArgumentException("Bad level: " + level);
+      }
+   }
 
-        if (player == null) {
-            throw new RuntimeException("No 'P' (player start) in map: " + path);
-        }
+   private int countTiles(char target) {
+      int count = 0;
 
-        spectatorMode = false;
-
-        playerDir = 2;
-        animFrame = 0;
-        playerMotionTick = 0;
-        cameraX = 0;
-        cameraY = 0;
-        jumpPressed = false;
-        jumpQueued = false;
-        jumpBufferUntil = 0L;
-        lastOnGroundAt = 0L;
-        hidePressed = false;
-        upPressed = false;
-        downPressed = false;
-        gameOver = false;
-        levelComplete = false;
-        levelGoalReached = false;
-        lastPatrolCaughtAt = 0L;
-        lives = MAX_LIVES;
-
-        Window w = SwingUtilities.getWindowAncestor(this);
-        if (w != null) {
-            w.pack();
-        }
-    }
-
-    private int countTiles(char target) {
-        int count = 0;
-        for (int y = 0; y < levelMap.length; y++) {
-            for (int x = 0; x < levelMap[0].length; x++) {
-                if (levelMap[y][x] == target) {
-                    count++;
-                }
+      for(int y = 0; y < this.levelMap.length; ++y) {
+         for(int x = 0; x < this.levelMap[0].length; ++x) {
+            if (this.levelMap[y][x] == target) {
+               ++count;
             }
-        }
-        return count;
-    }
+         }
+      }
 
-    private void respawnPlayer() {
-        // After getting spotted, reset position and clear movement/hide inputs.
-        player.x = playerSpawnX;
-        player.y = playerSpawnY;
-        player.vx = 0.0;
-        player.vy = 0.0;
-        player.onGround = false;
-        leftPressed = false;
-        rightPressed = false;
-        upPressed = false;
-        downPressed = false;
-        jumpPressed = false;
-        jumpQueued = false;
-        hidePressed = false;
-    }
+      return count;
+   }
 
-    private boolean isPlayerHidden() {
-        if (spectatorMode) {
-            return false;
-        }
-        // Player can hide only while standing still on ground and holding hide key.
-        return hidePressed && player != null && Math.abs(player.vx) < 0.0001 && player.onGround;
-    }
+   private void respawnPlayer() {
+      this.player.x = (double)this.playerSpawnX;
+      this.player.y = (double)this.playerSpawnY;
+      this.player.vx = (double)0.0F;
+      this.player.vy = (double)0.0F;
+      this.player.onGround = false;
+      this.leftPressed = false;
+      this.rightPressed = false;
+      this.upPressed = false;
+      this.downPressed = false;
+      this.jumpPressed = false;
+      this.jumpQueued = false;
+      this.hidePressed = false;
+   }
 
-    private void rotateCityLine(long now, boolean firstLine) {
-        String speakers = lore.sceneText("scene.city.speakers", "tolya_mozol,vyatskiy_ebobo,cops");
-        String fallback = lore.sceneText("scene.city.default_line", "Ночной город живет по своим правилам.");
-        String picked = lore.randomDialogueFromSpeakers(speakers, fallback);
-        if (firstLine && !picked.isBlank()) {
-            LoreCharacter hero = lore.character("alkosmen");
-            cityLine = hero.name() + ": " + hero.role() + ". " + picked;
-        } else {
-            cityLine = picked;
-        }
-        nextCityLineAt = now + CITY_LINE_REFRESH_MS;
-    }
+   private boolean isPlayerHidden() {
+      if (this.spectatorMode) {
+         return false;
+      } else {
+         return this.hidePressed && this.player != null && Math.abs(this.player.vx) < 1.0E-4 && this.player.onGround;
+      }
+   }
 
-    private void spawnRandomCops(int targetCount) {
-        int h = levelMap.length;
-        int w = levelMap[0].length;
-        int added = 0;
-        for (int i = 0; i < DEMO_RANDOM_COP_ATTEMPTS && added < targetCount; i++) {
-            int x = ThreadLocalRandom.current().nextInt(1, Math.max(2, w - 1));
-            int y = ThreadLocalRandom.current().nextInt(1, Math.max(2, h - 1));
-            if (levelMap[y][x] != '.') {
-                continue;
-            }
-            if (y + 1 >= h || levelMap[y + 1][x] != '#') {
-                continue;
-            }
-            copSystem.addCop(x, y);
-            added++;
-        }
-    }
+   private void rotateCityLine(long now, boolean firstLine) {
+      String speakers = this.lore.sceneText("scene.city.speakers", "tolya_mozol,vyatskiy_ebobo,cops");
+      String fallback = this.lore.sceneText("scene.city.default_line", "Ночной город живет по своим правилам.");
+      String[] speakerIds = speakers.split(",");
+      String selectedSpeaker = speakerIds[ThreadLocalRandom.current().nextInt(speakerIds.length)].trim();
 
-    private void drawLevelBackground(Graphics g, int gameplayHeight) {
-        int sourceW = levelBackground.getWidth(null);
-        int sourceH = levelBackground.getHeight(null);
-        double scale = Math.max(getWidth() / (double) sourceW, gameplayHeight / (double) sourceH);
-        int drawW = (int) Math.ceil(sourceW * scale);
-        int drawH = (int) Math.ceil(sourceH * scale);
-        int drawX = (getWidth() - drawW) / 2;
-        int drawY = (gameplayHeight - drawH) / 2;
-        g.drawImage(levelBackground, drawX, drawY, drawW, drawH, null);
-    }
+      String picked;
+      try {
+         picked = this.gameStore.randomDialogue(selectedSpeaker, fallback);
+      } catch (SQLException var10) {
+         picked = fallback;
+      }
 
-    private void drawMazeWall(Graphics g, int x, int y, int cell) {
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.setColor(new Color(16, 22, 30, 220));
-        g2.fillRoundRect(x + 2, y + 2, cell - 4, cell - 4, 6, 6);
-        g2.setColor(new Color(94, 106, 119));
-        g2.drawRoundRect(x + 2, y + 2, cell - 5, cell - 5, 6, 6);
-        g2.setColor(new Color(42, 50, 62));
-        g2.drawLine(x + 5, y + cell / 2, x + cell - 5, y + cell / 2);
-        g2.drawLine(x + cell / 2, y + 5, x + cell / 2, y + cell - 5);
-        g2.dispose();
-    }
+      if (firstLine && !picked.isBlank()) {
+         LoreCharacter hero = this.lore.character("alkosmen");
+         String var10001 = hero.name();
+         this.cityLine = var10001 + ": " + hero.role() + ". " + picked;
+      } else {
+         this.cityLine = picked;
+      }
 
-    private void drawExit(Graphics g, int x, int y, int cell, boolean active) {
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.setColor(active ? new Color(85, 240, 180, 210) : new Color(80, 80, 90, 190));
-        g2.fillOval(x + 4, y + 4, cell - 8, cell - 8);
-        g2.setColor(active ? Color.WHITE : new Color(170, 170, 175));
-        g2.drawOval(x + 4, y + 4, cell - 8, cell - 8);
-        g2.dispose();
-    }
+      this.nextCityLineAt = now + 9000L;
+   }
 
-    private static final class TopDownPatrol {
-        private double x;
-        private double y;
-        private int direction;
-        private int moveX;
-        private int moveY;
-        private int animationTick;
+   private void spawnRandomCops(int targetCount) {
+      int h = this.levelMap.length;
+      int w = this.levelMap[0].length;
+      int added = 0;
 
-        private TopDownPatrol(double x, double y, int direction) {
-            this.x = x;
-            this.y = y;
-            this.direction = direction;
-            this.moveX = direction;
-        }
-    }
+      for(int i = 0; i < 800 && added < targetCount; ++i) {
+         int x = ThreadLocalRandom.current().nextInt(1, Math.max(2, w - 1));
+         int y = ThreadLocalRandom.current().nextInt(1, Math.max(2, h - 1));
+         if (this.levelMap[y][x] == '.' && y + 1 < h && this.levelMap[y + 1][x] == '#') {
+            this.copSystem.addCop(x, y);
+            ++added;
+         }
+      }
 
-    private void renderLoadingScreen(String text) {
-        BufferStrategy bs = strategy;
-        if (bs == null) {
-            return;
-        }
-        Graphics g = bs.getDrawGraphics();
-        g.setColor(Color.BLACK);
-        g.fillRect(0, 0, getWidth(), getHeight());
-        g.setColor(Color.WHITE);
-        g.setFont(new Font("Monospaced", Font.BOLD, 36));
-        int textW = g.getFontMetrics().stringWidth(text);
-        int textX = Math.max(12, (getWidth() - textW) / 2);
-        int textY = Math.max(48, getHeight() / 2);
-        g.drawString(text, textX, textY);
+   }
 
-        String teaser = lore.sceneText(
-                "scene.menu.teaser",
-                "Ночной город не спит: на линии мент-патруль и городские чудики."
-        );
-        g.setColor(new Color(190, 205, 220));
-        g.setFont(new Font("Dialog", Font.PLAIN, 16));
-        int teaserW = g.getFontMetrics().stringWidth(teaser);
-        int teaserX = Math.max(12, (getWidth() - teaserW) / 2);
-        g.drawString(teaser, teaserX, textY + 30);
+   private void drawLevelBackground(Graphics g, int gameplayHeight) {
+      int drawW = this.levelMap[0].length * Constants.Size;
+      int drawH = this.levelMap.length * Constants.Size;
+      g.drawImage(this.levelBackground, -((int)this.cameraX), -((int)this.cameraY), drawW, drawH, (ImageObserver)null);
+   }
 
-        g.dispose();
-        bs.show();
-    }
+   private void drawMazeWall(Graphics g, int x, int y, int cell) {
+      Graphics2D g2 = (Graphics2D)g.create();
+      g2.setColor(new Color(16, 22, 30, 220));
+      g2.fillRoundRect(x + 2, y + 2, cell - 4, cell - 4, 6, 6);
+      g2.setColor(new Color(94, 106, 119));
+      g2.drawRoundRect(x + 2, y + 2, cell - 5, cell - 5, 6, 6);
+      g2.setColor(new Color(42, 50, 62));
+      g2.drawLine(x + 5, y + cell / 2, x + cell - 5, y + cell / 2);
+      g2.drawLine(x + cell / 2, y + 5, x + cell / 2, y + cell - 5);
+      g2.dispose();
+   }
+
+   private void drawExit(Graphics g, int x, int y, int cell, boolean active) {
+      Graphics2D g2 = (Graphics2D)g.create();
+      g2.setColor(active ? new Color(85, 240, 180, 210) : new Color(80, 80, 90, 190));
+      g2.fillOval(x + 4, y + 4, cell - 8, cell - 8);
+      g2.setColor(active ? Color.WHITE : new Color(170, 170, 175));
+      g2.drawOval(x + 4, y + 4, cell - 8, cell - 8);
+      g2.dispose();
+   }
+
+   private void renderLoadingScreen(String text) {
+      BufferStrategy bs = this.strategy;
+      if (bs != null) {
+         Graphics g = bs.getDrawGraphics();
+         g.setColor(Color.BLACK);
+         g.fillRect(0, 0, this.getWidth(), this.getHeight());
+         g.setColor(Color.WHITE);
+         g.setFont(new Font("Monospaced", 1, 36));
+         int textW = g.getFontMetrics().stringWidth(text);
+         int textX = Math.max(12, (this.getWidth() - textW) / 2);
+         int textY = Math.max(48, this.getHeight() / 2);
+         g.drawString(text, textX, textY);
+         String teaser = this.lore.sceneText("scene.menu.teaser", "Ночной город не спит: на линии мент-патруль и городские чудики.");
+         g.setColor(new Color(190, 205, 220));
+         g.setFont(new Font("Dialog", 0, 16));
+         int teaserW = g.getFontMetrics().stringWidth(teaser);
+         int teaserX = Math.max(12, (this.getWidth() - teaserW) / 2);
+         g.drawString(teaser, teaserX, textY + 30);
+         g.dispose();
+         bs.show();
+      }
+   }
+
+   private static enum PanelAction {
+      ACCEPT,
+      TURN_IN,
+      CLOSE;
+
+      // $FF: synthetic method
+      private static PanelAction[] $values() {
+         return new PanelAction[]{ACCEPT, TURN_IN, CLOSE};
+      }
+   }
+
+   private static record QuestPanel(String questId, String title, String body, String button, PanelAction action) {
+   }
+
+   private static final class TopDownPatrol {
+      private double x;
+      private double y;
+      private int direction;
+      private int moveX;
+      private int moveY;
+      private int animationTick;
+      private int facing;
+      private final List route;
+      private int waypointIndex;
+      private long waitUntil;
+
+      private TopDownPatrol(double x, double y, int direction, List route) {
+         this.x = x;
+         this.y = y;
+         this.direction = direction;
+         this.moveX = direction;
+         this.facing = direction < 0 ? 0 : 1;
+         this.route = route;
+      }
+   }
 }
-
-
-
-
