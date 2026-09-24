@@ -53,7 +53,7 @@ import javax.swing.Timer;
 
 public class DesktopStartGame {
    static final System.Logger LOGGER = System.getLogger(DesktopStartGame.class.getName());
-   private static final String MENU_LOGO_SOURCE = "/alkosmen/ui/menu/town_square_menu_hero_v2.png";
+   private static final String MENU_LOGO_SOURCE = "/alkosmen/ui/menu/alkosmeny_title_logo_v1_transparent.png";
    private static final int MENU_ART_WIDTH = 1672;
    private static final int MENU_ART_HEIGHT = 941;
    private static final int LOGO_SOURCE_X = 60;
@@ -191,7 +191,7 @@ public class DesktopStartGame {
    }
 
    private static JLabel createMenuLogoLabel() {
-      URL logoUrl = DesktopStartGame.class.getResource("/alkosmen/ui/menu/town_square_menu_hero_v2.png");
+      URL logoUrl = DesktopStartGame.class.getResource(MENU_LOGO_SOURCE);
       if (logoUrl == null) {
          JLabel fallback = new JLabel(text("menu.logo.fallback", "АЛКОСМЕНЫ"));
          fallback.setForeground(new Color(226, 244, 240));
@@ -201,7 +201,7 @@ public class DesktopStartGame {
          Image source;
          try {
             BufferedImage art = ImageIO.read(logoUrl);
-            source = art.getSubimage(60, 95, 620, 275);
+            source = art.getSubimage(144, 252, 1256, 528);
          } catch (IOException error) {
             throw new IllegalStateException("Could not load menu logo", error);
          }
