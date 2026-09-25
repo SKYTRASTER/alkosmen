@@ -30,3 +30,8 @@ executionHistory.bin
 fileHashes.bin
 resourceHashesCache.bin
 previous-compilation-data.bin
+
+# Local driver downloads and scan output
+/.tmp-driver-downloads/
+/.tmp-chipset-extract/
+/.tmp-driver-scan-*/
