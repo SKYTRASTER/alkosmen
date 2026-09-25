@@ -76,8 +76,8 @@ public final class BackgroundPanel extends JPanel {
       int targetWidth = (int)Math.round(targetHeight * pose.getWidth() / (double)pose.getHeight());
       Graphics2D dancer = (Graphics2D)g.create();
       dancer.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-      dancer.translate(this.getWidth() * 0.655 + DANCE_SWAY[this.danceFrame],
-         this.getHeight() * 0.705 - DANCE_BOB[this.danceFrame]);
+      dancer.translate(this.getWidth() * 0.615 + DANCE_SWAY[this.danceFrame],
+         this.getHeight() * 0.655 - DANCE_BOB[this.danceFrame]);
       dancer.rotate(DANCE_TILT[this.danceFrame]);
       dancer.drawImage(pose, -targetWidth / 2, -targetHeight, targetWidth, targetHeight, this);
       dancer.dispose();
@@ -87,8 +87,8 @@ public final class BackgroundPanel extends JPanel {
       int eboboWidth = (int)Math.round(eboboHeight * ebobo.getWidth() / (double)ebobo.getHeight());
       Graphics2D eboboDancer = (Graphics2D)g.create();
       eboboDancer.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-      eboboDancer.translate(this.getWidth() * 0.705 + EBOBO_SWAY[this.danceFrame],
-         this.getHeight() * 0.705 - EBOBO_BOB[this.danceFrame]);
+      eboboDancer.translate(this.getWidth() * 0.735 + EBOBO_SWAY[this.danceFrame],
+         this.getHeight() * 0.645 - EBOBO_BOB[this.danceFrame]);
       eboboDancer.rotate(-DANCE_TILT[this.danceFrame] * 0.8);
       eboboDancer.drawImage(ebobo, -eboboWidth / 2, -eboboHeight, eboboWidth, eboboHeight, this);
       eboboDancer.dispose();
