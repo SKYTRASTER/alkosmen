@@ -30,43 +30,42 @@ public final class BackgroundPanel extends JPanel {
     * animation, so never mix in side/back walking rows here.
     */
    private static final int[] ALKOSMEN_SEQUENCE = {
-      15, 16, 17, 18, 19, 18,
-      17, 16, 15, 16, 17, 18,
-      19, 18, 17, 16, 15, 16,
-      17, 18, 19, 18, 17, 16
+      12, 13, 14, 15, 14, 13,
+      12, 13, 14, 15, 14, 13,
+      12, 13, 14, 15, 14, 13,
+      12, 13, 14, 15, 14, 13
    };
 
 
    /*
-    * Ebobo dances in place. Use the expressive laugh/attack/walk frames,
-    * but keep movement restrained so he does not look rubbery or slide around.
+    * Ebobo stays on one ground point. The dance is driven by pose changes,
+    * hops and mirrored lean frames, not by sliding the whole sprite left-right.
     */
    private static final int[] EBOBO_SEQUENCE = {
-      8, 9, 10, 11, 10, 9,
-      12, 13, 14, 13, 12, 11,
-      16, 17, 18, 17, 16, 8,
-      9, 10, 11, 10, 9, 8
-   };
-
-   private static final int[] EBOBO_X_OFFSETS = {
-      0, -1, -2, -1, 0, 1,
-      2, 1, 0, -1, -2, -1,
-      0, 1, 2, 1, 0, -1,
-      -2, -1, 0, 1, 1, 0
+      8, 9, 10, 11,
+      12, 13, 14, 13,
+      12, 11, 10, 9,
+      8, 9, 10, 11,
+      12, 13, 14, 13,
+      12, 10, 9, 8
    };
 
    private static final int[] EBOBO_JUMP_OFFSETS = {
-      0, 2, 5, 9, 5, 2,
-      0, 3, 8, 3, 0, 2,
-      6, 10, 6, 2, 0, 3,
-      7, 4, 1, 0, 1, 0
+      0, 3, 8, 14,
+      8, 3, 0, 4,
+      10, 16, 10, 4,
+      0, 4, 10, 16,
+      10, 4, 0, 3,
+      8, 5, 2, 0
    };
 
-   private static final int[] EBOBO_TILT_DEGREES = {
-      0, -2, -4, -2, 0, 2,
-      4, 2, 0, -2, -4, -2,
-      0, 3, 4, 2, 0, -2,
-      -3, -1, 1, 2, 1, 0
+   private static final boolean[] EBOBO_MIRROR = {
+      false, false, false, false,
+      false, false, false, true,
+      true, true, true, true,
+      false, false, false, false,
+      true, true, true, false,
+      false, true, false, false
    };
 
    private final BufferedImage background;
@@ -173,14 +172,13 @@ public final class BackgroundPanel extends JPanel {
       int targetWidth = (int)Math.round(targetHeight * ebobo.getWidth() / (double)ebobo.getHeight());
 
       double motionScale = Math.max(0.75, this.getHeight() / 640.0);
-      double anchorX = this.getWidth() * 0.745 + EBOBO_X_OFFSETS[beat] * motionScale;
+      double anchorX = this.getWidth() * 0.745;
       double groundY = this.getHeight() * EBOBO_GROUND_Y_RATIO;
       double baselineLift = this.getHeight() * EBOBO_BASELINE_LIFT_RATIO;
       double spriteY = groundY - baselineLift - EBOBO_JUMP_OFFSETS[beat] * motionScale;
-      double tilt = Math.toRadians(EBOBO_TILT_DEGREES[beat]);
 
-      double jumpRatio = EBOBO_JUMP_OFFSETS[beat] / 10.0;
-      drawGroundShadow(g, anchorX, groundY, targetWidth, 1.0 - jumpRatio * 0.12);
+      double jumpRatio = EBOBO_JUMP_OFFSETS[beat] / 16.0;
+      drawGroundShadow(g, anchorX, groundY, targetWidth, 1.0 - jumpRatio * 0.10);
 
       Graphics2D dancer = (Graphics2D)g.create();
       dancer.setRenderingHint(
@@ -188,7 +186,9 @@ public final class BackgroundPanel extends JPanel {
          RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR
       );
       dancer.translate(anchorX, spriteY);
-      dancer.rotate(tilt);
+      if (EBOBO_MIRROR[beat]) {
+         dancer.scale(-1.0, 1.0);
+      }
       dancer.drawImage(ebobo, -targetWidth / 2, -targetHeight, targetWidth, targetHeight, this);
       dancer.dispose();
    }
