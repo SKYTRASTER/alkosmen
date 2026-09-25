@@ -14,6 +14,7 @@ import alkosmen.maps.LevelLoader;
 import alkosmen.objects.Player;
 import alkosmen.persistence.LocalGameStore;
 import alkosmen.settings.Constants;
+import alkosmen.ui.GameCursors;
 import java.awt.AlphaComposite;
 import java.awt.Canvas;
 import java.awt.Color;
@@ -29,6 +30,7 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
 import java.awt.image.BufferStrategy;
 import java.awt.image.BufferedImage;
 import java.awt.image.ImageObserver;
@@ -122,6 +124,7 @@ public final class Game extends Canvas implements Runnable {
    private String sacredMapTitle = "";
    private List sacredHints = List.of();
    private QuestPanel questPanel;
+   private GameCursors gameCursors;
    private volatile long pendingClick = -1L;
    private long photoFlashUntil;
    private long ufoUntil;
@@ -200,6 +203,8 @@ public final class Game extends Canvas implements Runnable {
          Thread.yield();
       }
 
+      this.gameCursors = new GameCursors();
+      this.gameCursors.apply(this, GameCursors.Kind.NORMAL);
       this.createBufferStrategy(2);
       this.strategy = this.getBufferStrategy();
       this.renderLoadingScreen("Loading assets...");
@@ -419,7 +424,94 @@ public final class Game extends Canvas implements Runnable {
             }
 
          }
+
+         public void mouseExited(MouseEvent event) {
+            if (Game.this.gameCursors != null) {
+               Game.this.gameCursors.apply(Game.this, GameCursors.Kind.NORMAL);
+            }
+         }
       });
+      this.addMouseMotionListener(new MouseMotionAdapter() {
+         public void mouseMoved(MouseEvent event) {
+            if (Game.this.gameCursors != null) {
+               Game.this.gameCursors.apply(Game.this, Game.this.cursorAt(event.getX(), event.getY()));
+            }
+         }
+      });
+   }
+
+   private GameCursors.Kind cursorAt(int screenX, int screenY) {
+      if (this.questPanel != null) {
+         Rectangle panel = this.questPanelBounds();
+         Rectangle button = new Rectangle(panel.x + panel.width - 185, panel.y + panel.height - 59, 155, 38);
+         Rectangle close = new Rectangle(panel.x + panel.width - 40, panel.y + 12, 28, 28);
+         return button.contains(screenX, screenY) || close.contains(screenX, screenY)
+            ? GameCursors.Kind.INTERACT : GameCursors.Kind.NORMAL;
+      }
+      if (this.questMapOpen) {
+         return GameCursors.Kind.NORMAL;
+      }
+      if (this.secretArea) {
+         return this.cellarExitBounds().contains(screenX, screenY)
+            || this.cellarChestBounds().contains(screenX, screenY)
+            || this.cellarBrickBounds().contains(screenX, screenY)
+            ? GameCursors.Kind.INTERACT : GameCursors.Kind.NORMAL;
+      }
+      if (this.levelMap == null || this.player == null) {
+         return GameCursors.Kind.NORMAL;
+      }
+
+      NpcHover npc = this.npcAt(screenX, screenY);
+      if (npc != null) {
+         if (npc.tile() == 'N') {
+            if (!this.tolyaQuestAccepted || this.tolyaQuestComplete && !this.sacredQuest.accepted()) {
+               return GameCursors.Kind.QUEST_NEW;
+            }
+            if (!this.tolyaQuestComplete && this.score >= this.bottleGoal
+               || this.sacredQuest.accepted() && !this.sacredQuest.completed()
+                  && this.sacredQuest.stage() >= this.sacredCaches.size()) {
+               return GameCursors.Kind.QUEST_TURNIN;
+            }
+         } else if (npc.tile() == 'V') {
+            if (!this.eboboQuest.accepted()) {
+               return GameCursors.Kind.QUEST_NEW;
+            }
+            if (!this.eboboQuest.completed() && this.eboboQuest.stage() >= this.eboboPhotos.size()) {
+               return GameCursors.Kind.QUEST_TURNIN;
+            }
+         }
+         return GameCursors.Kind.INTERACT;
+      }
+      if (this.hoveredClue(screenX, screenY, this.eboboQuest, this.eboboPhotos)
+         || this.hoveredClue(screenX, screenY, this.sacredQuest, this.sacredCaches)
+         || this.sacredQuest.completed() && this.secretEntrance != null
+            && this.hitTile(screenX, screenY, this.secretEntrance, 0.8)) {
+         return GameCursors.Kind.INTERACT;
+      }
+      return GameCursors.Kind.NORMAL;
+   }
+
+   private boolean hoveredClue(int screenX, int screenY, LocalGameStore.StoryState state, List<LocalGameStore.QuestStep> clues) {
+      return state.accepted() && !state.completed() && state.stage() < clues.size()
+         && this.hitTile(screenX, screenY, clues.get(state.stage()).tile(), 0.8);
+   }
+
+   private NpcHover npcAt(int screenX, int screenY) {
+      int cell = Constants.Size;
+      for (int y = 0; y < this.levelMap.length; ++y) {
+         for (int x = 0; x < this.levelMap[y].length; ++x) {
+            char tile = this.levelMap[y][x];
+            if (this.isNpcTile(tile) && tile != 'C') {
+               int size = this.npcDrawSize(tile, cell);
+               int left = (int)((double)((float)(x * cell) - this.cameraX) - (double)(size - cell) / (double)2.0F);
+               int top = (int)((float)(y * cell) - this.cameraY - (float)(size - cell));
+               if ((new Rectangle(left, top, size, size)).contains(screenX, screenY)) {
+                  return new NpcHover(tile, x, y);
+               }
+            }
+         }
+      }
+      return null;
    }
 
    private void handleClick(int screenX, int screenY, long now) {
@@ -430,30 +522,18 @@ public final class Game extends Canvas implements Runnable {
       } else if (this.secretArea) {
          this.handleCellarClick(screenX, screenY, now);
       } else if (!this.secretArea) {
-         int cell = Constants.Size;
-
-         for(int y = 0; y < this.levelMap.length; ++y) {
-            for(int x = 0; x < this.levelMap[y].length; ++x) {
-               char npc = this.levelMap[y][x];
-               if (this.isNpcTile(npc) && npc != 'C') {
-                  int size = this.npcDrawSize(npc, cell);
-                  int left = (int)((double)((float)(x * cell) - this.cameraX) - (double)(size - cell) / (double)2.0F);
-                  int top = (int)((float)(y * cell) - this.cameraY - (float)(size - cell));
-                  if ((new Rectangle(left, top, size, size)).contains(screenX, screenY)) {
-                     if (Math.hypot(this.player.x - (double)x, this.player.y - (double)y) > 2.4) {
-                        this.showLine(this.dbText("npc.far"), now);
-                     } else if (npc == 'N') {
-                        this.openTolyaPanel();
-                     } else if (npc == 'V') {
-                        this.openEboboPanel();
-                     } else {
-                        this.showLine(this.dbText(this.npcDialogueKey(npc)), now);
-                     }
-
-                     return;
-                  }
-               }
+         NpcHover npc = this.npcAt(screenX, screenY);
+         if (npc != null) {
+            if (Math.hypot(this.player.x - (double)npc.x(), this.player.y - (double)npc.y()) > 2.4) {
+               this.showLine(this.dbText("npc.far"), now);
+            } else if (npc.tile() == 'N') {
+               this.openTolyaPanel();
+            } else if (npc.tile() == 'V') {
+               this.openEboboPanel();
+            } else {
+               this.showLine(this.dbText(this.npcDialogueKey(npc.tile())), now);
             }
+            return;
          }
 
          if (!this.tryClueClick(screenX, screenY, now, "ebobo_ufo", this.eboboQuest, this.eboboPhotos)) {
@@ -1773,6 +1853,9 @@ public final class Game extends Canvas implements Runnable {
    }
 
    private static record QuestPanel(String questId, String title, String body, String button, PanelAction action) {
+   }
+
+   private static record NpcHover(char tile, int x, int y) {
    }
 
 
