@@ -1,0 +1,14 @@
+# quest_id|stage|target_id|action (ADVANCE, LINE, EXIT)|next_stage|completed|dialogue_key|too_far_key
+secret_cellar|0|chest|ADVANCE|1|0|quest.secret.v2.inspect|quest.secret.too_far.chest
+secret_cellar|1|chest|LINE|1|0|quest.secret.inspect.again|quest.secret.too_far.chest
+secret_cellar|2|chest|LINE|2|1|quest.secret.inspect.again|quest.secret.too_far.chest
+secret_cellar|3|chest|LINE|3|1|quest.secret.inspect.again|quest.secret.too_far.chest
+secret_cellar|0|brick|LINE|0|0|quest.secret.v2.first|quest.secret.too_far.brick
+secret_cellar|1|brick|ADVANCE|2|1|quest.secret.v2.note|quest.secret.too_far.brick
+secret_cellar|2|brick|LINE|2|1|quest.secret.note.again|quest.secret.too_far.brick
+secret_cellar|3|brick|LINE|3|1|quest.secret.note.again|quest.secret.too_far.brick
+secret_cellar|0|exit|EXIT|0|0|quest.secret.exit.early|quest.secret.too_far.exit
+secret_cellar|1|exit|EXIT|1|0|quest.secret.exit.early|quest.secret.too_far.exit
+secret_cellar|2|exit|EXIT|2|1|quest.secret.exit.with_note|quest.secret.too_far.exit
+secret_cellar|3|exit|EXIT|3|1|quest.secret.exit|quest.secret.too_far.exit
+secret_cellar|2|tolya|ADVANCE|3|1|quest.secret.finish.line|

@@ -1,0 +1,5 @@
+# quest_id|stage|objective_key|active_target_id|target_label_key
+secret_cellar|0|quest.secret.v2.objective.0|chest|quest.secret.v2.target.0
+secret_cellar|1|quest.secret.v2.objective.1|brick|quest.secret.v2.target.1
+secret_cellar|2|quest.secret.v2.objective.done|exit|quest.secret.v2.target.2
+secret_cellar|3|quest.secret.objective.returned|exit|quest.secret.v2.target.2
