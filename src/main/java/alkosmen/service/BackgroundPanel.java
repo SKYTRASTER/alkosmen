@@ -1,5 +1,6 @@
 package alkosmen.service;
 
+import alkosmen.gfx.CharacterSpriteAssets;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -9,24 +10,51 @@ import java.io.IOException;
 import java.net.URL;
 import javax.imageio.ImageIO;
 import javax.swing.JPanel;
+import javax.swing.Timer;
 
 public final class BackgroundPanel extends JPanel {
-   public static final String BACKGROUND_RESOURCE = "/alkosmen/ui/menu/town_square_menu_hero_v2.png";
+   public static final String BACKGROUND_RESOURCE = "/alkosmen/ui/menu/town_square_dance_bg_v1.png";
+   private static final String WALK_RESOURCE = "/alkosmen/ui/sprites/alkosmen/walk_atlas_v1.png";
+   private static final int[] DANCE_POSES = {0, 1, 2, 3, 2, 1, 0, 3};
+   private static final int[] DANCE_SWAY = {-12, -5, 5, 12, 5, -5, -12, 5};
+   private static final int[] DANCE_BOB = {0, 9, 14, 5, 0, 9, 14, 5};
+   private static final double[] DANCE_TILT = {-0.07, -0.03, 0.03, 0.07, 0.03, -0.03, -0.07, 0.03};
+   private static final int DANCE_FRAME_MS = 250;
    private final BufferedImage background;
+   private final BufferedImage[] danceFrames;
+   private final Timer danceTimer;
+   private int danceFrame;
 
    public BackgroundPanel() {
-      URL resource = BackgroundPanel.class.getResource("/alkosmen/ui/menu/town_square_menu_hero_v2.png");
+      URL resource = BackgroundPanel.class.getResource(BACKGROUND_RESOURCE);
       if (resource == null) {
-         throw new IllegalStateException("Menu background not found: /alkosmen/ui/menu/town_square_menu_hero_v2.png");
-      } else {
-         try {
-            this.background = ImageIO.read(resource);
-         } catch (IOException error) {
-            throw new IllegalStateException("Could not load menu background", error);
-         }
+         throw new IllegalStateException("Menu background not found: " + BACKGROUND_RESOURCE);
       }
+      try {
+         this.background = ImageIO.read(resource);
+         this.danceFrames = CharacterSpriteAssets.loadGridAtlas(WALK_RESOURCE, 4, 5, 30)[3];
+      } catch (IOException error) {
+         throw new IllegalStateException("Could not load menu art", error);
+      }
+      this.danceTimer = new Timer(DANCE_FRAME_MS, event -> {
+         this.danceFrame = (this.danceFrame + 1) % DANCE_POSES.length;
+         repaint();
+      });
    }
 
+   @Override
+   public void addNotify() {
+      super.addNotify();
+      danceTimer.start();
+   }
+
+   @Override
+   public void removeNotify() {
+      danceTimer.stop();
+      super.removeNotify();
+   }
+
+   @Override
    protected void paintComponent(Graphics graphics) {
       super.paintComponent(graphics);
       Graphics2D g = (Graphics2D)graphics.create();
@@ -37,6 +65,16 @@ public final class BackgroundPanel extends JPanel {
       int width = (int)Math.ceil((double)this.background.getWidth() * scale);
       int height = (int)Math.ceil((double)this.background.getHeight() * scale);
       g.drawImage(this.background, (this.getWidth() - width) / 2, (this.getHeight() - height) / 2, width, height, this);
+
+      BufferedImage pose = this.danceFrames[DANCE_POSES[this.danceFrame]];
+      int targetHeight = (int)Math.round(this.getHeight() * 0.43);
+      int targetWidth = (int)Math.round(targetHeight * pose.getWidth() / (double)pose.getHeight());
+      Graphics2D dancer = (Graphics2D)g.create();
+      dancer.translate(this.getWidth() * 0.65 + DANCE_SWAY[this.danceFrame],
+         this.getHeight() * 0.91 - DANCE_BOB[this.danceFrame]);
+      dancer.rotate(DANCE_TILT[this.danceFrame]);
+      dancer.drawImage(pose, -targetWidth / 2, -targetHeight, targetWidth, targetHeight, this);
+      dancer.dispose();
       g.dispose();
    }
 }
