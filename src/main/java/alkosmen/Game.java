@@ -628,7 +628,18 @@ public final class Game extends Canvas implements Runnable {
       double maxX = x + (double)1.0F - 0.06;
       double minY = y + 0.06;
       double maxY = y + (double)1.0F - 0.06;
-      return !this.isSolid((int)Math.floor(minX), (int)Math.floor(minY)) && !this.isSolid((int)Math.floor(maxX), (int)Math.floor(minY)) && !this.isSolid((int)Math.floor(minX), (int)Math.floor(maxY)) && !this.isSolid((int)Math.floor(maxX), (int)Math.floor(maxY));
+      return !this.isPatrolBlocked((int)Math.floor(minX), (int)Math.floor(minY))
+         && !this.isPatrolBlocked((int)Math.floor(maxX), (int)Math.floor(minY))
+         && !this.isPatrolBlocked((int)Math.floor(minX), (int)Math.floor(maxY))
+         && !this.isPatrolBlocked((int)Math.floor(maxX), (int)Math.floor(maxY));
+   }
+
+   private boolean isPatrolBlocked(int x, int y) {
+      if (this.isSolid(x, y)) {
+         return true;
+      }
+
+      return this.isInsideMap(x, y) && this.isNpcTile(this.levelMap[y][x]);
    }
 
    private void checkPatrolCollision(long now) {
