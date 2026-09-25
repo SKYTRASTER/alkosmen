@@ -20,7 +20,21 @@ public final class BackgroundPanel extends JPanel {
    private static final int DANCE_COLUMNS = 6;
    private static final int DANCE_ROWS = 4;
    private static final int DANCE_FRAME_COUNT = DANCE_COLUMNS * DANCE_ROWS;
-   private static final int DANCE_FRAME_MS = 105;
+   private static final int DANCE_FRAME_MS = 120;
+
+   private static final int[] ALKOSMEN_SEQUENCE = {
+      0, 1, 2, 3, 4, 5,
+      6, 7, 8, 9, 10, 11,
+      12, 13, 14, 15, 16, 17,
+      18, 19, 20, 21, 22, 23
+   };
+
+   private static final int[] EBOBO_SEQUENCE = {
+      0, 1, 2, 3, 4, 5,
+      6, 7, 8, 9, 10, 11,
+      12, 13, 16, 18, 19, 20,
+      21, 22, 23, 22, 21, 20
+   };
 
    private static final double ALKOSMEN_X_RATIO = 0.605;
    private static final double EBOBO_X_RATIO = 0.745;
@@ -45,18 +59,22 @@ public final class BackgroundPanel extends JPanel {
 
       try {
          this.background = ImageIO.read(resource);
-         this.alkosmenDanceFrames = flattenAtlas(
-            CharacterSpriteAssets.loadGridAtlas(
-               ALKOSMEN_DANCE_RESOURCE,
-               DANCE_COLUMNS,
-               DANCE_ROWS
+         this.alkosmenDanceFrames = normalizeFrames(
+            flattenAtlas(
+               CharacterSpriteAssets.loadGridAtlas(
+                  ALKOSMEN_DANCE_RESOURCE,
+                  DANCE_COLUMNS,
+                  DANCE_ROWS
+               )
             )
          );
-         this.eboboDanceFrames = flattenAtlas(
-            CharacterSpriteAssets.loadGridAtlas(
-               EBOBO_DANCE_RESOURCE,
-               DANCE_COLUMNS,
-               DANCE_ROWS
+         this.eboboDanceFrames = normalizeFrames(
+            flattenAtlas(
+               CharacterSpriteAssets.loadGridAtlas(
+                  EBOBO_DANCE_RESOURCE,
+                  DANCE_COLUMNS,
+                  DANCE_ROWS
+               )
             )
          );
       } catch (IOException error) {
@@ -111,7 +129,7 @@ public final class BackgroundPanel extends JPanel {
 
       drawDancer(
          g,
-         alkosmenDanceFrames[danceFrame],
+         alkosmenDanceFrames[ALKOSMEN_SEQUENCE[danceFrame]],
          getWidth() * ALKOSMEN_X_RATIO,
          getHeight() * ALKOSMEN_GROUND_Y_RATIO,
          getHeight() * ALKOSMEN_BASELINE_LIFT_RATIO,
@@ -121,7 +139,7 @@ public final class BackgroundPanel extends JPanel {
       int eboboFrame = (danceFrame + 4) % DANCE_FRAME_COUNT;
       drawDancer(
          g,
-         eboboDanceFrames[eboboFrame],
+         eboboDanceFrames[EBOBO_SEQUENCE[eboboFrame]],
          getWidth() * EBOBO_X_RATIO,
          getHeight() * EBOBO_GROUND_Y_RATIO,
          getHeight() * EBOBO_BASELINE_LIFT_RATIO,
@@ -174,6 +192,60 @@ public final class BackgroundPanel extends JPanel {
          shadowHeight
       );
       shadow.dispose();
+   }
+
+   private static BufferedImage[] normalizeFrames(BufferedImage[] frames) {
+      BufferedImage[] normalized = new BufferedImage[frames.length];
+      for (int i = 0; i < frames.length; ++i) {
+         normalized[i] = normalizeFrame(frames[i]);
+      }
+      return normalized;
+   }
+
+   private static BufferedImage normalizeFrame(BufferedImage source) {
+      int minX = source.getWidth();
+      int minY = source.getHeight();
+      int maxX = -1;
+      int maxY = -1;
+
+      for (int y = 0; y < source.getHeight(); ++y) {
+         for (int x = 0; x < source.getWidth(); ++x) {
+            int alpha = source.getRGB(x, y) >>> 24;
+            if (alpha > 8) {
+               minX = Math.min(minX, x);
+               minY = Math.min(minY, y);
+               maxX = Math.max(maxX, x);
+               maxY = Math.max(maxY, y);
+            }
+         }
+      }
+
+      if (maxX < minX || maxY < minY) {
+         return source;
+      }
+
+      int contentCenterX = (minX + maxX) / 2;
+      int targetCenterX = source.getWidth() / 2;
+      int targetBottomY = source.getHeight() - 2;
+
+      int offsetX = targetCenterX - contentCenterX;
+      int offsetY = targetBottomY - maxY;
+
+      BufferedImage result = new BufferedImage(
+         source.getWidth(),
+         source.getHeight(),
+         BufferedImage.TYPE_INT_ARGB
+      );
+
+      Graphics2D graphics = result.createGraphics();
+      graphics.setRenderingHint(
+         RenderingHints.KEY_INTERPOLATION,
+         RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR
+      );
+      graphics.drawImage(source, offsetX, offsetY, null);
+      graphics.dispose();
+
+      return result;
    }
 
    private static BufferedImage[] flattenAtlas(BufferedImage[][] atlas) {
