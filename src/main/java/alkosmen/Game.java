@@ -75,6 +75,7 @@ public final class Game extends Canvas implements Runnable {
    private Image tileWall;
    private Image levelBackground;
    private Image cellarBackground;
+   private Image cellarChestSprite;
    private Image bottleSprite;
    private Image npcBoy1Sprite;
    private Image npcBoy2Sprite;
@@ -135,6 +136,7 @@ public final class Game extends Canvas implements Runnable {
    private long ufoUntil;
    private long ufoStartedAt;
    private boolean secretArea;
+   private long cellarChestOpeningAt;
    private volatile boolean questMapOpen;
    private double secretX = 3.5;
    private double secretY = (double)5.0F;
@@ -212,6 +214,7 @@ public final class Game extends Canvas implements Runnable {
       this.tileWall = this.sheet.tile(1, 0);
       this.bottleSprite = this.loadImageResource("/alkosmen/images/objects/bottle/bottle_tich_gold.png");
       this.cellarBackground = this.loadImageResource("/alkosmen/ui/levels/cellar_bg_v1.png");
+      this.cellarChestSprite = this.loadImageResource("/alkosmen/images/objects/chest/wooden_chest.png");
       this.npcBoy1Sprite = this.loadFirstExistingImage("/alkosmen/images/objects/glack/boy1.png", "/alkosmen/images/objects/boy/boy1.png");
       this.npcBoy2Sprite = this.loadFirstExistingImage("/alkosmen/images/objects/glack/boy2.png", "/alkosmen/images/objects/boy/boy2.png");
       BufferedImage tolyaSheet = (BufferedImage)this.loadImageResource("/alkosmen/ui/characters/tolya_zuevka_sheet.png");
@@ -1230,6 +1233,9 @@ public final class Game extends Canvas implements Runnable {
                LocalGameStore.StoryState next = new LocalGameStore.StoryState(true, event.completed(), event.nextStage());
                this.gameStore.saveStory(CELLAR_QUEST_ID, next);
                this.cellarQuest = next;
+               if ("chest".equals(targetId)) {
+                  this.cellarChestOpeningAt = now;
+               }
                this.showLine(this.dbText(event.dialogueKey()), now);
             } catch (SQLException error) {
                System.err.println("Cellar progress save failed: " + error.getMessage());
@@ -1335,22 +1341,22 @@ public final class Game extends Canvas implements Runnable {
       g2.drawString("ВЫХОД", exit.x + (exit.width - g2.getFontMetrics().stringWidth("ВЫХОД")) / 2, exit.y + 33);
 
       Rectangle chest = this.cellarChestBounds();
-      g2.setColor(new Color(21, 12, 8, 205));
-      g2.fillRoundRect(chest.x + 3, chest.y + 20, chest.width - 6, chest.height - 20, 7, 7);
-      g2.setColor(this.cellarQuest.stage() == 0 ? new Color(112, 59, 28) : new Color(66, 49, 38));
-      g2.fillRoundRect(chest.x + 8, chest.y + 23, chest.width - 16, chest.height - 27, 5, 5);
-      g2.setColor(this.cellarQuest.stage() == 0 ? new Color(238, 184, 80) : new Color(143, 120, 84));
-      g2.drawRoundRect(chest.x + 8, chest.y + 23, chest.width - 17, chest.height - 28, 5, 5);
-      g2.drawLine(chest.x + 12, chest.y + 39, chest.x + chest.width - 12, chest.y + 39);
-      g2.drawLine(chest.x + 25, chest.y + 25, chest.x + 25, chest.y + chest.height - 8);
-      g2.drawLine(chest.x + chest.width - 25, chest.y + 25, chest.x + chest.width - 25, chest.y + chest.height - 8);
-      g2.fillRect(chest.x + chest.width / 2 - 4, chest.y + 38, 8, 8);
-      g2.setColor(new Color(12, 18, 25, 220));
-      g2.fillRoundRect(chest.x + 10, chest.y - 6, chest.width - 20, 23, 6, 6);
-      g2.setColor(new Color(255, 221, 166));
-      g2.setFont(new Font("Dialog", 1, 12));
-      String chestName = this.cellarQuest.stage() == 0 ? "ЯЩИК [ЛКМ]" : "ПУСТОЙ «ТИЧ»";
-      g2.drawString(chestName, chest.x + (chest.width - g2.getFontMetrics().stringWidth(chestName)) / 2, chest.y + 10);
+      boolean opening = this.cellarChestOpeningAt > 0 && sceneTime - this.cellarChestOpeningAt < 360;
+      int chestFrame = this.cellarQuest.stage() == 0 || opening && sceneTime - this.cellarChestOpeningAt < 150 ? 0 : 1;
+      int chestSize = Math.min(chest.width - 12, chest.height + 18);
+      if (opening) {
+         chestSize += (int)(6 * Math.sin(Math.PI * (sceneTime - this.cellarChestOpeningAt) / 360.0));
+      }
+      int chestX = chest.x + (chest.width - chestSize) / 2;
+      int chestY = chest.y + chest.height - chestSize + 6;
+      if (this.cellarChestSprite != null) {
+         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+         g2.drawImage(this.cellarChestSprite, chestX, chestY, chestX + chestSize, chestY + chestSize,
+            chestFrame * 32, 0, chestFrame * 32 + 32, 32, null);
+      } else {
+         g2.setColor(new Color(112, 59, 28));
+         g2.fillRoundRect(chest.x + 20, chest.y + 12, chest.width - 40, chest.height - 16, 5, 5);
+      }
 
       if (this.cellarQuest.stage() > 0) {
          Rectangle brick = this.cellarBrickBounds();
@@ -1674,6 +1680,7 @@ public final class Game extends Canvas implements Runnable {
                   this.tolyaQuestComplete = false;
                   this.questPanel = null;
                   this.secretArea = false;
+                  this.cellarChestOpeningAt = 0L;
                   this.questMapOpen = false;
                   this.ufoUntil = 0L;
                   this.pendingClick = -1L;
