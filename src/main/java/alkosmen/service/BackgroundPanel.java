@@ -15,9 +15,12 @@ import javax.swing.Timer;
 public final class BackgroundPanel extends JPanel {
    public static final String BACKGROUND_RESOURCE = "/alkosmen/ui/menu/town_square_dance_bg_v1.png";
    private static final String WALK_RESOURCE = "/alkosmen/ui/sprites/alkosmen/walk_atlas_v1.png";
+   private static final String EBOBO_DANCE_RESOURCE = "/alkosmen/ui/intro/ebobo/laugh";
    private static final int[] DANCE_POSES = {0, 1, 2, 3, 2, 1, 0, 3};
    private static final int[] DANCE_SWAY = {-12, -5, 5, 12, 5, -5, -12, 5};
    private static final int[] DANCE_BOB = {0, 9, 14, 5, 0, 9, 14, 5};
+   private static final int[] EBOBO_BOB = {5, 1, 6, 2, 5, 1, 6, 2};
+   private static final int[] EBOBO_SWAY = {3, 0, -3, 0, 3, 0, -3, 0};
    private static final double[] DANCE_TILT = {-0.07, -0.03, 0.03, 0.07, 0.03, -0.03, -0.07, 0.03};
    private static final int DANCE_FRAME_MS = 250;
    private final BufferedImage background;
