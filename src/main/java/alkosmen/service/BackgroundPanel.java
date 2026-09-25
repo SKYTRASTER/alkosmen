@@ -47,39 +47,57 @@ public final class BackgroundPanel extends JPanel {
     * sliding left-right like a pendulum.
     */
    private static final int[] EBOBO_SEQUENCE = {
-      0, 1, 8, 9,
-      4, 5, 10, 11,
-      12, 13, 6, 7,
-      16, 17, 14, 15,
-      18, 19, 8, 9,
-      20, 21, 2, 0
+      0, 1, 2, 3,
+      4, 5, 6, 7,
+      8, 9, 10, 11,
+      16, 17, 18, 19,
+      12, 13, 14, 15,
+      8, 10, 9, 0
    };
 
    private static final int[] EBOBO_X_OFFSETS = {
-      0, -1, -2, 0,
-      2, 3, 1, 0,
-      -1, -2, 0, 2,
-      3, 1, 0, -1,
-      -2, 0, 2, 1,
-      0, -1, 0, 0
+      0, -2, -5, -8,
+      -5, -2, 0, 3,
+      6, 3, 0, -3,
+      -6, -3, 0, 4,
+      8, 4, 0, -4,
+      -7, -3, 0, 0
    };
 
    private static final int[] EBOBO_JUMP_OFFSETS = {
-      0, 2, 7, 13,
-      7, 2, 0, 5,
-      11, 5, 1, 0,
-      3, 9, 15, 9,
-      3, 0, 6, 12,
-      6, 1, 0, 0
+      0, 0, 4, 12,
+      22, 12, 4, 0,
+      0, 6, 16, 28,
+      16, 6, 0, 0,
+      5, 14, 24, 14,
+      6, 2, 0, 0
    };
 
    private static final int[] EBOBO_TILT_DEGREES = {
-      0, -2, -5, 3,
-      6, 2, -3, -6,
-      4, 7, 2, -2,
-      -5, -2, 5, 8,
-      3, -3, -7, -3,
-      4, 2, -1, 0
+      0, -5, -10, -4,
+      6, 12, 5, -2,
+      -8, -3, 7, 14,
+      6, -4, -12, -5,
+      4, 10, 4, -7,
+      -12, -5, 2, 0
+   };
+
+   private static final double[] EBOBO_SCALE_X = {
+      1.00, 1.03, 1.08, 1.12,
+      1.08, 1.03, 0.98, 0.94,
+      0.90, 0.96, 1.04, 1.12,
+      1.05, 0.98, 0.92, 0.96,
+      1.04, 1.12, 1.06, 0.98,
+      0.92, 0.97, 1.02, 1.00
+   };
+
+   private static final double[] EBOBO_SCALE_Y = {
+      1.00, 0.96, 0.90, 0.84,
+      1.06, 1.15, 1.08, 0.98,
+      0.88, 0.96, 1.08, 1.18,
+      1.10, 0.98, 0.88, 0.96,
+      1.04, 1.14, 1.08, 0.96,
+      0.90, 0.96, 1.03, 1.00
    };
 
    private final BufferedImage background;
@@ -191,8 +209,11 @@ public final class BackgroundPanel extends JPanel {
       double baselineLift = this.getHeight() * EBOBO_BASELINE_LIFT_RATIO;
       double spriteY = groundY - baselineLift - EBOBO_JUMP_OFFSETS[beat] * motionScale;
       double tilt = Math.toRadians(EBOBO_TILT_DEGREES[beat]);
+      double scaleX = EBOBO_SCALE_X[beat];
+      double scaleY = EBOBO_SCALE_Y[beat];
 
-      drawGroundShadow(g, anchorX, groundY, targetWidth);
+      double jumpRatio = EBOBO_JUMP_OFFSETS[beat] / 28.0;
+      drawGroundShadow(g, anchorX, groundY, targetWidth, 1.0 - jumpRatio * 0.30);
 
       Graphics2D dancer = (Graphics2D)g.create();
       dancer.setRenderingHint(
@@ -201,13 +222,18 @@ public final class BackgroundPanel extends JPanel {
       );
       dancer.translate(anchorX, spriteY);
       dancer.rotate(tilt);
+      dancer.scale(scaleX, scaleY);
       dancer.drawImage(ebobo, -targetWidth / 2, -targetHeight, targetWidth, targetHeight, this);
       dancer.dispose();
    }
 
    private void drawGroundShadow(Graphics2D g, double x, double y, int dancerWidth) {
+      drawGroundShadow(g, x, y, dancerWidth, 1.0);
+   }
+
+   private void drawGroundShadow(Graphics2D g, double x, double y, int dancerWidth, double scale) {
       Graphics2D shadow = (Graphics2D)g.create();
-      int shadowWidth = Math.max(18, (int)Math.round(dancerWidth * 0.58));
+      int shadowWidth = Math.max(18, (int)Math.round(dancerWidth * 0.58 * scale));
       int shadowHeight = Math.max(4, shadowWidth / 8);
       shadow.setColor(new Color(0, 0, 0, 72));
       shadow.fillOval(
