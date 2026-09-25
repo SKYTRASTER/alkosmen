@@ -26,78 +26,47 @@ public final class BackgroundPanel extends JPanel {
    private static final double EBOBO_BASELINE_LIFT_RATIO = 0.010;
 
    /*
-    * 4 x 5 atlas = 20 real frames. The sequence deliberately walks through
-    * several rows so the menu dance visibly changes pose and facing instead
-    * of recycling the same four images.
+    * Menu dance must stay front-facing. The fourth atlas row is the front
+    * animation, so never mix in side/back walking rows here.
     */
    private static final int[] ALKOSMEN_SEQUENCE = {
-      12, 13, 14, 15,
-      8, 9, 10, 11,
-      16, 17, 18, 19,
-      4, 5, 6, 7,
-      0, 1, 2, 3,
-      12, 14, 13, 15
+      15, 16, 17, 18, 19, 18,
+      17, 16, 15, 16, 17, 18,
+      19, 18, 17, 16, 15, 16,
+      17, 18, 19, 18, 17, 16
    };
 
 
    /*
-    * 24-beat dance choreography for Ebobo.
-    * Frames come from idle / walk / laugh / attack / hurt assets, but the
-    * position is intentionally kept near one spot so he dances instead of
-    * sliding left-right like a pendulum.
+    * Ebobo dances in place. Use the expressive laugh/attack/walk frames,
+    * but keep movement restrained so he does not look rubbery or slide around.
     */
    private static final int[] EBOBO_SEQUENCE = {
-      0, 1, 2, 3,
-      4, 5, 6, 7,
-      8, 9, 10, 11,
-      16, 17, 18, 19,
-      12, 13, 14, 15,
-      8, 10, 9, 0
+      8, 9, 10, 11, 10, 9,
+      12, 13, 14, 13, 12, 11,
+      16, 17, 18, 17, 16, 8,
+      9, 10, 11, 10, 9, 8
    };
 
    private static final int[] EBOBO_X_OFFSETS = {
-      0, -2, -5, -8,
-      -5, -2, 0, 3,
-      6, 3, 0, -3,
-      -6, -3, 0, 4,
-      8, 4, 0, -4,
-      -7, -3, 0, 0
+      0, -1, -2, -1, 0, 1,
+      2, 1, 0, -1, -2, -1,
+      0, 1, 2, 1, 0, -1,
+      -2, -1, 0, 1, 1, 0
    };
 
    private static final int[] EBOBO_JUMP_OFFSETS = {
-      0, 0, 4, 12,
-      22, 12, 4, 0,
-      0, 6, 16, 28,
-      16, 6, 0, 0,
-      5, 14, 24, 14,
-      6, 2, 0, 0
+      0, 2, 5, 9, 5, 2,
+      0, 3, 8, 3, 0, 2,
+      6, 10, 6, 2, 0, 3,
+      7, 4, 1, 0, 1, 0
    };
 
    private static final int[] EBOBO_TILT_DEGREES = {
-      0, -5, -10, -4,
-      6, 12, 5, -2,
-      -8, -3, 7, 14,
-      6, -4, -12, -5,
-      4, 10, 4, -7,
-      -12, -5, 2, 0
-   };
-
-   private static final double[] EBOBO_SCALE_X = {
-      1.00, 1.03, 1.08, 1.12,
-      1.08, 1.03, 0.98, 0.94,
-      0.90, 0.96, 1.04, 1.12,
-      1.05, 0.98, 0.92, 0.96,
-      1.04, 1.12, 1.06, 0.98,
-      0.92, 0.97, 1.02, 1.00
-   };
-
-   private static final double[] EBOBO_SCALE_Y = {
-      1.00, 0.96, 0.90, 0.84,
-      1.06, 1.15, 1.08, 0.98,
-      0.88, 0.96, 1.08, 1.18,
-      1.10, 0.98, 0.88, 0.96,
-      1.04, 1.14, 1.08, 0.96,
-      0.90, 0.96, 1.03, 1.00
+      0, -2, -4, -2, 0, 2,
+      4, 2, 0, -2, -4, -2,
+      0, 3, 4, 2, 0, -2,
+      -3, -1, 1, 2, 1, 0
    };
 
    private final BufferedImage background;
@@ -209,11 +178,9 @@ public final class BackgroundPanel extends JPanel {
       double baselineLift = this.getHeight() * EBOBO_BASELINE_LIFT_RATIO;
       double spriteY = groundY - baselineLift - EBOBO_JUMP_OFFSETS[beat] * motionScale;
       double tilt = Math.toRadians(EBOBO_TILT_DEGREES[beat]);
-      double scaleX = EBOBO_SCALE_X[beat];
-      double scaleY = EBOBO_SCALE_Y[beat];
 
-      double jumpRatio = EBOBO_JUMP_OFFSETS[beat] / 28.0;
-      drawGroundShadow(g, anchorX, groundY, targetWidth, 1.0 - jumpRatio * 0.30);
+      double jumpRatio = EBOBO_JUMP_OFFSETS[beat] / 10.0;
+      drawGroundShadow(g, anchorX, groundY, targetWidth, 1.0 - jumpRatio * 0.12);
 
       Graphics2D dancer = (Graphics2D)g.create();
       dancer.setRenderingHint(
@@ -222,7 +189,6 @@ public final class BackgroundPanel extends JPanel {
       );
       dancer.translate(anchorX, spriteY);
       dancer.rotate(tilt);
-      dancer.scale(scaleX, scaleY);
       dancer.drawImage(ebobo, -targetWidth / 2, -targetHeight, targetWidth, targetHeight, this);
       dancer.dispose();
    }
