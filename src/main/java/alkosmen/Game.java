@@ -35,7 +35,6 @@ import java.awt.image.ImageObserver;
 import java.io.IOException;
 import java.net.URL;
 import java.sql.SQLException;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -220,10 +219,13 @@ public final class Game extends Canvas implements Runnable {
       this.loadTownNpc('J', "train_gopnik");
       this.loadTownNpc('K', "train_conductor");
       this.loadTownNpc('S', "suspicious_stranger");
-      this.copWalkLeftFrames = this.loadCopTrackFrames("walk_left");
-      this.copWalkRightFrames = this.loadCopTrackFrames("walk_right");
-      this.copWalkUpFrames = this.loadCopTrackFrames("walk_up");
-      this.copWalkDownFrames = this.loadCopTrackFrames("walk_down");
+      Image[][] maleCopFrames = CharacterSpriteAssets.loadGridAtlas("/alkosmen/images/objects/cop/male/walk_atlas.png", 11, 3);
+      this.femaleCopFrames = CharacterSpriteAssets.loadGridAtlas("/alkosmen/images/objects/cop/female/walk_atlas.png", 11, 3);
+      this.copWalkLeftFrames = maleCopFrames[0];
+      this.copWalkRightFrames = maleCopFrames[1];
+      this.copWalkUpFrames = maleCopFrames[2];
+      this.copWalkDownFrames = maleCopFrames[2];
+      this.npcCopSprite = maleCopFrames[2][0];
       this.stepSound = new SoundEffectPlayer("/alkosmen/sounds/step.wav");
       this.jumpSound = new SoundEffectPlayer("/alkosmen/sounds/jump.wav");
       this.bottleCollectSound = new SoundEffectPlayer("/alkosmen/sounds/scratch_bottle.wav");
@@ -771,8 +773,8 @@ public final class Game extends Canvas implements Runnable {
                         } else if (this.isNpcTile(c)) {
                            Image npc = this.npcImageFor(c, sceneTime);
                            if (npc != null) {
-                              int npcW = this.npcDrawSize(c, cell);
-                              int npcH = npcW;
+                              int npcH = this.npcDrawSize(c, cell);
+                              int npcW = c == 'G' || c == 'C' ? Math.max(1, (int)Math.round((double)npcH * npc.getWidth((ImageObserver)null) / npc.getHeight((ImageObserver)null))) : npcH;
                               int npcX = drawX - (npcW - cell) / 2;
                               int npcBob = (int)Math.round(Math.sin((double)(sceneTime + (long)x * 173L + (long)y * 97L) / (double)450.0F));
                               int npcY = drawY - (npcH - cell) + npcBob;
@@ -887,7 +889,7 @@ public final class Game extends Canvas implements Runnable {
                   var10000 = this.copWalkDownFrames;
             }
 
-            Image[] frames = var10000;
+            Image[] frames = index % 2 == 0 ? var10000 : this.femaleCopFrames[patrol.facing() == 0 ? 0 : patrol.facing() == 1 ? 1 : 2];
             Image sprite = frames != null && frames.length != 0 ? frames[Math.floorMod(patrol.animationTick() / 7, frames.length)] : this.npcCopSprite;
             int spriteH = (int)Math.round((double)cell * 1.18);
             int spriteW = Math.max(1, (int)Math.round((double)spriteH * (double)sprite.getWidth((ImageObserver)null) / (double)sprite.getHeight((ImageObserver)null)));
@@ -1508,79 +1510,6 @@ public final class Game extends Canvas implements Runnable {
       }
 
       return frames;
-   }
-
-   private Image removeWhiteBackdrop(Image source) {
-      int width = source.getWidth((ImageObserver)null);
-      int height = source.getHeight((ImageObserver)null);
-      BufferedImage cleaned = new BufferedImage(width, height, 2);
-      Graphics2D graphics = cleaned.createGraphics();
-      graphics.drawImage(source, 0, 0, (ImageObserver)null);
-      graphics.dispose();
-      boolean[] removed = new boolean[width * height];
-      ArrayDeque<Integer> pending = new ArrayDeque();
-
-      for(int x = 0; x < width; ++x) {
-         this.addWhiteBackgroundPixel(cleaned, x, 0, removed, pending);
-         this.addWhiteBackgroundPixel(cleaned, x, height - 1, removed, pending);
-      }
-
-      for(int y = 1; y < height - 1; ++y) {
-         this.addWhiteBackgroundPixel(cleaned, 0, y, removed, pending);
-         this.addWhiteBackgroundPixel(cleaned, width - 1, y, removed, pending);
-      }
-
-      while(!pending.isEmpty()) {
-         int index = (Integer)pending.removeFirst();
-         int x = index % width;
-         int y = index / width;
-         cleaned.setRGB(x, y, cleaned.getRGB(x, y) & 16777215);
-         if (x > 0) {
-            this.addWhiteBackgroundPixel(cleaned, x - 1, y, removed, pending);
-         }
-
-         if (x + 1 < width) {
-            this.addWhiteBackgroundPixel(cleaned, x + 1, y, removed, pending);
-         }
-
-         if (y > 0) {
-            this.addWhiteBackgroundPixel(cleaned, x, y - 1, removed, pending);
-         }
-
-         if (y + 1 < height) {
-            this.addWhiteBackgroundPixel(cleaned, x, y + 1, removed, pending);
-         }
-      }
-
-      for(int y = 0; y < height; ++y) {
-         for(int x = 0; x < width; ++x) {
-            int color = cleaned.getRGB(x, y);
-            int red = color >>> 16 & 255;
-            int green = color >>> 8 & 255;
-            int blue = color & 255;
-            int spread = Math.max(red, Math.max(green, blue)) - Math.min(red, Math.min(green, blue));
-            if (red >= 220 && green >= 220 && blue >= 220 && spread <= 18) {
-               cleaned.setRGB(x, y, color & 16777215);
-            }
-         }
-      }
-
-      return cleaned;
-   }
-
-   private void addWhiteBackgroundPixel(BufferedImage image, int x, int y, boolean[] removed, ArrayDeque pending) {
-      int index = y * image.getWidth() + x;
-      if (!removed[index]) {
-         int color = image.getRGB(x, y);
-         int red = color >>> 16 & 255;
-         int green = color >>> 8 & 255;
-         int blue = color & 255;
-         int spread = Math.max(red, Math.max(green, blue)) - Math.min(red, Math.min(green, blue));
-         if (red >= 220 && green >= 220 && blue >= 220 && spread <= 18) {
-            removed[index] = true;
-            pending.addLast(index);
-         }
-      }
    }
 
    private void loadLevel(int level) throws Exception {
