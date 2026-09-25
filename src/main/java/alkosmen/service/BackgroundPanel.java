@@ -20,6 +20,11 @@ public final class BackgroundPanel extends JPanel {
    private static final int DANCE_FRAME_COUNT = 24;
    private static final int DANCE_FRAME_MS = 105;
 
+   private static final double ALKOSMEN_GROUND_Y_RATIO = 0.655;
+   private static final double EBOBO_GROUND_Y_RATIO = 0.645;
+   private static final double ALKOSMEN_BASELINE_LIFT_RATIO = 0.018;
+   private static final double EBOBO_BASELINE_LIFT_RATIO = 0.010;
+
    /*
     * 4 x 5 atlas = 20 real frames. The sequence deliberately walks through
     * several rows so the menu dance visibly changes pose and facing instead
@@ -113,16 +118,18 @@ public final class BackgroundPanel extends JPanel {
       double tilt = Math.sin(phase) * 0.028;
 
       double anchorX = this.getWidth() * 0.605 + sway;
-      double anchorY = this.getHeight() * 0.655 - bob;
+      double groundY = this.getHeight() * ALKOSMEN_GROUND_Y_RATIO;
+      double baselineLift = this.getHeight() * ALKOSMEN_BASELINE_LIFT_RATIO;
+      double spriteY = groundY - baselineLift - bob;
 
-      drawGroundShadow(g, anchorX, anchorY, targetWidth);
+      drawGroundShadow(g, anchorX, groundY, targetWidth);
 
       Graphics2D dancer = (Graphics2D)g.create();
       dancer.setRenderingHint(
          RenderingHints.KEY_INTERPOLATION,
          RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR
       );
-      dancer.translate(anchorX, anchorY);
+      dancer.translate(anchorX, spriteY);
       dancer.rotate(tilt);
       dancer.drawImage(pose, -targetWidth / 2, -targetHeight, targetWidth, targetHeight, this);
       dancer.dispose();
@@ -141,16 +148,18 @@ public final class BackgroundPanel extends JPanel {
       double tilt = Math.sin(phase * 1.5) * 0.045;
 
       double anchorX = this.getWidth() * 0.745 + sway;
-      double anchorY = this.getHeight() * 0.645 - bob;
+      double groundY = this.getHeight() * EBOBO_GROUND_Y_RATIO;
+      double baselineLift = this.getHeight() * EBOBO_BASELINE_LIFT_RATIO;
+      double spriteY = groundY - baselineLift - bob;
 
-      drawGroundShadow(g, anchorX, anchorY, targetWidth);
+      drawGroundShadow(g, anchorX, groundY, targetWidth);
 
       Graphics2D dancer = (Graphics2D)g.create();
       dancer.setRenderingHint(
          RenderingHints.KEY_INTERPOLATION,
          RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR
       );
-      dancer.translate(anchorX, anchorY);
+      dancer.translate(anchorX, spriteY);
       dancer.rotate(tilt);
       dancer.drawImage(ebobo, -targetWidth / 2, -targetHeight, targetWidth, targetHeight, this);
       dancer.dispose();
