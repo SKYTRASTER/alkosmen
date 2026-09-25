@@ -1,53 +1,64 @@
 package alkosmen.service;
 
+import alkosmen.gfx.CharacterSpriteAssets;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
+import java.net.URL;
 import javax.imageio.ImageIO;
 import javax.swing.JPanel;
 import javax.swing.Timer;
 
 public final class BackgroundPanel extends JPanel {
    public static final String BACKGROUND_RESOURCE = "/alkosmen/ui/menu/town_square_dance_bg_v1.png";
+   private static final String ALKOSMEN_DANCE_RESOURCE = "/alkosmen/ui/menu/alkosmen_dance24_sheet.png";
+   private static final String EBOBO_DANCE_RESOURCE = "/alkosmen/ui/menu/ebobo_dance24_sheet.png";
 
-   private static final String[] DANCE_ATLAS_PARTS = {
-      "/alkosmen/ui/menu/menu_dance_26.b64.00",
-      "/alkosmen/ui/menu/menu_dance_26.b64.01",
-      "/alkosmen/ui/menu/menu_dance_26.b64.02",
-      "/alkosmen/ui/menu/menu_dance_26.b64.03"
-   };
-
-   private static final int DANCE_FRAME_COUNT = 26;
+   private static final int DANCE_COLUMNS = 6;
+   private static final int DANCE_ROWS = 4;
+   private static final int DANCE_FRAME_COUNT = DANCE_COLUMNS * DANCE_ROWS;
    private static final int DANCE_FRAME_MS = 105;
-   private static final int ATLAS_COLUMNS = 13;
-   private static final int ATLAS_TOTAL_ROWS = 4;
-   private static final int ALKOSMEN_START_ROW = 0;
-   private static final int EBOBO_START_ROW = 2;
 
+   private static final double ALKOSMEN_X_RATIO = 0.605;
+   private static final double EBOBO_X_RATIO = 0.745;
    private static final double ALKOSMEN_GROUND_Y_RATIO = 0.655;
    private static final double EBOBO_GROUND_Y_RATIO = 0.645;
-   private static final double FRAME_BOTTOM_MARGIN_RATIO = 1.0 / 40.0;
+   private static final double ALKOSMEN_BASELINE_LIFT_RATIO = 0.018;
+   private static final double EBOBO_BASELINE_LIFT_RATIO = 0.010;
+   private static final double ALKOSMEN_HEIGHT_RATIO = 0.225;
+   private static final double EBOBO_HEIGHT_RATIO = 0.185;
 
    private final BufferedImage background;
-   private final BufferedImage[] danceFrames;
+   private final BufferedImage[] alkosmenDanceFrames;
    private final BufferedImage[] eboboDanceFrames;
    private final Timer danceTimer;
    private int danceFrame;
 
    public BackgroundPanel() {
-      try {
-         this.background = loadRequiredImage(BACKGROUND_RESOURCE);
+      URL resource = BackgroundPanel.class.getResource(BACKGROUND_RESOURCE);
+      if (resource == null) {
+         throw new IllegalStateException("Menu background not found: " + BACKGROUND_RESOURCE);
+      }
 
-         BufferedImage danceAtlas = loadEmbeddedDanceAtlas();
-         this.danceFrames = loadCharacterFrames(danceAtlas, ALKOSMEN_START_ROW);
-         this.eboboDanceFrames = loadCharacterFrames(danceAtlas, EBOBO_START_ROW);
+      try {
+         this.background = ImageIO.read(resource);
+         this.alkosmenDanceFrames = flattenAtlas(
+            CharacterSpriteAssets.loadGridAtlas(
+               ALKOSMEN_DANCE_RESOURCE,
+               DANCE_COLUMNS,
+               DANCE_ROWS
+            )
+         );
+         this.eboboDanceFrames = flattenAtlas(
+            CharacterSpriteAssets.loadGridAtlas(
+               EBOBO_DANCE_RESOURCE,
+               DANCE_COLUMNS,
+               DANCE_ROWS
+            )
+         );
       } catch (IOException error) {
          throw new IllegalStateException("Could not load menu art", error);
       }
@@ -73,70 +84,68 @@ public final class BackgroundPanel extends JPanel {
    @Override
    protected void paintComponent(Graphics graphics) {
       super.paintComponent(graphics);
-      Graphics2D g = (Graphics2D)graphics.create();
 
+      Graphics2D g = (Graphics2D)graphics.create();
       g.setColor(new Color(8, 12, 22));
       g.fillRect(0, 0, getWidth(), getHeight());
-      g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+      g.setRenderingHint(
+         RenderingHints.KEY_INTERPOLATION,
+         RenderingHints.VALUE_INTERPOLATION_BILINEAR
+      );
 
       double scale = Math.max(
          (double)getWidth() / background.getWidth(),
          (double)getHeight() / background.getHeight()
       );
-      int width = (int)Math.ceil(background.getWidth() * scale);
-      int height = (int)Math.ceil(background.getHeight() * scale);
+      int backgroundWidth = (int)Math.ceil(background.getWidth() * scale);
+      int backgroundHeight = (int)Math.ceil(background.getHeight() * scale);
 
       g.drawImage(
          background,
-         (getWidth() - width) / 2,
-         (getHeight() - height) / 2,
-         width,
-         height,
+         (getWidth() - backgroundWidth) / 2,
+         (getHeight() - backgroundHeight) / 2,
+         backgroundWidth,
+         backgroundHeight,
          this
       );
 
-      drawAlkosmenDance(g);
-      drawEboboDance(g);
+      drawDancer(
+         g,
+         alkosmenDanceFrames[danceFrame],
+         getWidth() * ALKOSMEN_X_RATIO,
+         getHeight() * ALKOSMEN_GROUND_Y_RATIO,
+         getHeight() * ALKOSMEN_BASELINE_LIFT_RATIO,
+         (int)Math.round(getHeight() * ALKOSMEN_HEIGHT_RATIO)
+      );
+
+      int eboboFrame = (danceFrame + 4) % DANCE_FRAME_COUNT;
+      drawDancer(
+         g,
+         eboboDanceFrames[eboboFrame],
+         getWidth() * EBOBO_X_RATIO,
+         getHeight() * EBOBO_GROUND_Y_RATIO,
+         getHeight() * EBOBO_BASELINE_LIFT_RATIO,
+         (int)Math.round(getHeight() * EBOBO_HEIGHT_RATIO)
+      );
+
       g.dispose();
    }
 
-   private void drawAlkosmenDance(Graphics2D g) {
-      BufferedImage pose = danceFrames[danceFrame];
-
-      int targetHeight = (int)Math.round(getHeight() * 0.225);
-      int targetWidth = (int)Math.round(targetHeight * pose.getWidth() / (double)pose.getHeight());
-
-      double anchorX = getWidth() * 0.605;
-      double groundY = getHeight() * ALKOSMEN_GROUND_Y_RATIO;
-      double spriteBottomY = groundY + targetHeight * FRAME_BOTTOM_MARGIN_RATIO;
-
-      drawGroundShadow(g, anchorX, groundY, targetWidth);
-      drawFrame(g, pose, anchorX, spriteBottomY, targetWidth, targetHeight);
-   }
-
-   private void drawEboboDance(Graphics2D g) {
-      int frame = (danceFrame + 7) % DANCE_FRAME_COUNT;
-      BufferedImage pose = eboboDanceFrames[frame];
-
-      int targetHeight = (int)Math.round(getHeight() * 0.185);
-      int targetWidth = (int)Math.round(targetHeight * pose.getWidth() / (double)pose.getHeight());
-
-      double anchorX = getWidth() * 0.745;
-      double groundY = getHeight() * EBOBO_GROUND_Y_RATIO;
-      double spriteBottomY = groundY + targetHeight * FRAME_BOTTOM_MARGIN_RATIO;
-
-      drawGroundShadow(g, anchorX, groundY, targetWidth);
-      drawFrame(g, pose, anchorX, spriteBottomY, targetWidth, targetHeight);
-   }
-
-   private void drawFrame(
+   private void drawDancer(
       Graphics2D g,
       BufferedImage frame,
       double anchorX,
-      double spriteBottomY,
-      int targetWidth,
+      double groundY,
+      double baselineLift,
       int targetHeight
    ) {
+      int targetWidth = (int)Math.round(
+         targetHeight * frame.getWidth() / (double)frame.getHeight()
+      );
+      double spriteBottom = groundY - baselineLift;
+
+      drawGroundShadow(g, anchorX, groundY, targetWidth);
+
       Graphics2D dancer = (Graphics2D)g.create();
       dancer.setRenderingHint(
          RenderingHints.KEY_INTERPOLATION,
@@ -145,7 +154,7 @@ public final class BackgroundPanel extends JPanel {
       dancer.drawImage(
          frame,
          (int)Math.round(anchorX - targetWidth / 2.0),
-         (int)Math.round(spriteBottomY - targetHeight),
+         (int)Math.round(spriteBottom - targetHeight),
          targetWidth,
          targetHeight,
          this
@@ -155,10 +164,9 @@ public final class BackgroundPanel extends JPanel {
 
    private void drawGroundShadow(Graphics2D g, double x, double y, int dancerWidth) {
       Graphics2D shadow = (Graphics2D)g.create();
-      int shadowWidth = Math.max(18, (int)Math.round(dancerWidth * 0.56));
+      int shadowWidth = Math.max(18, (int)Math.round(dancerWidth * 0.58));
       int shadowHeight = Math.max(4, shadowWidth / 8);
-
-      shadow.setColor(new Color(0, 0, 0, 68));
+      shadow.setColor(new Color(0, 0, 0, 72));
       shadow.fillOval(
          (int)Math.round(x - shadowWidth / 2.0),
          (int)Math.round(y - shadowHeight / 2.0),
@@ -168,63 +176,22 @@ public final class BackgroundPanel extends JPanel {
       shadow.dispose();
    }
 
-   private static BufferedImage[] loadCharacterFrames(BufferedImage atlas, int startRow) throws IOException {
-      if (atlas.getWidth() % ATLAS_COLUMNS != 0 || atlas.getHeight() % ATLAS_TOTAL_ROWS != 0) {
-         throw new IOException("Invalid menu dance atlas dimensions: " + atlas.getWidth() + "x" + atlas.getHeight());
+   private static BufferedImage[] flattenAtlas(BufferedImage[][] atlas) {
+      BufferedImage[] result = new BufferedImage[DANCE_FRAME_COUNT];
+      int index = 0;
+
+      for (BufferedImage[] row : atlas) {
+         for (BufferedImage frame : row) {
+            result[index++] = frame;
+         }
       }
 
-      int cellWidth = atlas.getWidth() / ATLAS_COLUMNS;
-      int cellHeight = atlas.getHeight() / ATLAS_TOTAL_ROWS;
-      BufferedImage[] frames = new BufferedImage[DANCE_FRAME_COUNT];
-
-      for (int i = 0; i < DANCE_FRAME_COUNT; ++i) {
-         int column = i % ATLAS_COLUMNS;
-         int row = startRow + i / ATLAS_COLUMNS;
-
-         frames[i] = atlas.getSubimage(
-            column * cellWidth,
-            row * cellHeight,
-            cellWidth,
-            cellHeight
+      if (index != DANCE_FRAME_COUNT) {
+         throw new IllegalStateException(
+            "Expected " + DANCE_FRAME_COUNT + " dance frames, got " + index
          );
       }
 
-      return frames;
-   }
-
-   private static BufferedImage loadEmbeddedDanceAtlas() throws IOException {
-      StringBuilder encoded = new StringBuilder(30000);
-
-      for (String path : DANCE_ATLAS_PARTS) {
-         try (InputStream input = BackgroundPanel.class.getResourceAsStream(path)) {
-            if (input == null) {
-               throw new IOException("Dance atlas part not found: " + path);
-            }
-            encoded.append(new String(input.readAllBytes(), StandardCharsets.US_ASCII).trim());
-         }
-      }
-
-      byte[] pngBytes = Base64.getDecoder().decode(encoded.toString());
-      try (ByteArrayInputStream input = new ByteArrayInputStream(pngBytes)) {
-         BufferedImage atlas = ImageIO.read(input);
-         if (atlas == null) {
-            throw new IOException("Could not decode embedded menu dance atlas");
-         }
-         return atlas;
-      }
-   }
-
-   private static BufferedImage loadRequiredImage(String path) throws IOException {
-      try (InputStream input = BackgroundPanel.class.getResourceAsStream(path)) {
-         if (input == null) {
-            throw new IOException("Image not found: " + path);
-         }
-
-         BufferedImage image = ImageIO.read(input);
-         if (image == null) {
-            throw new IOException("Could not decode image: " + path);
-         }
-         return image;
-      }
+      return result;
    }
 }
