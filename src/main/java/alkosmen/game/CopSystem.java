@@ -75,20 +75,20 @@ public final class CopSystem {
         if (npcSprite == null) {
             return;
         }
-        int frameIndex = Math.floorMod((int) (now / WALK_FRAME_MS), 8);
+        int frameIndex = (int) (now / WALK_FRAME_MS);
         boolean hasLeftFrames = walkLeftFrames != null && walkLeftFrames.length > 0;
         boolean hasRightFrames = walkRightFrames != null && walkRightFrames.length > 0;
         for (CopNpc cop : cops) {
-            int copW = (int) Math.round(cell * npcScale);
             int copH = (int) Math.round(cell * npcScale);
-            int drawX = (int) Math.round(cop.x * cell - cameraX - (copW - cell) / 2.0);
-            int drawY = (int) Math.round(cop.y * cell - cameraY - (copH - cell));
             Image sprite = npcSprite;
             if (cop.dir < 0 && hasLeftFrames) {
                 sprite = walkLeftFrames[Math.floorMod(frameIndex, walkLeftFrames.length)];
             } else if (cop.dir > 0 && hasRightFrames) {
                 sprite = walkRightFrames[Math.floorMod(frameIndex, walkRightFrames.length)];
             }
+            int copW = Math.max(1, (int) Math.round((double) copH * sprite.getWidth(null) / sprite.getHeight(null)));
+            int drawX = (int) Math.round(cop.x * cell - cameraX - (copW - cell) / 2.0);
+            int drawY = (int) Math.round(cop.y * cell - cameraY - (copH - cell));
             g.drawImage(sprite, drawX, drawY, copW, copH, null);
         }
     }

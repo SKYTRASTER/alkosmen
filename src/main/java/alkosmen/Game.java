@@ -80,6 +80,7 @@ public final class Game extends Canvas implements Runnable {
    private Image[] copWalkRightFrames;
    private Image[] copWalkUpFrames;
    private Image[] copWalkDownFrames;
+   private Image[][] femaleCopFrames;
    private MidiPlayer levelMidi;
    private float cameraX;
    private float cameraY;
@@ -196,14 +197,16 @@ public final class Game extends Canvas implements Runnable {
       this.bottleSprite = this.loadImageResource("/alkosmen/images/objects/bottle/bottle_tich_gold.png");
       this.npcBoy1Sprite = this.loadFirstExistingImage("/alkosmen/images/objects/glack/boy1.png", "/alkosmen/images/objects/boy/boy1.png");
       this.npcBoy2Sprite = this.loadFirstExistingImage("/alkosmen/images/objects/glack/boy2.png", "/alkosmen/images/objects/boy/boy2.png");
-      this.npcCopSprite = this.loadImageResource("/alkosmen/images/objects/cop/copdown0.png");
       BufferedImage tolyaSheet = (BufferedImage)this.loadImageResource("/alkosmen/ui/characters/tolya_zuevka_sheet.png");
       this.npcTolyaSprite = tolyaSheet.getSubimage(50, 480, 460, 480);
       this.npcEboboSprite = this.loadImageResource("/alkosmen/ui/intro/ebobo/walk_right/00.png");
-      this.copWalkLeftFrames = this.loadCopTrackFrames("walk_left");
-      this.copWalkRightFrames = this.loadCopTrackFrames("walk_right");
-      this.copWalkUpFrames = this.loadCopTrackFrames("walk_up");
-      this.copWalkDownFrames = this.loadCopTrackFrames("walk_down");
+      Image[][] maleCopFrames = CharacterSpriteAssets.loadGridAtlas("/alkosmen/images/objects/cop/male/walk_atlas.png", 11, 3);
+      this.femaleCopFrames = CharacterSpriteAssets.loadGridAtlas("/alkosmen/images/objects/cop/female/walk_atlas.png", 11, 3);
+      this.copWalkLeftFrames = maleCopFrames[0];
+      this.copWalkRightFrames = maleCopFrames[1];
+      this.copWalkUpFrames = maleCopFrames[2];
+      this.copWalkDownFrames = maleCopFrames[2];
+      this.npcCopSprite = maleCopFrames[2][0];
       this.stepSound = new SoundEffectPlayer("/alkosmen/sounds/step.wav");
       this.jumpSound = new SoundEffectPlayer("/alkosmen/sounds/jump.wav");
       this.bottleCollectSound = new SoundEffectPlayer("/alkosmen/sounds/scratch_bottle.wav");
@@ -861,8 +864,8 @@ public final class Game extends Canvas implements Runnable {
                         } else if (this.isNpcTile(c)) {
                            Image npc = this.npcImageFor(c);
                            if (npc != null) {
-                              int npcW = (int)Math.round((double)cell * 1.7);
                               int npcH = (int)Math.round((double)cell * 1.7);
+                              int npcW = c == 'G' || c == 'C' ? Math.max(1, (int)Math.round((double)npcH * npc.getWidth((ImageObserver)null) / npc.getHeight((ImageObserver)null))) : npcH;
                               int npcX = drawX - (npcW - cell) / 2;
                               int npcBob = (int)Math.round(Math.sin((double)(sceneTime + (long)x * 173L + (long)y * 97L) / (double)450.0F));
                               int npcY = drawY - (npcH - cell) + npcBob;
@@ -956,7 +959,8 @@ public final class Game extends Canvas implements Runnable {
 
    private void drawPatrols(Graphics g, int cell) {
       if (this.npcCopSprite != null) {
-         for(TopDownPatrol patrol : this.patrols) {
+         for(int index = 0; index < this.patrols.size(); ++index) {
+            TopDownPatrol patrol = this.patrols.get(index);
             Image[] var10000;
             switch (patrol.facing) {
                case 0:
@@ -973,7 +977,7 @@ public final class Game extends Canvas implements Runnable {
                   var10000 = this.copWalkDownFrames;
             }
 
-            Image[] frames = var10000;
+            Image[] frames = index % 2 == 0 ? var10000 : this.femaleCopFrames[patrol.facing == 0 ? 0 : patrol.facing == 1 ? 1 : 2];
             Image sprite = frames != null && frames.length != 0 ? frames[Math.floorMod(patrol.animationTick / 7, frames.length)] : this.npcCopSprite;
             int spriteH = (int)Math.round((double)cell * 1.18);
             int spriteW = Math.max(1, (int)Math.round((double)spriteH * (double)sprite.getWidth((ImageObserver)null) / (double)sprite.getHeight((ImageObserver)null)));
@@ -1426,17 +1430,6 @@ public final class Game extends Canvas implements Runnable {
       for(int i = 0; i < frames.length; ++i) {
          String framePath = String.format("/alkosmen/images/objects/alkoman/frames/alk_%s_%02d.png", trackName, i);
          frames[i] = this.loadImageResource(framePath);
-      }
-
-      return frames;
-   }
-
-   private Image[] loadCopTrackFrames(String trackName) {
-      Image[] frames = new Image[8];
-
-      for(int i = 0; i < frames.length; ++i) {
-         String framePath = String.format("/alkosmen/images/objects/cop/male/%s/%02d.png", trackName, i);
-         frames[i] = this.removeWhiteBackdrop(this.loadImageResource(framePath));
       }
 
       return frames;
