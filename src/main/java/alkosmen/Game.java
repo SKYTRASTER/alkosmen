@@ -214,7 +214,7 @@ public final class Game extends Canvas implements Runnable {
       this.tileWall = this.sheet.tile(1, 0);
       this.bottleSprite = this.loadImageResource("/alkosmen/images/objects/bottle/bottle_tich_gold.png");
       this.cellarBackground = this.loadImageResource("/alkosmen/ui/levels/cellar_bg_v1.png");
-      this.cellarChestSprite = this.loadImageResource("/alkosmen/images/objects/chest/wooden_chest.png");
+      this.cellarChestSprite = this.loadImageResource("/alkosmen/images/objects/chest/mega_chest.png");
       this.npcBoy1Sprite = this.loadFirstExistingImage("/alkosmen/images/objects/glack/boy1.png", "/alkosmen/images/objects/boy/boy1.png");
       this.npcBoy2Sprite = this.loadFirstExistingImage("/alkosmen/images/objects/glack/boy2.png", "/alkosmen/images/objects/boy/boy2.png");
       BufferedImage tolyaSheet = (BufferedImage)this.loadImageResource("/alkosmen/ui/characters/tolya_zuevka_sheet.png");
@@ -1352,7 +1352,7 @@ public final class Game extends Canvas implements Runnable {
       if (this.cellarChestSprite != null) {
          g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
          g2.drawImage(this.cellarChestSprite, chestX, chestY, chestX + chestSize, chestY + chestSize,
-            chestFrame * 32, 0, chestFrame * 32 + 32, 32, null);
+            chestFrame * 48, 0, chestFrame * 48 + 48, 48, null);
       } else {
          g2.setColor(new Color(112, 59, 28));
          g2.fillRoundRect(chest.x + 20, chest.y + 12, chest.width - 40, chest.height - 16, 5, 5);
