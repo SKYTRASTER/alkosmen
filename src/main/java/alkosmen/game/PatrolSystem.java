@@ -6,6 +6,7 @@ import java.util.Objects;
 public final class PatrolSystem {
     private static final double DEFAULT_SPEED = 0.032;
     private static final double TARGET_EPSILON = 0.001;
+    private static final double NPC_COLLISION_DISTANCE = 0.78;
 
     private final double speed;
 
@@ -25,11 +26,16 @@ public final class PatrolSystem {
         Objects.requireNonNull(occupancy, "occupancy");
 
         for (TopDownPatrol patrol : patrols) {
-            moveAlongRoute(patrol, now, occupancy);
+            moveAlongRoute(patrol, patrols, now, occupancy);
         }
     }
 
-    private void moveAlongRoute(TopDownPatrol patrol, long now, Occupancy occupancy) {
+    private void moveAlongRoute(
+            TopDownPatrol patrol,
+            List<TopDownPatrol> patrols,
+            long now,
+            Occupancy occupancy
+    ) {
         if (!patrol.hasRoute()) {
             return;
         }
@@ -54,12 +60,38 @@ public final class PatrolSystem {
                 ? Math.copySign(Math.min(speed, Math.abs(dy)), dy)
                 : 0.0;
 
-        if (!occupancy.canOccupy(patrol.x() + stepX, patrol.y() + stepY)) {
+        double nextX = patrol.x() + stepX;
+        double nextY = patrol.y() + stepY;
+
+        if (collidesWithOtherPatrol(patrol, patrols, nextX, nextY)) {
+            patrol.advanceWaypoint();
+            return;
+        }
+
+        if (!occupancy.canOccupy(nextX, nextY)) {
             patrol.advanceWaypoint();
             return;
         }
 
         patrol.moveBy(stepX, stepY);
+    }
+
+    private boolean collidesWithOtherPatrol(
+            TopDownPatrol patrol,
+            List<TopDownPatrol> patrols,
+            double nextX,
+            double nextY
+    ) {
+        for (TopDownPatrol other : patrols) {
+            if (other == patrol) {
+                continue;
+            }
+
+            if (Math.hypot(nextX - other.x(), nextY - other.y()) < NPC_COLLISION_DISTANCE) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @FunctionalInterface
