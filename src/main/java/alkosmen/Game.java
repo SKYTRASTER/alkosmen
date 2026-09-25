@@ -128,9 +128,13 @@ public final class Game extends Canvas implements Runnable {
    private long ufoStartedAt;
    private boolean secretArea;
    private volatile boolean questMapOpen;
-   private double secretX = (double)2.0F;
+   private double secretX = 3.5;
    private double secretY = (double)5.0F;
    private static final String CELLAR_QUEST_ID = "secret_cellar";
+   private static final int CELLAR_CHEST_X = 6;
+   private static final int CELLAR_CHEST_Y = 3;
+   private static final int CELLAR_BRICK_X = 5;
+   private static final int CELLAR_BRICK_Y = 4;
    private static final double MOVE_SPEED = 0.12;
    private static final double TOP_DOWN_SPEED = 0.115;
    private static final double PATROL_COLLISION_MARGIN = 0.06;
@@ -457,7 +461,7 @@ public final class Game extends Canvas implements Runnable {
                      this.showLine(this.dbText("npc.far"), now);
                   } else {
                      this.secretArea = true;
-                     this.secretX = (double)2.0F;
+                     this.secretX = 3.5;
                      this.secretY = (double)5.0F;
                      this.showLine(this.dbText("quest.secret.enter"), now);
                   }
@@ -1117,7 +1121,7 @@ public final class Game extends Canvas implements Runnable {
       } else if (chest.contains(screenX, screenY)) {
          if (this.cellarQuest.stage() > 0) {
             this.showLine(this.dbText("quest.secret.inspect"), now);
-         } else if (Math.abs(this.secretX - 7.0) > 1.8) {
+         } else if (Math.hypot(this.secretX - 7.0, this.secretY - 3.5) > 2.0) {
             this.showLine(this.dbText("quest.secret.too_far"), now);
          } else {
             this.advanceCellarQuest(new LocalGameStore.StoryState(true, false, 1), "quest.secret.inspect", now);
@@ -1125,7 +1129,7 @@ public final class Game extends Canvas implements Runnable {
       } else if (brick.contains(screenX, screenY)) {
          if (this.cellarQuest.stage() == 0) {
             this.showLine(this.dbText("quest.secret.first"), now);
-         } else if (Math.abs(this.secretX - 5.5) > 1.6) {
+         } else if (Math.hypot(this.secretX - 5.5, this.secretY - 4.5) > 1.8) {
             this.showLine(this.dbText("quest.secret.too_far"), now);
          } else if (this.cellarQuest.completed()) {
             this.showLine(this.dbText("quest.secret.note"), now);
@@ -1152,29 +1156,36 @@ public final class Game extends Canvas implements Runnable {
    }
 
    private Rectangle cellarExitBounds() {
-      return new Rectangle((int)(this.getWidth() * 0.28), (int)((this.getHeight() - 56) * 0.72),
-         (int)(this.getWidth() * 0.11), (int)((this.getHeight() - 56) * 0.15));
+      int tile = this.cellarTileSize();
+      return new Rectangle((this.getWidth() - 10 * tile) / 2 + tile,
+         (this.getHeight() - 56 - 8 * tile) / 2 + 5 * tile, tile, tile);
    }
 
    private Rectangle cellarChestBounds() {
-      return new Rectangle((int)(this.getWidth() * 0.57), (int)((this.getHeight() - 56) * 0.70),
-         (int)(this.getWidth() * 0.12), (int)((this.getHeight() - 56) * 0.16));
+      int tile = this.cellarTileSize();
+      return new Rectangle((this.getWidth() - 10 * tile) / 2 + CELLAR_CHEST_X * tile,
+         (this.getHeight() - 56 - 8 * tile) / 2 + CELLAR_CHEST_Y * tile, 2 * tile, tile);
    }
 
    private Rectangle cellarBrickBounds() {
-      return new Rectangle((int)(this.getWidth() * 0.51), (int)((this.getHeight() - 56) * 0.75),
-         (int)(this.getWidth() * 0.06), (int)((this.getHeight() - 56) * 0.10));
+      int tile = this.cellarTileSize();
+      return new Rectangle((this.getWidth() - 10 * tile) / 2 + CELLAR_BRICK_X * tile,
+         (this.getHeight() - 56 - 8 * tile) / 2 + CELLAR_BRICK_Y * tile, tile, tile);
+   }
+
+   private int cellarTileSize() {
+      return Math.min(64, Math.max(32, (this.getHeight() - 56 - 70) / 8));
    }
 
    private void updateSecretArea() {
       if (this.interactionRequested) {
          this.interactionRequested = false;
          long now = System.currentTimeMillis();
-         Rectangle target = this.cellarQuest.stage() == 0 && Math.abs(this.secretX - 7.0) <= 1.8
+         Rectangle target = this.cellarQuest.stage() == 0 && Math.hypot(this.secretX - 7.0, this.secretY - 3.5) <= 2.0
             ? this.cellarChestBounds()
-            : this.cellarQuest.stage() == 1 && Math.abs(this.secretX - 5.5) <= 1.6
+            : this.cellarQuest.stage() == 1 && Math.hypot(this.secretX - 5.5, this.secretY - 4.5) <= 1.8
                ? this.cellarBrickBounds()
-               : this.secretX <= 3.3 ? this.cellarExitBounds() : null;
+               : Math.hypot(this.secretX - 1.5, this.secretY - 5.5) <= 1.8 ? this.cellarExitBounds() : null;
          if (target != null) {
             this.handleCellarClick(target.x + target.width / 2, target.y + target.height / 2, now);
             if (!this.secretArea) {
@@ -1189,7 +1200,7 @@ public final class Game extends Canvas implements Runnable {
       } else {
          double length = Math.hypot(dx, dy);
          this.secretX = Math.max((double)1.0F, Math.min((double)8.0F, this.secretX + dx / length * 0.115));
-         this.secretY = Math.max(4.8, Math.min(6.0, this.secretY + dy / length * 0.115));
+         this.secretY = Math.max(1.0, Math.min(6.0, this.secretY + dy / length * 0.115));
          this.playerDir = Math.abs(dy) > Math.abs(dx) ? (dy < (double)0.0F ? 3 : 4) : (dx < (double)0.0F ? 0 : 1);
       }
 
@@ -1230,21 +1241,33 @@ public final class Game extends Canvas implements Runnable {
       g2.drawString("WASD / стрелки — идти     ЛКМ / E — осмотреть или выйти", bannerX + 16, bannerY + 68);
 
       Rectangle exit = this.cellarExitBounds();
+      g2.setColor(new Color(20, 16, 11, 190));
+      g2.fillRoundRect(exit.x + 9, exit.y + 12, exit.width - 18, exit.height - 20, 6, 6);
+      g2.setColor(new Color(232, 167, 84));
+      g2.drawRoundRect(exit.x + 9, exit.y + 12, exit.width - 19, exit.height - 21, 6, 6);
       g2.setColor(new Color(12, 18, 25, 205));
-      g2.fillRoundRect(exit.x + 12, exit.y + 5, exit.width - 24, 25, 6, 6);
+      g2.fillRoundRect(exit.x + 5, exit.y + 16, exit.width - 10, 24, 6, 6);
       g2.setColor(new Color(255, 216, 130));
       g2.setFont(new Font("Dialog", 1, 12));
-      g2.drawString("ВЫХОД", exit.x + (exit.width - g2.getFontMetrics().stringWidth("ВЫХОД")) / 2, exit.y + 23);
+      g2.drawString("ВЫХОД", exit.x + (exit.width - g2.getFontMetrics().stringWidth("ВЫХОД")) / 2, exit.y + 33);
 
       Rectangle chest = this.cellarChestBounds();
-      g2.setColor(new Color(12, 18, 25, 215));
-      g2.fillRoundRect(chest.x + 12, chest.y + 4, chest.width - 24, 25, 6, 6);
+      g2.setColor(new Color(21, 12, 8, 205));
+      g2.fillRoundRect(chest.x + 3, chest.y + 20, chest.width - 6, chest.height - 20, 7, 7);
+      g2.setColor(this.cellarQuest.stage() == 0 ? new Color(112, 59, 28) : new Color(66, 49, 38));
+      g2.fillRoundRect(chest.x + 8, chest.y + 23, chest.width - 16, chest.height - 27, 5, 5);
       g2.setColor(this.cellarQuest.stage() == 0 ? new Color(238, 184, 80) : new Color(143, 120, 84));
-      g2.drawRoundRect(chest.x + 5, chest.y + 31, chest.width - 10, chest.height - 38, 7, 7);
+      g2.drawRoundRect(chest.x + 8, chest.y + 23, chest.width - 17, chest.height - 28, 5, 5);
+      g2.drawLine(chest.x + 12, chest.y + 39, chest.x + chest.width - 12, chest.y + 39);
+      g2.drawLine(chest.x + 25, chest.y + 25, chest.x + 25, chest.y + chest.height - 8);
+      g2.drawLine(chest.x + chest.width - 25, chest.y + 25, chest.x + chest.width - 25, chest.y + chest.height - 8);
+      g2.fillRect(chest.x + chest.width / 2 - 4, chest.y + 38, 8, 8);
+      g2.setColor(new Color(12, 18, 25, 220));
+      g2.fillRoundRect(chest.x + 10, chest.y - 6, chest.width - 20, 23, 6, 6);
       g2.setColor(new Color(255, 221, 166));
       g2.setFont(new Font("Dialog", 1, 12));
       String chestName = this.cellarQuest.stage() == 0 ? "ЯЩИК [ЛКМ]" : "ПУСТОЙ «ТИЧ»";
-      g2.drawString(chestName, chest.x + (chest.width - g2.getFontMetrics().stringWidth(chestName)) / 2, chest.y + 22);
+      g2.drawString(chestName, chest.x + (chest.width - g2.getFontMetrics().stringWidth(chestName)) / 2, chest.y + 10);
 
       if (this.cellarQuest.stage() > 0) {
          Rectangle brick = this.cellarBrickBounds();
@@ -1259,11 +1282,12 @@ public final class Game extends Canvas implements Runnable {
       if (this.playerSprites != null) {
          Image[] track = this.playerSprites[this.playerDir];
          Image frame = track[Math.floorMod(this.animFrame, track.length)];
-         int size = (int)Math.round((this.getHeight() - 56) * 0.16);
-         int footX = (int)Math.round(this.getWidth() * (0.31 + (this.secretX - 1.5) * 0.06));
-         int footY = (int)Math.round((this.getHeight() - 56) * 0.83 + (this.secretY - 5.3) * 16);
-         int px = footX - size / 2;
-         int py = footY - size;
+         int tile = this.cellarTileSize();
+         int originX = (this.getWidth() - 10 * tile) / 2;
+         int originY = (this.getHeight() - 56 - 8 * tile) / 2;
+         int size = (int)Math.round(tile * 1.7);
+         int px = originX + (int)(this.secretX * tile) - (size - tile) / 2;
+         int py = originY + (int)(this.secretY * tile) - (size - tile);
          g2.drawImage(frame, px, py, size, size, (ImageObserver)null);
       }
 
