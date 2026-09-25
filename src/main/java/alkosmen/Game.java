@@ -15,6 +15,7 @@ import alkosmen.objects.Player;
 import alkosmen.persistence.LocalGameStore;
 import alkosmen.settings.Constants;
 import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -115,7 +116,10 @@ public final class Game extends Canvas implements Runnable {
    private LocalGameStore.StoryState eboboQuest = new LocalGameStore.StoryState(false, false, 0);
    private LocalGameStore.StoryState sacredQuest = new LocalGameStore.StoryState(false, false, 0);
    private LocalGameStore.StoryState cellarQuest = new LocalGameStore.StoryState(false, false, 0);
-   private final String[] cellarObjectives = new String[3];
+   private final String[] cellarObjectives = new String[4];
+   private final String[] cellarTargetLabels = new String[3];
+   private String cellarReturnObjective;
+   private String cellarCompleteObjective;
    private List eboboPhotos = List.of();
    private List sacredCaches = List.of();
    private LocalGameStore.Tile secretEntrance;
@@ -131,6 +135,8 @@ public final class Game extends Canvas implements Runnable {
    private double secretX = 3.5;
    private double secretY = (double)5.0F;
    private static final String CELLAR_QUEST_ID = "secret_cellar";
+   private static final int CELLAR_RECEIPT_FOUND = 2;
+   private static final int CELLAR_RECEIPT_RETURNED = 3;
    private static final int CELLAR_CHEST_X = 6;
    private static final int CELLAR_CHEST_Y = 3;
    private static final int CELLAR_BRICK_X = 5;
@@ -380,6 +386,10 @@ public final class Game extends Canvas implements Runnable {
          this.offer("sacred_tich", "quest.sacred.offer.v2");
       } else if (!this.sacredQuest.completed() && this.sacredQuest.stage() >= this.sacredCaches.size()) {
          this.turnIn("sacred_tich", "quest.sacred.finish");
+      } else if (this.cellarQuest.stage() == CELLAR_RECEIPT_FOUND) {
+         this.turnIn(CELLAR_QUEST_ID, "quest.secret.finish");
+      } else if (this.cellarQuest.stage() >= CELLAR_RECEIPT_RETURNED) {
+         this.info(CELLAR_QUEST_ID, "quest.secret.done", this.dbText("quest.secret.done.body"));
       } else {
          this.info("sacred_tich", "quest.sacred.progress", this.dbText(this.sacredQuest.completed() ? "quest.sacred.done.body" : "quest.sacred.progress.body"));
       }
@@ -465,7 +475,7 @@ public final class Game extends Canvas implements Runnable {
                      this.secretArea = true;
                      this.secretX = 3.5;
                      this.secretY = (double)5.0F;
-                     this.showLine(this.dbText("quest.secret.enter"), now);
+                     this.showLine(this.dbText("quest.secret.v2.enter"), now);
                   }
                }
 
@@ -538,6 +548,11 @@ public final class Game extends Canvas implements Runnable {
                      if (finished) {
                         this.showLine(this.dbText("quest.tolya.finish.line"), now);
                      }
+                  } else if (CELLAR_QUEST_ID.equals(selected.questId())) {
+                     LocalGameStore.StoryState next = new LocalGameStore.StoryState(true, true, CELLAR_RECEIPT_RETURNED);
+                     this.gameStore.saveStory(CELLAR_QUEST_ID, next);
+                     this.cellarQuest = next;
+                     this.showLine(this.dbText("quest.secret.finish.line"), now);
                   } else {
                      LocalGameStore.StoryState old = "ebobo_ufo".equals(selected.questId()) ? this.eboboQuest : this.sacredQuest;
                      boolean finished = selected.action() == Game.PanelAction.TURN_IN;
@@ -795,13 +810,7 @@ public final class Game extends Canvas implements Runnable {
                               npcGraphics.dispose();
                               this.drawNpcLabel(g, c, drawX + cell / 2, npcY - 4);
                               if (c == 'N') {
-                                 if (this.tolyaQuestAccepted && (!this.tolyaQuestComplete || this.sacredQuest.accepted())) {
-                                    if (this.score >= this.bottleGoal && !this.tolyaQuestComplete || this.sacredQuest.accepted() && !this.sacredQuest.completed() && this.sacredQuest.stage() >= this.sacredCaches.size()) {
-                                       this.drawQuestMarker(g, drawX + cell / 2, npcY - 27, "?", true);
-                                    }
-                                 } else {
-                                    this.drawQuestMarker(g, drawX + cell / 2, npcY - 27, "!", true);
-                                 }
+                                 this.drawTolyaQuestMarker(g, drawX + cell / 2, npcY - 27);
                               }
 
                               if (c == 'V') {
@@ -850,7 +859,7 @@ public final class Game extends Canvas implements Runnable {
          }
 
          if (this.secretArea) {
-            this.drawSecretArea(g);
+            this.drawSecretArea(g, sceneTime);
          }
 
          if (sceneTime < this.photoFlashUntil) {
@@ -950,6 +959,20 @@ public final class Game extends Canvas implements Runnable {
       g2.setColor(gold ? new Color(255, 207, 58) : new Color(205, 218, 235));
       g2.drawString(symbol, centerX - 7, y);
       g2.dispose();
+   }
+
+   private void drawTolyaQuestMarker(Graphics g, int centerX, int y) {
+      boolean bottlesReady = this.tolyaQuestAccepted && !this.tolyaQuestComplete && this.score >= this.bottleGoal;
+      boolean tichReady = this.sacredQuest.accepted() && !this.sacredQuest.completed()
+         && this.sacredQuest.stage() >= this.sacredCaches.size();
+      if (bottlesReady || tichReady || this.cellarQuest.stage() == CELLAR_RECEIPT_FOUND) {
+         this.drawQuestMarker(g, centerX, y, "?", true);
+      } else if (this.tolyaQuestAccepted && !this.tolyaQuestComplete
+         || this.sacredQuest.accepted() && this.cellarQuest.stage() < CELLAR_RECEIPT_FOUND) {
+         this.drawQuestMarker(g, centerX, y, "?", false);
+      } else if (!this.tolyaQuestAccepted || this.tolyaQuestComplete && !this.sacredQuest.accepted()) {
+         this.drawQuestMarker(g, centerX, y, "!", false);
+      }
    }
 
    private void drawStorySites(Graphics g) {
@@ -1110,13 +1133,17 @@ public final class Game extends Canvas implements Runnable {
          return "Кликни на Толю и прими задание";
       } else if (!this.tolyaQuestComplete) {
          return this.score >= this.bottleGoal ? "Все бутылки собраны — вернись к Толе" : "Бутылки для Толи: " + this.score + "/" + this.bottleGoal;
+      } else if (this.cellarQuest.stage() == CELLAR_RECEIPT_FOUND) {
+         return this.cellarReturnObjective;
+      } else if (this.cellarQuest.stage() >= CELLAR_RECEIPT_RETURNED) {
+         return this.cellarCompleteObjective;
       } else {
          return !this.sacredQuest.accepted() ? "У Толи есть новая легенда — кликни на него" : "Секретный подвал открыт на северо-востоке площади";
       }
    }
 
    private String cellarObjective() {
-      int step = Math.min(2, Math.max(0, this.cellarQuest.stage()));
+      int step = Math.min(3, Math.max(0, this.cellarQuest.stage()));
       String objective = this.cellarObjectives[step];
       return objective != null ? objective : "Осмотри ящик справа [ЛКМ]";
    }
@@ -1130,25 +1157,25 @@ public final class Game extends Canvas implements Runnable {
          if (Math.hypot(this.secretX - 1.5, this.secretY - 5.5) <= 1.8) {
             this.leaveCellar(now);
          } else {
-            this.showLine(this.dbText("quest.secret.too_far"), now);
+            this.showLine(this.dbText("quest.secret.too_far.exit"), now);
          }
       } else if (chest.contains(screenX, screenY)) {
          if (this.cellarQuest.stage() > 0) {
-            this.showLine(this.dbText("quest.secret.inspect"), now);
+            this.showLine(this.dbText("quest.secret.inspect.again"), now);
          } else if (Math.hypot(this.secretX - 7.0, this.secretY - 3.5) > 2.0) {
-            this.showLine(this.dbText("quest.secret.too_far"), now);
+            this.showLine(this.dbText("quest.secret.too_far.chest"), now);
          } else {
-            this.advanceCellarQuest(new LocalGameStore.StoryState(true, false, 1), "quest.secret.inspect", now);
+            this.advanceCellarQuest(new LocalGameStore.StoryState(true, false, 1), "quest.secret.v2.inspect", now);
          }
       } else if (brick.contains(screenX, screenY)) {
          if (this.cellarQuest.stage() == 0) {
-            this.showLine(this.dbText("quest.secret.first"), now);
+            this.showLine(this.dbText("quest.secret.v2.first"), now);
          } else if (Math.hypot(this.secretX - 5.5, this.secretY - 4.5) > 1.8) {
-            this.showLine(this.dbText("quest.secret.too_far"), now);
+            this.showLine(this.dbText("quest.secret.too_far.brick"), now);
          } else if (this.cellarQuest.completed()) {
-            this.showLine(this.dbText("quest.secret.note"), now);
+            this.showLine(this.dbText("quest.secret.note.again"), now);
          } else {
-            this.advanceCellarQuest(new LocalGameStore.StoryState(true, true, 2), "quest.secret.note", now);
+            this.advanceCellarQuest(new LocalGameStore.StoryState(true, true, 2), "quest.secret.v2.note", now);
          }
       }
    }
@@ -1166,7 +1193,9 @@ public final class Game extends Canvas implements Runnable {
 
    private void leaveCellar(long now) {
       this.secretArea = false;
-      this.showLine(this.dbText("quest.secret.exit"), now);
+      String line = this.cellarQuest.stage() == CELLAR_RECEIPT_FOUND ? "quest.secret.exit.with_note"
+         : this.cellarQuest.stage() < CELLAR_RECEIPT_FOUND ? "quest.secret.exit.early" : "quest.secret.exit";
+      this.showLine(this.dbText(line), now);
    }
 
    private Rectangle cellarExitBounds() {
@@ -1205,6 +1234,8 @@ public final class Game extends Canvas implements Runnable {
             if (!this.secretArea) {
                return;
             }
+         } else {
+            this.showLine(this.dbText("quest.secret.no_target"), now);
          }
       }
       double dx = (this.rightPressed ? (double)1.0F : (double)0.0F) - (this.leftPressed ? (double)1.0F : (double)0.0F);
@@ -1219,13 +1250,9 @@ public final class Game extends Canvas implements Runnable {
       }
 
       this.animatePlayer();
-      if (this.secretX < 1.3 && this.secretY > 4.4) {
-         this.leaveCellar(System.currentTimeMillis());
-      }
-
    }
 
-   private void drawSecretArea(Graphics g) {
+   private void drawSecretArea(Graphics g, long sceneTime) {
       Graphics2D g2 = (Graphics2D)g.create();
       g2.setClip(0, 0, this.getWidth(), this.getHeight() - 56);
       g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -1244,15 +1271,15 @@ public final class Game extends Canvas implements Runnable {
       int bannerX = 24;
       int bannerY = 18;
       g2.setColor(new Color(12, 18, 25, 225));
-      g2.fillRoundRect(bannerX, bannerY, Math.min(680, this.getWidth() - 48), 88, 10, 10);
+      g2.fillRoundRect(bannerX, bannerY, Math.min(800, this.getWidth() - 48), 92, 10, 10);
       g2.setColor(new Color(255, 209, 140));
       g2.setFont(new Font("Dialog", 1, 18));
-      g2.drawString("ЗАБРОШЕННЫЙ ПОДВАЛ ЗУЕВКИ", bannerX + 16, bannerY + 23);
+      g2.drawString("ПОДВАЛ ЗУЕВКИ · СЛЕД ШУРИНА", bannerX + 16, bannerY + 25);
       g2.setColor(new Color(245, 238, 222));
       g2.setFont(new Font("Dialog", 1, 15));
-      g2.drawString(this.cellarObjective(), bannerX + 16, bannerY + 47);
+      g2.drawString(this.cellarObjective(), bannerX + 16, bannerY + 50);
       g2.setFont(new Font("Dialog", 0, 13));
-      g2.drawString("WASD / стрелки — идти     ЛКМ / E — осмотреть или выйти", bannerX + 16, bannerY + 68);
+      g2.drawString("Иди к светящейся цели · WASD / стрелки — ходить · E / ЛКМ — осмотреть", bannerX + 16, bannerY + 72);
 
       Rectangle exit = this.cellarExitBounds();
       g2.setColor(new Color(20, 16, 11, 190));
@@ -1293,6 +1320,9 @@ public final class Game extends Canvas implements Runnable {
          String mark = this.cellarQuest.completed() ? "!" : "?";
          g2.drawString(mark, brick.x + (brick.width - g2.getFontMetrics().stringWidth(mark)) / 2, brick.y + brick.height / 2 + 7);
       }
+      int activeStage = Math.min(2, Math.max(0, this.cellarQuest.stage()));
+      Rectangle activeTarget = activeStage == 0 ? chest : activeStage == 1 ? this.cellarBrickBounds() : exit;
+      this.drawCellarTarget(g2, activeTarget, this.cellarTargetLabels[activeStage], sceneTime);
       if (this.playerSprites != null) {
          Image[] track = this.playerSprites[this.playerDir];
          Image frame = track[Math.floorMod(this.animFrame, track.length)];
@@ -1306,6 +1336,29 @@ public final class Game extends Canvas implements Runnable {
       }
 
       g2.dispose();
+   }
+
+   private void drawCellarTarget(Graphics2D g2, Rectangle target, String label, long sceneTime) {
+      int glow = 145 + (int)(55 * (1.0 + Math.sin(sceneTime / 230.0)) / 2.0);
+      g2.setColor(new Color(255, 198, 91, glow));
+      g2.setStroke(new BasicStroke(3.0F));
+      g2.drawRoundRect(target.x - 4, target.y - 4, target.width + 8, target.height + 8, 12, 12);
+
+      if (label == null) {
+         return;
+      }
+      g2.setFont(new Font("Dialog", 1, 14));
+      int width = g2.getFontMetrics().stringWidth(label) + 24;
+      int x = Math.max(12, Math.min(this.getWidth() - width - 12, target.x + (target.width - width) / 2));
+      int y = Math.max(116, target.y - 46);
+      g2.setColor(new Color(14, 19, 25, 235));
+      g2.fillRoundRect(x, y, width, 29, 8, 8);
+      g2.setColor(new Color(255, 201, 104));
+      g2.drawRoundRect(x, y, width - 1, 28, 8, 8);
+      g2.drawString(label, x + 12, y + 20);
+      int centerX = target.x + target.width / 2;
+      g2.drawLine(centerX - 5, y + 30, centerX, y + 36);
+      g2.drawLine(centerX + 5, y + 30, centerX, y + 36);
    }
 
    private void drawDialogue(Graphics g, String line) {
@@ -1605,9 +1658,15 @@ public final class Game extends Canvas implements Runnable {
                   this.eboboQuest = this.gameStore.loadStory("ebobo_ufo");
                   this.sacredQuest = this.gameStore.loadStory("sacred_tich");
                   this.cellarQuest = this.gameStore.loadStory(CELLAR_QUEST_ID);
-                  this.cellarObjectives[0] = this.gameStore.text("quest.secret.objective.0");
-                  this.cellarObjectives[1] = this.gameStore.text("quest.secret.objective.1");
-                  this.cellarObjectives[2] = this.gameStore.text("quest.secret.objective.done");
+                  this.cellarObjectives[0] = this.gameStore.text("quest.secret.v2.objective.0");
+                  this.cellarObjectives[1] = this.gameStore.text("quest.secret.v2.objective.1");
+                  this.cellarObjectives[2] = this.gameStore.text("quest.secret.v2.objective.done");
+                  this.cellarObjectives[3] = this.gameStore.text("quest.secret.objective.returned");
+                  this.cellarReturnObjective = this.gameStore.text("quest.secret.objective.return");
+                  this.cellarCompleteObjective = this.gameStore.text("quest.secret.objective.complete");
+                  for (int stage = 0; stage < this.cellarTargetLabels.length; ++stage) {
+                     this.cellarTargetLabels[stage] = this.gameStore.text("quest.secret.v2.target." + stage);
+                  }
                   this.tolyaQuestAccepted = savedQuest.accepted();
                   this.tolyaQuestComplete = savedQuest.completed();
 

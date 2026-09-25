@@ -55,6 +55,32 @@ quest.secret.first|Сначала осмотри ящик справа.
 quest.secret.note|Расписка: шурин должен Толе с 1998-го!
 quest.secret.too_far|Подойди ближе, потом нажми ЛКМ.
 quest.secret.save_error|Не удалось сохранить находку. Попробуй ещё раз.
+quest.secret.v2.enter|Ключ от пустого «Тича» подошёл. Шурин прятал здесь бумаги. Проверь ящик справа.
+quest.secret.v2.objective.0|1/3: осмотри подсвеченный ящик справа [E или ЛКМ]
+quest.secret.v2.objective.1|2/3: найди подсвеченный кирпич в центре [E или ЛКМ]
+quest.secret.v2.objective.done|3/3: расписка найдена — выйди через дверь слева
+quest.secret.objective.returned|Улика уже у Толи. Выйди из подвала слева
+quest.secret.objective.return|Расписка шурина у тебя — отнеси её Толе
+quest.secret.objective.complete|Квест закрыт. Толя теперь знает про долг шурина
+quest.secret.v2.target.0|1  ЯЩИК
+quest.secret.v2.target.1|2  КИРПИЧ
+quest.secret.v2.target.2|3  ВЫХОД
+quest.secret.v2.inspect|В ящике квитанция за тару. На обороте: «Под шатающимся кирпичом».
+quest.secret.inspect.again|Ящик пуст. Подсвеченный кирпич теперь важнее.
+quest.secret.v2.first|Сначала проверь подсвеченный ящик справа.
+quest.secret.v2.note|Под кирпичом расписка: шурин должен Толе 50 рублей с 1998-го. Вот тебе и клад.
+quest.secret.note.again|Расписка уже у тебя. Выход слева, потом к Толе.
+quest.secret.too_far.chest|Ящик ещё далеко. Подойди ближе и нажми E или ЛКМ.
+quest.secret.too_far.brick|До кирпича далеко. Подойди ближе и нажми E или ЛКМ.
+quest.secret.too_far.exit|До выхода далеко. Подойди к двери слева.
+quest.secret.no_target|Иди к подсвеченной цели и нажми E. Можно также щёлкнуть по ней.
+quest.secret.exit.early|Ушёл без расписки. Ящик и кирпич никуда не денутся.
+quest.secret.exit.with_note|Расписка у тебя. Отнеси её Мозолю Толе на площади.
+quest.secret.finish.title|Мозоль Толя: шурин должен
+quest.secret.finish.body|Это почерк шурина! Пятьдесят рублей с 1998-го.\nС процентами он мне теперь пол-Зуевки должен!
+quest.secret.finish.line|Мозоль Толя: Вот расписка! Теперь шурин точно не отвертится.
+quest.secret.done.title|Долг шурина
+quest.secret.done.body|Расписка у Толи. Шурин опять обещал отдать «завтра».
 npc.red_brother|Рыжий: На Чапаева опять свет моргает. Сестра говорит, это к добру.
 npc.red_sister|Рыжая: Брат врёт. Свет моргает, потому что он удлинитель спёр.
 npc.dnb_partygoer|Рейвер: Электричка ушла, а басы в голове всё ещё едут.
