@@ -39,6 +39,49 @@ public final class BackgroundPanel extends JPanel {
       12, 14, 13, 15
    };
 
+
+   /*
+    * 24-beat dance choreography for Ebobo.
+    * Frames come from idle / walk / laugh / attack / hurt assets, but the
+    * position is intentionally kept near one spot so he dances instead of
+    * sliding left-right like a pendulum.
+    */
+   private static final int[] EBOBO_SEQUENCE = {
+      0, 1, 8, 9,
+      4, 5, 10, 11,
+      12, 13, 6, 7,
+      16, 17, 14, 15,
+      18, 19, 8, 9,
+      20, 21, 2, 0
+   };
+
+   private static final int[] EBOBO_X_OFFSETS = {
+      0, -1, -2, 0,
+      2, 3, 1, 0,
+      -1, -2, 0, 2,
+      3, 1, 0, -1,
+      -2, 0, 2, 1,
+      0, -1, 0, 0
+   };
+
+   private static final int[] EBOBO_JUMP_OFFSETS = {
+      0, 2, 7, 13,
+      7, 2, 0, 5,
+      11, 5, 1, 0,
+      3, 9, 15, 9,
+      3, 0, 6, 12,
+      6, 1, 0, 0
+   };
+
+   private static final int[] EBOBO_TILT_DEGREES = {
+      0, -2, -5, 3,
+      6, 2, -3, -6,
+      4, 7, 2, -2,
+      -5, -2, 5, 8,
+      3, -3, -7, -3,
+      4, 2, -1, 0
+   };
+
    private final BufferedImage background;
    private final BufferedImage[] danceFrames;
    private final BufferedImage[] eboboDanceFrames;
@@ -136,21 +179,18 @@ public final class BackgroundPanel extends JPanel {
    }
 
    private void drawEboboDance(Graphics2D g) {
-      int frame = (this.danceFrame + 5) % DANCE_FRAME_COUNT;
-      BufferedImage ebobo = this.eboboDanceFrames[frame];
+      int beat = (this.danceFrame + 5) % DANCE_FRAME_COUNT;
+      BufferedImage ebobo = this.eboboDanceFrames[EBOBO_SEQUENCE[beat]];
 
-      double phase = Math.PI * 2.0 * frame / DANCE_FRAME_COUNT;
       int targetHeight = (int)Math.round(this.getHeight() * 0.185);
       int targetWidth = (int)Math.round(targetHeight * ebobo.getWidth() / (double)ebobo.getHeight());
 
-      int sway = (int)Math.round(Math.sin(phase * 1.5) * 8.0);
-      int bob = (int)Math.round(Math.abs(Math.sin(phase * 2.5)) * 9.0);
-      double tilt = Math.sin(phase * 1.5) * 0.045;
-
-      double anchorX = this.getWidth() * 0.745 + sway;
+      double motionScale = Math.max(0.75, this.getHeight() / 640.0);
+      double anchorX = this.getWidth() * 0.745 + EBOBO_X_OFFSETS[beat] * motionScale;
       double groundY = this.getHeight() * EBOBO_GROUND_Y_RATIO;
       double baselineLift = this.getHeight() * EBOBO_BASELINE_LIFT_RATIO;
-      double spriteY = groundY - baselineLift - bob;
+      double spriteY = groundY - baselineLift - EBOBO_JUMP_OFFSETS[beat] * motionScale;
+      double tilt = Math.toRadians(EBOBO_TILT_DEGREES[beat]);
 
       drawGroundShadow(g, anchorX, groundY, targetWidth);
 
