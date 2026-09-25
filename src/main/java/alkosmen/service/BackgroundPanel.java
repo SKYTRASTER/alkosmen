@@ -22,6 +22,7 @@ public final class BackgroundPanel extends JPanel {
    private static final int DANCE_FRAME_MS = 250;
    private final BufferedImage background;
    private final BufferedImage[] danceFrames;
+   private final BufferedImage[] eboboDanceFrames;
    private final Timer danceTimer;
    private int danceFrame;
 
@@ -33,6 +34,7 @@ public final class BackgroundPanel extends JPanel {
       try {
          this.background = ImageIO.read(resource);
          this.danceFrames = CharacterSpriteAssets.loadGridAtlas(WALK_RESOURCE, 4, 5, 30)[3];
+         this.eboboDanceFrames = loadFrames(EBOBO_DANCE_RESOURCE, 4);
       } catch (IOException error) {
          throw new IllegalStateException("Could not load menu art", error);
       }
@@ -67,14 +69,40 @@ public final class BackgroundPanel extends JPanel {
       g.drawImage(this.background, (this.getWidth() - width) / 2, (this.getHeight() - height) / 2, width, height, this);
 
       BufferedImage pose = this.danceFrames[DANCE_POSES[this.danceFrame]];
-      int targetHeight = (int)Math.round(this.getHeight() * 0.43);
+      int targetHeight = (int)Math.round(this.getHeight() * 0.235);
       int targetWidth = (int)Math.round(targetHeight * pose.getWidth() / (double)pose.getHeight());
       Graphics2D dancer = (Graphics2D)g.create();
-      dancer.translate(this.getWidth() * 0.65 + DANCE_SWAY[this.danceFrame],
-         this.getHeight() * 0.91 - DANCE_BOB[this.danceFrame]);
+      dancer.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+      dancer.translate(this.getWidth() * 0.655 + DANCE_SWAY[this.danceFrame],
+         this.getHeight() * 0.705 - DANCE_BOB[this.danceFrame]);
       dancer.rotate(DANCE_TILT[this.danceFrame]);
       dancer.drawImage(pose, -targetWidth / 2, -targetHeight, targetWidth, targetHeight, this);
       dancer.dispose();
+
+      BufferedImage ebobo = this.eboboDanceFrames[this.danceFrame % this.eboboDanceFrames.length];
+      int eboboHeight = (int)Math.round(this.getHeight() * 0.19);
+      int eboboWidth = (int)Math.round(eboboHeight * ebobo.getWidth() / (double)ebobo.getHeight());
+      Graphics2D eboboDancer = (Graphics2D)g.create();
+      eboboDancer.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+      eboboDancer.translate(this.getWidth() * 0.705 + EBOBO_SWAY[this.danceFrame],
+         this.getHeight() * 0.705 - EBOBO_BOB[this.danceFrame]);
+      eboboDancer.rotate(-DANCE_TILT[this.danceFrame] * 0.8);
+      eboboDancer.drawImage(ebobo, -eboboWidth / 2, -eboboHeight, eboboWidth, eboboHeight, this);
+      eboboDancer.dispose();
+
       g.dispose();
+   }
+
+   private static BufferedImage[] loadFrames(String directory, int count) throws IOException {
+      BufferedImage[] frames = new BufferedImage[count];
+      for (int i = 0; i < count; ++i) {
+         String path = directory + "/" + String.format("%02d.png", i);
+         URL resource = BackgroundPanel.class.getResource(path);
+         if (resource == null) {
+            throw new IOException("Animation frame not found: " + path);
+         }
+         frames[i] = ImageIO.read(resource);
+      }
+      return frames;
    }
 }
