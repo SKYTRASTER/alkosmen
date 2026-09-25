@@ -53,7 +53,7 @@ import javax.swing.Timer;
 
 public class DesktopStartGame {
    static final System.Logger LOGGER = System.getLogger(DesktopStartGame.class.getName());
-   private static final String MENU_LOGO_SOURCE = "/alkosmen/ui/menu/town_square_menu_hero_v2.png";
+   private static final String MENU_LOGO_SOURCE = "/alkosmen/ui/menu/alkosmeny_title_logo_v1_transparent.png";
    private static final int MENU_ART_WIDTH = 1672;
    private static final int MENU_ART_HEIGHT = 941;
    private static final int LOGO_SOURCE_X = 60;
@@ -79,9 +79,9 @@ public class DesktopStartGame {
          applyConstants(properties);
          MenuMusicPlayer menuMusic = new MenuMusicPlayer();
          JFrame frame = createMenuFrame(menuMusic);
-         PixelButton start = new PixelButton(text("menu.button.start", "РЎС‚Р°СЂС‚"));
-         PixelButton settings = new PixelButton(text("menu.button.settings", "РќР°СЃС‚СЂРѕР№РєРё"));
-         PixelButton exit = new PixelButton(text("menu.button.exit", "Р’С‹С…РѕРґ"));
+         PixelButton start = new PixelButton(text("menu.button.start", "Старт"));
+         PixelButton settings = new PixelButton(text("menu.button.settings", "Настройки"));
+         PixelButton exit = new PixelButton(text("menu.button.exit", "Выход"));
          JPanel menuButtons = createMenuButtonsPanel(start, settings, exit);
          start.addActionListener((ex) -> {
             menuMusic.stop();
@@ -191,9 +191,9 @@ public class DesktopStartGame {
    }
 
    private static JLabel createMenuLogoLabel() {
-      URL logoUrl = DesktopStartGame.class.getResource("/alkosmen/ui/menu/town_square_menu_hero_v2.png");
+      URL logoUrl = DesktopStartGame.class.getResource(MENU_LOGO_SOURCE);
       if (logoUrl == null) {
-         JLabel fallback = new JLabel(text("menu.logo.fallback", "РђР›РљРћРЎРњР•РќР«"));
+         JLabel fallback = new JLabel(text("menu.logo.fallback", "АЛКОСМЕНЫ"));
          fallback.setForeground(new Color(226, 244, 240));
          fallback.setFont(new Font("Dialog", 1, 36));
          return fallback;
@@ -201,7 +201,7 @@ public class DesktopStartGame {
          Image source;
          try {
             BufferedImage art = ImageIO.read(logoUrl);
-            source = art.getSubimage(60, 95, 620, 275);
+            source = art.getSubimage(144, 252, 1256, 528);
          } catch (IOException error) {
             throw new IllegalStateException("Could not load menu logo", error);
          }
@@ -333,7 +333,7 @@ public class DesktopStartGame {
    }
 
    private static void showTemporaryLoadingScreen(JFrame owner, MenuMusicPlayer menuMusic) {
-      JDialog loading = new JDialog(owner, introText("intro.windowTitle", "Р\u0098РЅС‚СЂРѕ"), false);
+      JDialog loading = new JDialog(owner, introText("intro.windowTitle", "Интро"), false);
       loading.setDefaultCloseOperation(2);
       loading.setUndecorated(true);
       boolean resumeMenuMusic = Constants.MenuMusicEnabled;
@@ -620,7 +620,7 @@ public class DesktopStartGame {
       }
 
       if (keys.isEmpty()) {
-         return new String[]{"Р\u00adРџР\u0098Р—РћР” I", "РђР›РљРћРЎРњР•Рќ: РќРћР§РќРћР™ Р—РђРҐРћР”", "", "РќРѕС‡РЅРѕР№ РіРѕСЂРѕРґ РЅРµ СЃРїРёС‚.", "Р¤РѕРЅР°СЂРё С‚СЂРµС‰Р°С‚, СЂР°Р№РѕРЅ С€СѓРјРёС‚.", "РњРµРЅС‚С‹ СѓР¶Рµ РЅР° РїР°С‚СЂСѓР»Рµ.", "", "РџРµСЂРІС‹Р№ СѓСЂРѕРІРµРЅСЊ", "РІСЂРµРјРµРЅРЅРѕ РѕС‚РєР»СЋС‡РµРЅ."};
+         return new String[]{"ЭПИЗОД I", "АЛКОСМЕН: НОЧНОЙ ЗАХОД", "", "Ночной город не спит.", "Фонари трещат, район шумит.", "Менты уже на патруле.", "", "Первый уровень", "временно отключен."};
       } else {
          keys.sort(Comparator.comparingInt((k) -> {
             String suffix = k.substring("intro.crawl.".length());

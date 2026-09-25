@@ -45,6 +45,8 @@
 ## Управление
 
 - движение: `W/A/S/D` или стрелки;
+- взаимодействие: `E` или ЛКМ по NPC/точке;
+- карта квеста «Тич»: `M`;
 - рестарт уровня: `R`.
 
 ## Карта и объекты
@@ -53,9 +55,12 @@
 - `.` - пустая клетка;
 - `P` - точка спавна игрока;
 - `B` - бутылка (цель для сбора);
-- `C` - проходной NPC-патруль;
+- `C` - полицейский патруль;
 - `E` - выход из уровня, открывается после сбора всех бутылок;
-- `N`/`M` - декоративные NPC.
+- `N`/`M` - NPC;
+- квестовые тексты: `src/main/resources/alkosmen/data/quest_dialogues.tsv`;
+- квестовые точки: `src/main/resources/alkosmen/data/quest_steps.tsv`;
+- локальное сохранение: SQLite (`%APPDATA%/Alkosmen/save.sqlite` на Windows).
 
 ## Конфигурация
 
@@ -67,7 +72,7 @@
 
 ## Структура (основное)
 
-- `src/main/java/alkosmen/app/StartGame.java` - запуск меню и старта игры;
+- `src/main/java/alkosmen/app/DesktopStartGame.java` - запуск меню и старта игры;
 - `src/main/java/alkosmen/Game.java` - игровой цикл, рендер и обработка ввода;
 - `src/main/java/alkosmen/game/CopSystem.java` - логика патруля/обнаружения копов;
 - `src/main/java/alkosmen/game/GameHudRenderer.java` - отрисовка HUD и overlay;

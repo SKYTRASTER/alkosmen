@@ -4,6 +4,8 @@ import alkosmen.audio.MidiPlayer;
 import alkosmen.audio.SoundEffectPlayer;
 import alkosmen.game.CopSystem;
 import alkosmen.game.GameHudRenderer;
+import alkosmen.game.PatrolSystem;
+import alkosmen.game.TopDownPatrol;
 import alkosmen.gfx.CharacterSpriteAssets;
 import alkosmen.gfx.SpriteSheet;
 import alkosmen.lore.LoreCharacter;
@@ -35,7 +37,9 @@ import java.net.URL;
 import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import javax.imageio.ImageIO;
 import javax.swing.SwingUtilities;
@@ -70,12 +74,14 @@ public final class Game extends Canvas implements Runnable {
    private Image tileFloor;
    private Image tileWall;
    private Image levelBackground;
+   private Image cellarBackground;
    private Image bottleSprite;
    private Image npcBoy1Sprite;
    private Image npcBoy2Sprite;
    private Image npcTolyaSprite;
    private Image npcEboboSprite;
    private Image npcCopSprite;
+   private final Map<Character, Image[]> townNpcFrames = new HashMap<>();
    private Image[] copWalkLeftFrames;
    private Image[] copWalkRightFrames;
    private Image[] copWalkUpFrames;
@@ -86,6 +92,7 @@ public final class Game extends Canvas implements Runnable {
    private float cameraY;
    private final GameHudRenderer hudRenderer = new GameHudRenderer(56, 1200L);
    private final CopSystem copSystem = new CopSystem(0.045, (double)1.0F, (double)4.5F, 900L);
+   private final PatrolSystem patrolSystem = new PatrolSystem();
    private final List<TopDownPatrol> patrols = new ArrayList<>();
    private final LoreRepository lore = LoreRepository.loadDefault();
    private LocalGameStore gameStore;
@@ -108,6 +115,8 @@ public final class Game extends Canvas implements Runnable {
    private boolean tolyaQuestComplete;
    private LocalGameStore.StoryState eboboQuest = new LocalGameStore.StoryState(false, false, 0);
    private LocalGameStore.StoryState sacredQuest = new LocalGameStore.StoryState(false, false, 0);
+   private LocalGameStore.StoryState cellarQuest = new LocalGameStore.StoryState(false, false, 0);
+   private final String[] cellarObjectives = new String[3];
    private List eboboPhotos = List.of();
    private List sacredCaches = List.of();
    private LocalGameStore.Tile secretEntrance;
@@ -120,11 +129,15 @@ public final class Game extends Canvas implements Runnable {
    private long ufoStartedAt;
    private boolean secretArea;
    private volatile boolean questMapOpen;
-   private double secretX = (double)2.0F;
+   private double secretX = 3.5;
    private double secretY = (double)5.0F;
+   private static final String CELLAR_QUEST_ID = "secret_cellar";
+   private static final int CELLAR_CHEST_X = 6;
+   private static final int CELLAR_CHEST_Y = 3;
+   private static final int CELLAR_BRICK_X = 5;
+   private static final int CELLAR_BRICK_Y = 4;
    private static final double MOVE_SPEED = 0.12;
    private static final double TOP_DOWN_SPEED = 0.115;
-   private static final double PATROL_SPEED = 0.032;
    private static final double PATROL_COLLISION_MARGIN = 0.06;
    private static final double BOTTLE_PICKUP_RADIUS = 0.82;
    private static final double GRAVITY = 0.035;
@@ -195,18 +208,22 @@ public final class Game extends Canvas implements Runnable {
       this.tileFloor = this.sheet.tile(0, 0);
       this.tileWall = this.sheet.tile(1, 0);
       this.bottleSprite = this.loadImageResource("/alkosmen/images/objects/bottle/bottle_tich_gold.png");
+      this.cellarBackground = this.loadImageResource("/alkosmen/ui/levels/cellar_bg_v1.png");
       this.npcBoy1Sprite = this.loadFirstExistingImage("/alkosmen/images/objects/glack/boy1.png", "/alkosmen/images/objects/boy/boy1.png");
       this.npcBoy2Sprite = this.loadFirstExistingImage("/alkosmen/images/objects/glack/boy2.png", "/alkosmen/images/objects/boy/boy2.png");
       BufferedImage tolyaSheet = (BufferedImage)this.loadImageResource("/alkosmen/ui/characters/tolya_zuevka_sheet.png");
       this.npcTolyaSprite = tolyaSheet.getSubimage(50, 480, 460, 480);
       this.npcEboboSprite = this.loadImageResource("/alkosmen/ui/intro/ebobo/walk_right/00.png");
-      Image[][] maleCopFrames = CharacterSpriteAssets.loadGridAtlas("/alkosmen/images/objects/cop/male/walk_atlas.png", 11, 3);
-      this.femaleCopFrames = CharacterSpriteAssets.loadGridAtlas("/alkosmen/images/objects/cop/female/walk_atlas.png", 11, 3);
-      this.copWalkLeftFrames = maleCopFrames[0];
-      this.copWalkRightFrames = maleCopFrames[1];
-      this.copWalkUpFrames = maleCopFrames[2];
-      this.copWalkDownFrames = maleCopFrames[2];
-      this.npcCopSprite = maleCopFrames[2][0];
+      this.loadTownNpc('H', "red_brother");
+      this.loadTownNpc('I', "red_sister");
+      this.loadTownNpc('D', "dnb_partygoer");
+      this.loadTownNpc('J', "train_gopnik");
+      this.loadTownNpc('K', "train_conductor");
+      this.loadTownNpc('S', "suspicious_stranger");
+      this.copWalkLeftFrames = this.loadCopTrackFrames("walk_left");
+      this.copWalkRightFrames = this.loadCopTrackFrames("walk_right");
+      this.copWalkUpFrames = this.loadCopTrackFrames("walk_up");
+      this.copWalkDownFrames = this.loadCopTrackFrames("walk_down");
       this.stepSound = new SoundEffectPlayer("/alkosmen/sounds/step.wav");
       this.jumpSound = new SoundEffectPlayer("/alkosmen/sounds/jump.wav");
       this.bottleCollectSound = new SoundEffectPlayer("/alkosmen/sounds/scratch_bottle.wav");
@@ -326,7 +343,7 @@ public final class Game extends Canvas implements Runnable {
          case 'M' -> var10001 = this.dbText("npc.merchant");
          case 'N' -> var10001 = this.openTolyaPanel();
          case 'V' -> var10001 = this.openEboboPanel();
-         default -> var10001 = this.dbText("npc.near");
+         default -> var10001 = this.dbText(this.npcDialogueKey(nearest));
       }
 
       this.dialogueLine = var10001;
@@ -408,14 +425,16 @@ public final class Game extends Canvas implements Runnable {
          this.handlePanelClick(screenX, screenY, now);
       } else if (this.questMapOpen) {
          this.questMapOpen = false;
+      } else if (this.secretArea) {
+         this.handleCellarClick(screenX, screenY, now);
       } else if (!this.secretArea) {
          int cell = Constants.Size;
 
          for(int y = 0; y < this.levelMap.length; ++y) {
             for(int x = 0; x < this.levelMap[y].length; ++x) {
                char npc = this.levelMap[y][x];
-               if (npc == 'N' || npc == 'V' || npc == 'M' || npc == 'G') {
-                  int size = (int)Math.round((double)cell * 1.7);
+               if (this.isNpcTile(npc) && npc != 'C') {
+                  int size = this.npcDrawSize(npc, cell);
                   int left = (int)((double)((float)(x * cell) - this.cameraX) - (double)(size - cell) / (double)2.0F);
                   int top = (int)((float)(y * cell) - this.cameraY - (float)(size - cell));
                   if ((new Rectangle(left, top, size, size)).contains(screenX, screenY)) {
@@ -426,7 +445,7 @@ public final class Game extends Canvas implements Runnable {
                      } else if (npc == 'V') {
                         this.openEboboPanel();
                      } else {
-                        this.showLine(this.dbText(npc == 'M' ? "npc.merchant" : "npc.cop"), now);
+                        this.showLine(this.dbText(this.npcDialogueKey(npc)), now);
                      }
 
                      return;
@@ -442,7 +461,7 @@ public final class Game extends Canvas implements Runnable {
                      this.showLine(this.dbText("npc.far"), now);
                   } else {
                      this.secretArea = true;
-                     this.secretX = (double)2.0F;
+                     this.secretX = 3.5;
                      this.secretY = (double)5.0F;
                      this.showLine(this.dbText("quest.secret.enter"), now);
                   }
@@ -555,10 +574,10 @@ public final class Game extends Canvas implements Runnable {
    }
 
    private boolean canOccupy(double x, double y) {
-      double minX = x + 0.06;
-      double maxX = x + (double)1.0F - 0.06;
-      double minY = y + 0.06;
-      double maxY = y + (double)1.0F - 0.06;
+      double minX = x + PATROL_COLLISION_MARGIN;
+      double maxX = x + (double)1.0F - PATROL_COLLISION_MARGIN;
+      double minY = y + PATROL_COLLISION_MARGIN;
+      double maxY = y + (double)1.0F - PATROL_COLLISION_MARGIN;
       return !this.isSolid((int)Math.floor(minX), (int)Math.floor(minY)) && !this.isSolid((int)Math.floor(maxX), (int)Math.floor(minY)) && !this.isSolid((int)Math.floor(minX), (int)Math.floor(maxY)) && !this.isSolid((int)Math.floor(maxX), (int)Math.floor(maxY));
    }
 
@@ -599,119 +618,7 @@ public final class Game extends Canvas implements Runnable {
    }
 
    private void updatePatrols() {
-      long now = System.currentTimeMillis();
-
-      for(TopDownPatrol patrol : this.patrols) {
-         this.movePatrolAlongRoute(patrol, now);
-      }
-
-   }
-
-   private void movePatrolAlongRoute(TopDownPatrol patrol, long now) {
-      if (!patrol.route.isEmpty()) {
-         LocalGameStore.Waypoint target = (LocalGameStore.Waypoint)patrol.route.get(patrol.waypointIndex);
-         double dx = (double)target.x() - patrol.x;
-         double dy = (double)target.y() - patrol.y;
-         if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) {
-            if (patrol.waitUntil == 0L) {
-               patrol.waitUntil = now + (long)Math.max(1, target.pauseMs());
-            } else if (now >= patrol.waitUntil) {
-               patrol.waypointIndex = (patrol.waypointIndex + 1) % patrol.route.size();
-               patrol.waitUntil = 0L;
-            }
-
-         } else {
-            double stepX = Math.abs(dx) > 0.001 ? Math.copySign(Math.min(0.032, Math.abs(dx)), dx) : (double)0.0F;
-            double stepY = stepX == (double)0.0F ? Math.copySign(Math.min(0.032, Math.abs(dy)), dy) : (double)0.0F;
-            if (!this.canPatrolOccupy(patrol.x + stepX, patrol.y + stepY)) {
-               patrol.waypointIndex = (patrol.waypointIndex + 1) % patrol.route.size();
-            } else {
-               patrol.x += stepX;
-               patrol.y += stepY;
-               ++patrol.animationTick;
-               patrol.facing = stepX < (double)0.0F ? 0 : (stepX > (double)0.0F ? 1 : (stepY < (double)0.0F ? 2 : 3));
-            }
-         }
-      }
-   }
-
-   private void movePatrolLikePacman(TopDownPatrol patrol, int targetX, int targetY) {
-      if (isAtCellCenter(patrol.x) && isAtCellCenter(patrol.y)) {
-         patrol.x = Math.rint(patrol.x);
-         patrol.y = Math.rint(patrol.y);
-         this.choosePacmanTurn(patrol, targetX, targetY);
-      }
-
-      double stepX = (double)patrol.moveX * 0.032;
-      double stepY = (double)patrol.moveY * 0.032;
-      if (patrol.moveX != 0) {
-         double boundary = patrol.moveX > 0 ? Math.floor(patrol.x) + (double)1.0F : Math.ceil(patrol.x) - (double)1.0F;
-         stepX = Math.copySign(Math.min(Math.abs(stepX), Math.abs(boundary - patrol.x)), stepX);
-      }
-
-      if (patrol.moveY != 0) {
-         double boundary = patrol.moveY > 0 ? Math.floor(patrol.y) + (double)1.0F : Math.ceil(patrol.y) - (double)1.0F;
-         stepY = Math.copySign(Math.min(Math.abs(stepY), Math.abs(boundary - patrol.y)), stepY);
-      }
-
-      if (this.canPatrolOccupy(patrol.x + stepX, patrol.y + stepY)) {
-         patrol.x += stepX;
-         patrol.y += stepY;
-         ++patrol.animationTick;
-      } else {
-         patrol.moveX = -patrol.moveX;
-         patrol.moveY = -patrol.moveY;
-      }
-
-   }
-
-   private void choosePacmanTurn(TopDownPatrol patrol, int targetX, int targetY) {
-      int tileX = (int)patrol.x;
-      int tileY = (int)patrol.y;
-      int bestX = patrol.moveX;
-      int bestY = patrol.moveY;
-      int bestDistance = Integer.MAX_VALUE;
-      boolean hasForwardChoice = false;
-
-      for(int[] direction : new int[][]{{0, -1}, {-1, 0}, {0, 1}, {1, 0}}) {
-         int directionX = direction[0];
-         int directionY = direction[1];
-         if (directionX != -patrol.moveX || directionY != -patrol.moveY) {
-            int nextX = tileX + directionX;
-            int nextY = tileY + directionY;
-            if (!this.isSolid(nextX, nextY)) {
-               hasForwardChoice = true;
-               int distance = squaredDistance(nextX, nextY, targetX, targetY);
-               if (distance < bestDistance) {
-                  bestDistance = distance;
-                  bestX = directionX;
-                  bestY = directionY;
-               }
-            }
-         }
-      }
-
-      if (!hasForwardChoice) {
-         bestX = -patrol.moveX;
-         bestY = -patrol.moveY;
-      }
-
-      patrol.moveX = bestX;
-      patrol.moveY = bestY;
-      if (bestX != 0) {
-         patrol.direction = bestX;
-      }
-
-   }
-
-   private static boolean isAtCellCenter(double coordinate) {
-      return Math.abs(coordinate - Math.rint(coordinate)) < 0.001;
-   }
-
-   private static int squaredDistance(int firstX, int firstY, int secondX, int secondY) {
-      int dx = firstX - secondX;
-      int dy = firstY - secondY;
-      return dx * dx + dy * dy;
+      this.patrolSystem.update(this.patrols, System.currentTimeMillis(), this::canPatrolOccupy);
    }
 
    private boolean canPatrolOccupy(double x, double y) {
@@ -726,7 +633,7 @@ public final class Game extends Canvas implements Runnable {
       if (this.currentLevel != 1) {
          if (now - this.lastPatrolCaughtAt >= 1000L) {
             for(TopDownPatrol patrol : this.patrols) {
-               if (Math.abs(this.player.x - patrol.x) < 0.55 && Math.abs(this.player.y - patrol.y) < 0.55) {
+               if (Math.abs(this.player.x - patrol.x()) < 0.55 && Math.abs(this.player.y - patrol.y()) < 0.55) {
                   this.lastPatrolCaughtAt = now;
                   this.lives = Math.max(0, this.lives - 1);
                   if (this.lives == 0) {
@@ -862,14 +769,17 @@ public final class Game extends Canvas implements Runnable {
                         } else if (c == 'E') {
                            this.drawExit(g, drawX, drawY, cell, this.levelGoalReached);
                         } else if (this.isNpcTile(c)) {
-                           Image npc = this.npcImageFor(c);
+                           Image npc = this.npcImageFor(c, sceneTime);
                            if (npc != null) {
-                              int npcH = (int)Math.round((double)cell * 1.7);
-                              int npcW = c == 'G' || c == 'C' ? Math.max(1, (int)Math.round((double)npcH * npc.getWidth((ImageObserver)null) / npc.getHeight((ImageObserver)null))) : npcH;
+                              int npcW = this.npcDrawSize(c, cell);
+                              int npcH = npcW;
                               int npcX = drawX - (npcW - cell) / 2;
                               int npcBob = (int)Math.round(Math.sin((double)(sceneTime + (long)x * 173L + (long)y * 97L) / (double)450.0F));
                               int npcY = drawY - (npcH - cell) + npcBob;
-                              g.drawImage(npc, npcX, npcY, npcW, npcH, (ImageObserver)null);
+                              Graphics2D npcGraphics = (Graphics2D)g.create();
+                              npcGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                              npcGraphics.drawImage(npc, npcX, npcY, npcW, npcH, (ImageObserver)null);
+                              npcGraphics.dispose();
                               this.drawNpcLabel(g, c, drawX + cell / 2, npcY - 4);
                               if (c == 'N') {
                                  if (this.tolyaQuestAccepted && (!this.tolyaQuestComplete || this.sacredQuest.accepted())) {
@@ -941,7 +851,7 @@ public final class Game extends Canvas implements Runnable {
             this.drawDialogue(g, this.dialogueLine);
          }
 
-         this.hudRenderer.drawHud(g, this.getWidth(), this.getHeight(), this.currentLevel, this.score, this.bottleGoal, this.questObjective(), this.lives, 3, this.isPlayerHidden(), this.gameOver, this.cityLine, Math.max(this.copSystem.getLastCaughtAt(), this.lastPatrolCaughtAt), sceneTime);
+         this.hudRenderer.drawHud(g, this.getWidth(), this.getHeight(), this.currentLevel, this.score, this.bottleGoal, this.questObjective(), this.lives, 3, this.isPlayerHidden(), this.gameOver, this.cityLine, Math.max(this.copSystem.getLastCaughtAt(), this.lastPatrolCaughtAt), sceneTime, this.secretArea);
          this.hudRenderer.drawGameOverOverlay(g, this.getWidth(), this.getHeight(), this.gameOver);
          this.hudRenderer.drawLevelCompleteOverlay(g, this.getWidth(), this.getHeight(), this.levelComplete);
          if (this.questMapOpen) {
@@ -962,7 +872,7 @@ public final class Game extends Canvas implements Runnable {
          for(int index = 0; index < this.patrols.size(); ++index) {
             TopDownPatrol patrol = this.patrols.get(index);
             Image[] var10000;
-            switch (patrol.facing) {
+            switch (patrol.facing()) {
                case 0:
                   var10000 = this.copWalkLeftFrames;
                   break;
@@ -977,12 +887,12 @@ public final class Game extends Canvas implements Runnable {
                   var10000 = this.copWalkDownFrames;
             }
 
-            Image[] frames = index % 2 == 0 ? var10000 : this.femaleCopFrames[patrol.facing == 0 ? 0 : patrol.facing == 1 ? 1 : 2];
-            Image sprite = frames != null && frames.length != 0 ? frames[Math.floorMod(patrol.animationTick / 7, frames.length)] : this.npcCopSprite;
+            Image[] frames = var10000;
+            Image sprite = frames != null && frames.length != 0 ? frames[Math.floorMod(patrol.animationTick() / 7, frames.length)] : this.npcCopSprite;
             int spriteH = (int)Math.round((double)cell * 1.18);
             int spriteW = Math.max(1, (int)Math.round((double)spriteH * (double)sprite.getWidth((ImageObserver)null) / (double)sprite.getHeight((ImageObserver)null)));
-            int drawX = (int)Math.round(patrol.x * (double)cell - (double)this.cameraX + (double)(cell - spriteW) / (double)2.0F);
-            int drawY = (int)Math.round(patrol.y * (double)cell - (double)this.cameraY + (double)cell - (double)spriteH);
+            int drawX = (int)Math.round(patrol.x() * (double)cell - (double)this.cameraX + (double)(cell - spriteW) / (double)2.0F);
+            int drawY = (int)Math.round(patrol.y() * (double)cell - (double)this.cameraY + (double)cell - (double)spriteH);
             Graphics2D g2 = (Graphics2D)g.create();
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
             g2.drawImage(sprite, drawX, drawY, spriteW, spriteH, (ImageObserver)null);
@@ -999,6 +909,12 @@ public final class Game extends Canvas implements Runnable {
          case 'M' -> var10000 = "ТОРГОВЕЦ";
          case 'N' -> var10000 = "ТОЛЯ";
          case 'V' -> var10000 = "ЕБобо";
+         case 'H' -> var10000 = "РЫЖИЙ";
+         case 'I' -> var10000 = "РЫЖАЯ";
+         case 'D' -> var10000 = "РЕЙВЕР";
+         case 'J' -> var10000 = "ГОПНИК";
+         case 'K' -> var10000 = "КОНТРОЛЁР";
+         case 'S' -> var10000 = "НЕЗНАКОМЕЦ";
          default -> var10000 = "";
       }
 
@@ -1172,7 +1088,7 @@ public final class Game extends Canvas implements Runnable {
 
    private String questObjective() {
       if (this.secretArea) {
-         return "СЕКРЕТНЫЙ ПОДВАЛ: исследуй комнату, выход слева";
+         return this.cellarObjective();
       } else if (this.eboboQuest.accepted() && !this.eboboQuest.completed()) {
          return this.eboboQuest.stage() >= this.eboboPhotos.size() ? "НЛО: вернись к ЕБобо" : "НЛО: фото " + this.eboboQuest.stage() + "/" + this.eboboPhotos.size() + " — найди серебряную камеру";
       } else if (this.sacredQuest.accepted() && !this.sacredQuest.completed()) {
@@ -1186,7 +1102,98 @@ public final class Game extends Canvas implements Runnable {
       }
    }
 
+   private String cellarObjective() {
+      int step = Math.min(2, Math.max(0, this.cellarQuest.stage()));
+      String objective = this.cellarObjectives[step];
+      return objective != null ? objective : "Осмотри ящик справа [ЛКМ]";
+   }
+
+   private void handleCellarClick(int screenX, int screenY, long now) {
+      Rectangle exit = this.cellarExitBounds();
+      Rectangle chest = this.cellarChestBounds();
+      Rectangle brick = this.cellarBrickBounds();
+
+      if (exit.contains(screenX, screenY)) {
+         if (Math.hypot(this.secretX - 1.5, this.secretY - 5.5) <= 1.8) {
+            this.leaveCellar(now);
+         } else {
+            this.showLine(this.dbText("quest.secret.too_far"), now);
+         }
+      } else if (chest.contains(screenX, screenY)) {
+         if (this.cellarQuest.stage() > 0) {
+            this.showLine(this.dbText("quest.secret.inspect"), now);
+         } else if (Math.hypot(this.secretX - 7.0, this.secretY - 3.5) > 2.0) {
+            this.showLine(this.dbText("quest.secret.too_far"), now);
+         } else {
+            this.advanceCellarQuest(new LocalGameStore.StoryState(true, false, 1), "quest.secret.inspect", now);
+         }
+      } else if (brick.contains(screenX, screenY)) {
+         if (this.cellarQuest.stage() == 0) {
+            this.showLine(this.dbText("quest.secret.first"), now);
+         } else if (Math.hypot(this.secretX - 5.5, this.secretY - 4.5) > 1.8) {
+            this.showLine(this.dbText("quest.secret.too_far"), now);
+         } else if (this.cellarQuest.completed()) {
+            this.showLine(this.dbText("quest.secret.note"), now);
+         } else {
+            this.advanceCellarQuest(new LocalGameStore.StoryState(true, true, 2), "quest.secret.note", now);
+         }
+      }
+   }
+
+   private void advanceCellarQuest(LocalGameStore.StoryState next, String dialogueKey, long now) {
+      try {
+         this.gameStore.saveStory(CELLAR_QUEST_ID, next);
+         this.cellarQuest = next;
+         this.showLine(this.dbText(dialogueKey), now);
+      } catch (SQLException error) {
+         System.err.println("Cellar progress save failed: " + error.getMessage());
+         this.showLine(this.dbText("quest.secret.save_error"), now);
+      }
+   }
+
+   private void leaveCellar(long now) {
+      this.secretArea = false;
+      this.showLine(this.dbText("quest.secret.exit"), now);
+   }
+
+   private Rectangle cellarExitBounds() {
+      int tile = this.cellarTileSize();
+      return new Rectangle((this.getWidth() - 10 * tile) / 2 + tile,
+         (this.getHeight() - 56 - 8 * tile) / 2 + 5 * tile, tile, tile);
+   }
+
+   private Rectangle cellarChestBounds() {
+      int tile = this.cellarTileSize();
+      return new Rectangle((this.getWidth() - 10 * tile) / 2 + CELLAR_CHEST_X * tile,
+         (this.getHeight() - 56 - 8 * tile) / 2 + CELLAR_CHEST_Y * tile, 2 * tile, tile);
+   }
+
+   private Rectangle cellarBrickBounds() {
+      int tile = this.cellarTileSize();
+      return new Rectangle((this.getWidth() - 10 * tile) / 2 + CELLAR_BRICK_X * tile,
+         (this.getHeight() - 56 - 8 * tile) / 2 + CELLAR_BRICK_Y * tile, tile, tile);
+   }
+
+   private int cellarTileSize() {
+      return Math.min(64, Math.max(32, (this.getHeight() - 56 - 70) / 8));
+   }
+
    private void updateSecretArea() {
+      if (this.interactionRequested) {
+         this.interactionRequested = false;
+         long now = System.currentTimeMillis();
+         Rectangle target = this.cellarQuest.stage() == 0 && Math.hypot(this.secretX - 7.0, this.secretY - 3.5) <= 2.0
+            ? this.cellarChestBounds()
+            : this.cellarQuest.stage() == 1 && Math.hypot(this.secretX - 5.5, this.secretY - 4.5) <= 1.8
+               ? this.cellarBrickBounds()
+               : Math.hypot(this.secretX - 1.5, this.secretY - 5.5) <= 1.8 ? this.cellarExitBounds() : null;
+         if (target != null) {
+            this.handleCellarClick(target.x + target.width / 2, target.y + target.height / 2, now);
+            if (!this.secretArea) {
+               return;
+            }
+         }
+      }
       double dx = (this.rightPressed ? (double)1.0F : (double)0.0F) - (this.leftPressed ? (double)1.0F : (double)0.0F);
       double dy = (this.downPressed ? (double)1.0F : (double)0.0F) - (this.upPressed ? (double)1.0F : (double)0.0F);
       if (dx == (double)0.0F && dy == (double)0.0F) {
@@ -1194,53 +1201,94 @@ public final class Game extends Canvas implements Runnable {
       } else {
          double length = Math.hypot(dx, dy);
          this.secretX = Math.max((double)1.0F, Math.min((double)8.0F, this.secretX + dx / length * 0.115));
-         this.secretY = Math.max((double)1.0F, Math.min((double)6.0F, this.secretY + dy / length * 0.115));
+         this.secretY = Math.max(1.0, Math.min(6.0, this.secretY + dy / length * 0.115));
          this.playerDir = Math.abs(dy) > Math.abs(dx) ? (dy < (double)0.0F ? 3 : 4) : (dx < (double)0.0F ? 0 : 1);
       }
 
       this.animatePlayer();
       if (this.secretX < 1.3 && this.secretY > 4.4) {
-         this.secretArea = false;
-         this.showLine(this.dbText("quest.secret.exit"), System.currentTimeMillis());
+         this.leaveCellar(System.currentTimeMillis());
       }
 
    }
 
    private void drawSecretArea(Graphics g) {
-      int tile = Math.min(64, Math.max(32, (this.getHeight() - 56 - 70) / 8));
-      int originX = (this.getWidth() - 10 * tile) / 2;
-      int originY = (this.getHeight() - 56 - 8 * tile) / 2;
       Graphics2D g2 = (Graphics2D)g.create();
+      g2.setClip(0, 0, this.getWidth(), this.getHeight() - 56);
+      g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
       g2.setColor(new Color(8, 13, 19));
       g2.fillRect(0, 0, this.getWidth(), this.getHeight() - 56);
-
-      for(int y = 0; y < 8; ++y) {
-         for(int x = 0; x < 10; ++x) {
-            boolean wall = x == 0 || x == 9 || y == 0 || y == 7;
-            g2.setColor(wall ? new Color(41, 50, 57) : ((x + y) % 2 == 0 ? new Color(79, 72, 64) : new Color(69, 64, 60)));
-            g2.fillRect(originX + x * tile, originY + y * tile, tile, tile);
-            g2.setColor(new Color(19, 23, 27, 85));
-            g2.drawRect(originX + x * tile, originY + y * tile, tile, tile);
-         }
+      if (this.cellarBackground != null) {
+         int sceneHeight = this.getHeight() - 56;
+         double scale = Math.max(this.getWidth() / (double)this.cellarBackground.getWidth(null),
+            sceneHeight / (double)this.cellarBackground.getHeight(null));
+         int drawWidth = (int)Math.ceil(this.cellarBackground.getWidth(null) * scale);
+         int drawHeight = (int)Math.ceil(this.cellarBackground.getHeight(null) * scale);
+         g2.drawImage(this.cellarBackground, (this.getWidth() - drawWidth) / 2,
+            (sceneHeight - drawHeight) / 2, drawWidth, drawHeight, null);
       }
 
-      g2.setFont(new Font("Dialog", 1, 22));
-      g2.setColor(new Color(255, 208, 133));
-      g2.drawString("ЗАБРОШЕННЫЙ ПОДВАЛ ЗУЕВКИ", originX + tile, originY + tile + 8);
-      g2.setColor(new Color(224, 166, 85));
-      g2.fillRoundRect(originX + tile, originY + 5 * tile, tile, tile, 7, 7);
-      g2.setColor(new Color(21, 27, 32));
-      g2.drawString("ВЫХОД", originX + tile - 8, originY + 5 * tile + tile / 2);
-      g2.setColor(new Color(127, 75, 30));
-      g2.fillRect(originX + 6 * tile, originY + 3 * tile, tile * 2, tile);
-      g2.setColor(new Color(255, 228, 158));
-      g2.drawString("ПУСТОЙ «ТИЧ»", originX + 5 * tile, originY + 3 * tile - 8);
+      int bannerX = 24;
+      int bannerY = 18;
+      g2.setColor(new Color(12, 18, 25, 225));
+      g2.fillRoundRect(bannerX, bannerY, Math.min(680, this.getWidth() - 48), 88, 10, 10);
+      g2.setColor(new Color(255, 209, 140));
+      g2.setFont(new Font("Dialog", 1, 18));
+      g2.drawString("ЗАБРОШЕННЫЙ ПОДВАЛ ЗУЕВКИ", bannerX + 16, bannerY + 23);
+      g2.setColor(new Color(245, 238, 222));
+      g2.setFont(new Font("Dialog", 1, 15));
+      g2.drawString(this.cellarObjective(), bannerX + 16, bannerY + 47);
+      g2.setFont(new Font("Dialog", 0, 13));
+      g2.drawString("WASD / стрелки — идти     ЛКМ / E — осмотреть или выйти", bannerX + 16, bannerY + 68);
+
+      Rectangle exit = this.cellarExitBounds();
+      g2.setColor(new Color(20, 16, 11, 190));
+      g2.fillRoundRect(exit.x + 9, exit.y + 12, exit.width - 18, exit.height - 20, 6, 6);
+      g2.setColor(new Color(232, 167, 84));
+      g2.drawRoundRect(exit.x + 9, exit.y + 12, exit.width - 19, exit.height - 21, 6, 6);
+      g2.setColor(new Color(12, 18, 25, 205));
+      g2.fillRoundRect(exit.x + 5, exit.y + 16, exit.width - 10, 24, 6, 6);
+      g2.setColor(new Color(255, 216, 130));
+      g2.setFont(new Font("Dialog", 1, 12));
+      g2.drawString("ВЫХОД", exit.x + (exit.width - g2.getFontMetrics().stringWidth("ВЫХОД")) / 2, exit.y + 33);
+
+      Rectangle chest = this.cellarChestBounds();
+      g2.setColor(new Color(21, 12, 8, 205));
+      g2.fillRoundRect(chest.x + 3, chest.y + 20, chest.width - 6, chest.height - 20, 7, 7);
+      g2.setColor(this.cellarQuest.stage() == 0 ? new Color(112, 59, 28) : new Color(66, 49, 38));
+      g2.fillRoundRect(chest.x + 8, chest.y + 23, chest.width - 16, chest.height - 27, 5, 5);
+      g2.setColor(this.cellarQuest.stage() == 0 ? new Color(238, 184, 80) : new Color(143, 120, 84));
+      g2.drawRoundRect(chest.x + 8, chest.y + 23, chest.width - 17, chest.height - 28, 5, 5);
+      g2.drawLine(chest.x + 12, chest.y + 39, chest.x + chest.width - 12, chest.y + 39);
+      g2.drawLine(chest.x + 25, chest.y + 25, chest.x + 25, chest.y + chest.height - 8);
+      g2.drawLine(chest.x + chest.width - 25, chest.y + 25, chest.x + chest.width - 25, chest.y + chest.height - 8);
+      g2.fillRect(chest.x + chest.width / 2 - 4, chest.y + 38, 8, 8);
+      g2.setColor(new Color(12, 18, 25, 220));
+      g2.fillRoundRect(chest.x + 10, chest.y - 6, chest.width - 20, 23, 6, 6);
+      g2.setColor(new Color(255, 221, 166));
+      g2.setFont(new Font("Dialog", 1, 12));
+      String chestName = this.cellarQuest.stage() == 0 ? "ЯЩИК [ЛКМ]" : "ПУСТОЙ «ТИЧ»";
+      g2.drawString(chestName, chest.x + (chest.width - g2.getFontMetrics().stringWidth(chestName)) / 2, chest.y + 10);
+
+      if (this.cellarQuest.stage() > 0) {
+         Rectangle brick = this.cellarBrickBounds();
+         g2.setColor(new Color(20, 15, 10, 180));
+         g2.fillRoundRect(brick.x + 7, brick.y + 7, brick.width - 14, brick.height - 14, 5, 5);
+         g2.setColor(this.cellarQuest.completed() ? new Color(170, 145, 100) : new Color(249, 193, 72));
+         g2.drawRoundRect(brick.x + 7, brick.y + 7, brick.width - 15, brick.height - 15, 4, 4);
+         g2.setFont(new Font("Dialog", 1, 20));
+         String mark = this.cellarQuest.completed() ? "!" : "?";
+         g2.drawString(mark, brick.x + (brick.width - g2.getFontMetrics().stringWidth(mark)) / 2, brick.y + brick.height / 2 + 7);
+      }
       if (this.playerSprites != null) {
          Image[] track = this.playerSprites[this.playerDir];
          Image frame = track[Math.floorMod(this.animFrame, track.length)];
-         int size = (int)Math.round((double)tile * 1.7);
-         int px = originX + (int)(this.secretX * (double)tile) - (size - tile) / 2;
-         int py = originY + (int)(this.secretY * (double)tile) - (size - tile);
+         int tile = this.cellarTileSize();
+         int originX = (this.getWidth() - 10 * tile) / 2;
+         int originY = (this.getHeight() - 56 - 8 * tile) / 2;
+         int size = (int)Math.round(tile * 1.7);
+         int px = originX + (int)(this.secretX * tile) - (size - tile) / 2;
+         int py = originY + (int)(this.secretY * tile) - (size - tile);
          g2.drawImage(frame, px, py, size, size, (ImageObserver)null);
       }
 
@@ -1398,10 +1446,37 @@ public final class Game extends Canvas implements Runnable {
    }
 
    private boolean isNpcTile(char c) {
-      return c == 'N' || c == 'M' || c == 'V' || c == 'G' || c == 'C';
+      return c == 'N' || c == 'M' || c == 'V' || c == 'G' || c == 'C' || this.townNpcFrames.containsKey(c);
    }
 
-   private Image npcImageFor(char c) {
+   private int npcDrawSize(char c, int cell) {
+      return (int)Math.round(cell * (this.townNpcFrames.containsKey(c) ? 2.0 : 1.7));
+   }
+
+   private String npcDialogueKey(char c) {
+      return switch (c) {
+         case 'M' -> "npc.merchant";
+         case 'G' -> "npc.cop";
+         case 'H' -> "npc.red_brother";
+         case 'I' -> "npc.red_sister";
+         case 'D' -> "npc.dnb_partygoer";
+         case 'J' -> "npc.train_gopnik";
+         case 'K' -> "npc.train_conductor";
+         case 'S' -> "npc.suspicious_stranger";
+         default -> "npc.near";
+      };
+   }
+
+   private void loadTownNpc(char tile, String fileName) throws IOException {
+      this.townNpcFrames.put(tile, CharacterSpriteAssets.loadGridAtlas(
+         "/alkosmen/ui/sprites/npc/" + fileName + ".png", 4, 4)[0]);
+   }
+
+   private Image npcImageFor(char c, long sceneTime) {
+      Image[] frames = this.townNpcFrames.get(c);
+      if (frames != null) {
+         return frames[(int)Math.floorMod(sceneTime / 240L + c, frames.length)];
+      }
       Image var10000;
       switch (c) {
          case 'C' -> var10000 = this.npcCopSprite;
@@ -1589,6 +1664,10 @@ public final class Game extends Canvas implements Runnable {
                   this.secretEntrance = exits.isEmpty() ? null : ((LocalGameStore.QuestStep)exits.get(0)).tile();
                   this.eboboQuest = this.gameStore.loadStory("ebobo_ufo");
                   this.sacredQuest = this.gameStore.loadStory("sacred_tich");
+                  this.cellarQuest = this.gameStore.loadStory(CELLAR_QUEST_ID);
+                  this.cellarObjectives[0] = this.gameStore.text("quest.secret.objective.0");
+                  this.cellarObjectives[1] = this.gameStore.text("quest.secret.objective.1");
+                  this.cellarObjectives[2] = this.gameStore.text("quest.secret.objective.done");
                   this.tolyaQuestAccepted = savedQuest.accepted();
                   this.tolyaQuestComplete = savedQuest.completed();
 
@@ -1756,25 +1835,5 @@ public final class Game extends Canvas implements Runnable {
    private static record QuestPanel(String questId, String title, String body, String button, PanelAction action) {
    }
 
-   private static final class TopDownPatrol {
-      private double x;
-      private double y;
-      private int direction;
-      private int moveX;
-      private int moveY;
-      private int animationTick;
-      private int facing;
-      private final List route;
-      private int waypointIndex;
-      private long waitUntil;
 
-      private TopDownPatrol(double x, double y, int direction, List route) {
-         this.x = x;
-         this.y = y;
-         this.direction = direction;
-         this.moveX = direction;
-         this.facing = direction < 0 ? 0 : 1;
-         this.route = route;
-      }
-   }
 }
