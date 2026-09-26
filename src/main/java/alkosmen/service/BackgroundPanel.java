@@ -61,7 +61,7 @@ public final class BackgroundPanel extends JPanel {
          this.background = ImageIO.read(resource);
          this.alkosmenDanceFrames = normalizeFrames(
             flattenAtlas(
-               loadDanceAtlas(
+               CharacterSpriteAssets.loadGridAtlas(
                   ALKOSMEN_DANCE_RESOURCE,
                   DANCE_COLUMNS,
                   DANCE_ROWS
@@ -70,7 +70,7 @@ public final class BackgroundPanel extends JPanel {
          );
          this.eboboDanceFrames = normalizeFrames(
             flattenAtlas(
-               loadDanceAtlas(
+               CharacterSpriteAssets.loadGridAtlas(
                   EBOBO_DANCE_RESOURCE,
                   DANCE_COLUMNS,
                   DANCE_ROWS
@@ -85,35 +85,6 @@ public final class BackgroundPanel extends JPanel {
          this.danceFrame = (this.danceFrame + 1) % DANCE_FRAME_COUNT;
          repaint();
       });
-   }
-
-   private static BufferedImage[][] loadDanceAtlas(String path, int columns, int rows) throws IOException {
-      try {
-         return CharacterSpriteAssets.loadGridAtlas(path, columns, rows);
-      } catch (IOException error) {
-         System.err.println("Invalid menu dance atlas " + path + ": " + error.getMessage()
-            + "; using existing character frames");
-         BufferedImage[] fallback;
-         if (ALKOSMEN_DANCE_RESOURCE.equals(path)) {
-            fallback = CharacterSpriteAssets.loadGridAtlas(CharacterSpriteAssets.ALKOSMEN_WALK_ATLAS, 4, 5, 30)[3];
-         } else {
-            fallback = new BufferedImage[4];
-            for (int i = 0; i < fallback.length; i++) {
-               String framePath = "/alkosmen/ui/intro/ebobo/laugh/0" + i + ".png";
-               URL frame = BackgroundPanel.class.getResource(framePath);
-               if (frame == null || (fallback[i] = ImageIO.read(frame)) == null) {
-                  throw new IOException("Menu fallback frame not found: " + framePath, error);
-               }
-            }
-         }
-         BufferedImage[][] atlas = new BufferedImage[rows][columns];
-         for (int row = 0; row < rows; row++) {
-            for (int column = 0; column < columns; column++) {
-               atlas[row][column] = fallback[(row * columns + column) % fallback.length];
-            }
-         }
-         return atlas;
-      }
    }
 
    @Override
