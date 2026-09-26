@@ -1,0 +1,4 @@
+# quest_id|target_id|tile_x|tile_y|width|height|reach_x|reach_y|reach_radius
+secret_cellar|exit|1|5|1|1|1.5|5.5|1.8
+secret_cellar|chest|6|3|2|1|7|3.5|2.0
+secret_cellar|brick|5|4|1|1|5.5|4.5|1.8

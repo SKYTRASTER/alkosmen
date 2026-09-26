@@ -1,0 +1,9 @@
+# npc_id|step_index|tile_x|tile_y|pause_ms. Existing SQLite edits take precedence.
+patrol_0|0|7|6|450
+patrol_0|1|14|6|300
+patrol_0|2|14|9|450
+patrol_0|3|7|9|300
+patrol_1|0|31|13|500
+patrol_1|1|24|13|300
+patrol_1|2|24|15|500
+patrol_1|3|31|15|300
