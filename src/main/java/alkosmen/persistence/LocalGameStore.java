@@ -16,6 +16,9 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Properties;
 import java.util.Set;
 
@@ -47,6 +50,10 @@ public final class LocalGameStore {
             statement.executeUpdate("CREATE TABLE IF NOT EXISTS quest_stages (\n    quest_id TEXT PRIMARY KEY,\n    stage INTEGER NOT NULL DEFAULT 0\n)\n");
             statement.executeUpdate("CREATE TABLE IF NOT EXISTS dialogue_texts (\n    text_key TEXT PRIMARY KEY,\n    body TEXT NOT NULL\n)\n");
             statement.executeUpdate("CREATE TABLE IF NOT EXISTS quest_steps (\n    quest_id TEXT NOT NULL,\n    step_index INTEGER NOT NULL,\n    tile_x INTEGER NOT NULL,\n    tile_y INTEGER NOT NULL,\n    text_key TEXT NOT NULL,\n    PRIMARY KEY (quest_id, step_index)\n)\n");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS quest_scene_stages (quest_id TEXT NOT NULL, stage INTEGER NOT NULL, objective_key TEXT NOT NULL, target_id TEXT NOT NULL, target_label_key TEXT NOT NULL, PRIMARY KEY (quest_id, stage))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS quest_scene_targets (quest_id TEXT NOT NULL, target_id TEXT NOT NULL, tile_x REAL NOT NULL, tile_y REAL NOT NULL, width REAL NOT NULL, height REAL NOT NULL, reach_x REAL NOT NULL, reach_y REAL NOT NULL, reach_radius REAL NOT NULL, PRIMARY KEY (quest_id, target_id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS quest_scene_events (quest_id TEXT NOT NULL, stage INTEGER NOT NULL, target_id TEXT NOT NULL, action TEXT NOT NULL, next_stage INTEGER NOT NULL, completed INTEGER NOT NULL, dialogue_key TEXT NOT NULL, too_far_key TEXT NOT NULL, PRIMARY KEY (quest_id, stage, target_id))");
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS npc_quest_offers (npc_id TEXT NOT NULL, priority INTEGER NOT NULL, quest_id TEXT NOT NULL, offer_prefix TEXT NOT NULL, progress_prefix TEXT NOT NULL, turnin_prefix TEXT NOT NULL, done_prefix TEXT NOT NULL, finish_line_key TEXT NOT NULL, PRIMARY KEY (npc_id, priority))");
             statement.executeUpdate("CREATE TABLE IF NOT EXISTS schema_migrations (\n    migration_id TEXT PRIMARY KEY\n)\n");
          } catch (Throwable var8) {
             if (statement != null) {
@@ -81,10 +88,11 @@ public final class LocalGameStore {
 
       this.seedDialogues();
       this.seedQuestSteps();
+      this.seedSceneScripts();
+      this.seedNpcQuestOffers();
       this.migrateFirstSacredCache();
       this.migrateSacredCacheExpansion();
-      this.seedRoute("patrol_0", List.of(new Waypoint(7, 6, 450), new Waypoint(14, 6, 300), new Waypoint(14, 9, 450), new Waypoint(7, 9, 300)));
-      this.seedRoute("patrol_1", List.of(new Waypoint(31, 13, 500), new Waypoint(24, 13, 300), new Waypoint(24, 15, 500), new Waypoint(31, 15, 300)));
+      this.seedNpcRoutes();
    }
 
    public Path databasePath() {
@@ -678,6 +686,174 @@ public final class LocalGameStore {
       return List.copyOf(result);
    }
 
+   public SceneScript loadSceneScript(String questId) throws SQLException {
+      Map<Integer, SceneStage> stages = new HashMap<>();
+      Map<String, SceneTarget> targets = new HashMap<>();
+      Map<String, SceneEvent> events = new HashMap<>();
+      try (Connection connection = this.connect()) {
+         try (PreparedStatement query = connection.prepareStatement("SELECT stage, objective_key, target_id, target_label_key FROM quest_scene_stages WHERE quest_id = ?")) {
+            query.setString(1, questId);
+            try (ResultSet rows = query.executeQuery()) {
+               while (rows.next()) {
+                  stages.put(rows.getInt(1), new SceneStage(rows.getInt(1), rows.getString(2), rows.getString(3), rows.getString(4)));
+               }
+            }
+         }
+         try (PreparedStatement query = connection.prepareStatement("SELECT target_id, tile_x, tile_y, width, height, reach_x, reach_y, reach_radius FROM quest_scene_targets WHERE quest_id = ?")) {
+            query.setString(1, questId);
+            try (ResultSet rows = query.executeQuery()) {
+               while (rows.next()) {
+                  targets.put(rows.getString(1), new SceneTarget(rows.getString(1), rows.getDouble(2), rows.getDouble(3), rows.getDouble(4), rows.getDouble(5), rows.getDouble(6), rows.getDouble(7), rows.getDouble(8)));
+               }
+            }
+         }
+         try (PreparedStatement query = connection.prepareStatement("SELECT stage, target_id, action, next_stage, completed, dialogue_key, too_far_key FROM quest_scene_events WHERE quest_id = ?")) {
+            query.setString(1, questId);
+            try (ResultSet rows = query.executeQuery()) {
+               while (rows.next()) {
+                  SceneEvent event = new SceneEvent(rows.getInt(1), rows.getString(2), rows.getString(3), rows.getInt(4), rows.getInt(5) != 0, rows.getString(6), rows.getString(7));
+                  events.put(event.stage() + ":" + event.targetId(), event);
+               }
+            }
+         }
+      }
+      if (stages.isEmpty() || targets.isEmpty() || events.isEmpty()) {
+         throw new SQLException("Missing scene script for " + questId);
+      }
+      for (SceneStage stage : stages.values()) {
+         if (!targets.containsKey(stage.targetId()) || !events.containsKey(stage.stage() + ":" + stage.targetId())) {
+            throw new SQLException("Incomplete scene stage " + questId + ":" + stage.stage());
+         }
+      }
+      for (SceneEvent event : events.values()) {
+         if (!List.of("LINE", "ADVANCE", "EXIT").contains(event.action()) || !stages.containsKey(event.nextStage())) {
+            throw new SQLException("Invalid scene event " + questId + ":" + event.stage() + ":" + event.targetId());
+         }
+      }
+      return new SceneScript(Map.copyOf(stages), Map.copyOf(targets), Map.copyOf(events));
+   }
+
+   public List<NpcQuestOffer> loadNpcQuestOffers(String npcId) throws SQLException {
+      List<NpcQuestOffer> offers = new ArrayList<>();
+      try (Connection connection = this.connect();
+           PreparedStatement query = connection.prepareStatement("SELECT quest_id, offer_prefix, progress_prefix, turnin_prefix, done_prefix, finish_line_key FROM npc_quest_offers WHERE npc_id = ? ORDER BY priority")) {
+         query.setString(1, npcId);
+         try (ResultSet rows = query.executeQuery()) {
+            while (rows.next()) {
+               offers.add(new NpcQuestOffer(rows.getString(1), rows.getString(2), rows.getString(3), rows.getString(4), rows.getString(5), rows.getString(6)));
+            }
+         }
+      }
+      if (offers.isEmpty()) {
+         throw new SQLException("No quest offers for NPC " + npcId);
+      }
+      return List.copyOf(offers);
+   }
+
+   private List<String[]> readDataRows(String resource, int columns) throws IOException {
+      InputStream stream = LocalGameStore.class.getResourceAsStream("/alkosmen/data/" + resource);
+      if (stream == null) {
+         throw new IOException("Missing " + resource);
+      }
+      List<String[]> result = new ArrayList<>();
+      try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+         String line;
+         while ((line = reader.readLine()) != null) {
+            if (!line.isBlank() && !line.startsWith("#")) {
+               String[] fields = line.split("\\|", -1);
+               if (fields.length != columns) {
+                  throw new IOException("Bad " + resource + " row: " + line);
+               }
+               result.add(fields);
+            }
+         }
+      }
+      return result;
+   }
+
+   private void seedSceneScripts() throws IOException, SQLException {
+      try (Connection connection = this.connect()) {
+         try (PreparedStatement insert = connection.prepareStatement("INSERT OR IGNORE INTO quest_scene_stages VALUES (?, ?, ?, ?, ?)")) {
+            for (String[] row : this.readDataRows("quest_scene_stages.tsv", 5)) {
+               insert.setString(1, row[0]);
+               insert.setInt(2, Integer.parseInt(row[1]));
+               insert.setString(3, row[2]);
+               insert.setString(4, row[3]);
+               insert.setString(5, row[4]);
+               insert.addBatch();
+            }
+            insert.executeBatch();
+         }
+         try (PreparedStatement insert = connection.prepareStatement("INSERT OR IGNORE INTO quest_scene_targets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+            for (String[] row : this.readDataRows("quest_scene_targets.tsv", 9)) {
+               insert.setString(1, row[0]);
+               insert.setString(2, row[1]);
+               for (int i = 2; i < row.length; ++i) {
+                  insert.setDouble(i + 1, Double.parseDouble(row[i]));
+               }
+               insert.addBatch();
+            }
+            insert.executeBatch();
+         }
+         try (PreparedStatement insert = connection.prepareStatement("INSERT OR IGNORE INTO quest_scene_events VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
+            for (String[] row : this.readDataRows("quest_scene_events.tsv", 8)) {
+               insert.setString(1, row[0]);
+               insert.setInt(2, Integer.parseInt(row[1]));
+               insert.setString(3, row[2]);
+               insert.setString(4, row[3]);
+               insert.setInt(5, Integer.parseInt(row[4]));
+               insert.setInt(6, Integer.parseInt(row[5]));
+               insert.setString(7, row[6]);
+               insert.setString(8, row[7]);
+               insert.addBatch();
+            }
+            insert.executeBatch();
+         }
+      }
+   }
+
+   private void seedNpcRoutes() throws IOException, SQLException {
+      Map<String, List<String[]>> routes = new LinkedHashMap<>();
+      for (String[] row : this.readDataRows("npc_routes.tsv", 5)) {
+         routes.computeIfAbsent(row[0], ignored -> new ArrayList<>()).add(row);
+      }
+      try (Connection connection = this.connect();
+           PreparedStatement count = connection.prepareStatement("SELECT COUNT(*) FROM npc_routes WHERE npc_id = ?");
+           PreparedStatement insert = connection.prepareStatement("INSERT OR IGNORE INTO npc_routes (npc_id, step_index, tile_x, tile_y, pause_ms) VALUES (?, ?, ?, ?, ?)")) {
+         for (Map.Entry<String, List<String[]>> route : routes.entrySet()) {
+            count.setString(1, route.getKey());
+            try (ResultSet existing = count.executeQuery()) {
+               if (existing.next() && existing.getInt(1) > 0) {
+                  continue;
+               }
+            }
+            for (String[] row : route.getValue()) {
+               insert.setString(1, row[0]);
+               for (int i = 1; i < row.length; ++i) {
+                  insert.setInt(i + 1, Integer.parseInt(row[i]));
+               }
+               insert.addBatch();
+            }
+         }
+         insert.executeBatch();
+      }
+   }
+
+   private void seedNpcQuestOffers() throws IOException, SQLException {
+      try (Connection connection = this.connect();
+           PreparedStatement insert = connection.prepareStatement("INSERT OR IGNORE INTO npc_quest_offers VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
+         for (String[] row : this.readDataRows("npc_quest_offers.tsv", 8)) {
+            insert.setString(1, row[0]);
+            insert.setInt(2, Integer.parseInt(row[1]));
+            for (int i = 2; i < row.length; ++i) {
+               insert.setString(i + 1, row[i]);
+            }
+            insert.addBatch();
+         }
+         insert.executeBatch();
+      }
+   }
+
    private void seedQuestSteps() throws IOException, SQLException {
       InputStream stream = LocalGameStore.class.getResourceAsStream("/alkosmen/data/quest_steps.tsv");
 
@@ -1246,128 +1422,6 @@ public final class LocalGameStore {
       return var5;
    }
 
-   private void seedRoute(String npcId, List points) throws SQLException {
-      Connection connection = this.connect();
-
-      label135: {
-         try {
-            PreparedStatement count;
-            label137: {
-               count = connection.prepareStatement("SELECT COUNT(*) FROM npc_routes WHERE npc_id = ?");
-
-               try {
-                  PreparedStatement insert = connection.prepareStatement("INSERT INTO npc_routes (npc_id, step_index, tile_x, tile_y, pause_ms)\nVALUES (?, ?, ?, ?, ?)\n");
-
-                  label120: {
-                     try {
-                        count.setString(1, npcId);
-                        ResultSet row = count.executeQuery();
-
-                        label140: {
-                           try {
-                              if (!row.next() || row.getInt(1) <= 0) {
-                                 break label140;
-                              }
-                           } catch (Throwable var13) {
-                              if (row != null) {
-                                 try {
-                                    row.close();
-                                 } catch (Throwable var12) {
-                                    var13.addSuppressed(var12);
-                                 }
-                              }
-
-                              throw var13;
-                           }
-
-                           if (row != null) {
-                              row.close();
-                           }
-                           break label120;
-                        }
-
-                        if (row != null) {
-                           row.close();
-                        }
-
-                        for(int i = 0; i < points.size(); ++i) {
-                           Waypoint point = (Waypoint)points.get(i);
-                           insert.setString(1, npcId);
-                           insert.setInt(2, i);
-                           insert.setInt(3, point.x());
-                           insert.setInt(4, point.y());
-                           insert.setInt(5, point.pauseMs());
-                           insert.addBatch();
-                        }
-
-                        insert.executeBatch();
-                     } catch (Throwable var14) {
-                        if (insert != null) {
-                           try {
-                              insert.close();
-                           } catch (Throwable var11) {
-                              var14.addSuppressed(var11);
-                           }
-                        }
-
-                        throw var14;
-                     }
-
-                     if (insert != null) {
-                        insert.close();
-                     }
-                     break label137;
-                  }
-
-                  if (insert != null) {
-                     insert.close();
-                  }
-               } catch (Throwable var15) {
-                  if (count != null) {
-                     try {
-                        count.close();
-                     } catch (Throwable var10) {
-                        var15.addSuppressed(var10);
-                     }
-                  }
-
-                  throw var15;
-               }
-
-               if (count != null) {
-                  count.close();
-               }
-               break label135;
-            }
-
-            if (count != null) {
-               count.close();
-            }
-         } catch (Throwable var16) {
-            if (connection != null) {
-               try {
-                  connection.close();
-               } catch (Throwable var9) {
-                  var16.addSuppressed(var9);
-               }
-            }
-
-            throw var16;
-         }
-
-         if (connection != null) {
-            connection.close();
-         }
-
-         return;
-      }
-
-      if (connection != null) {
-         connection.close();
-      }
-
-   }
-
    private Connection connect() throws SQLException {
       return DriverManager.getConnection("jdbc:sqlite:" + String.valueOf(this.databasePath));
    }
@@ -1385,5 +1439,31 @@ public final class LocalGameStore {
    }
 
    public static record QuestStep(Tile tile, String textKey) {
+   }
+
+   public static record SceneStage(int stage, String objectiveKey, String targetId, String targetLabelKey) {
+   }
+
+   public static record SceneTarget(String id, double x, double y, double width, double height, double reachX, double reachY, double reachRadius) {
+   }
+
+   public static record SceneEvent(int stage, String targetId, String action, int nextStage, boolean completed, String dialogueKey, String tooFarKey) {
+   }
+
+   public static record SceneScript(Map<Integer, SceneStage> stages, Map<String, SceneTarget> targets, Map<String, SceneEvent> events) {
+      public SceneStage stage(int stage) {
+         return this.stages.get(stage);
+      }
+
+      public SceneTarget target(String id) {
+         return this.targets.get(id);
+      }
+
+      public SceneEvent event(int stage, String targetId) {
+         return this.events.get(stage + ":" + targetId);
+      }
+   }
+
+   public static record NpcQuestOffer(String questId, String offerPrefix, String progressPrefix, String turninPrefix, String donePrefix, String finishLineKey) {
    }
 }

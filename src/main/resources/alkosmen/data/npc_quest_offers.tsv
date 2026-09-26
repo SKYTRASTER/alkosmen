@@ -1,0 +1,5 @@
+# npc_id|priority|quest_id|offer_prefix|progress_prefix|turnin_prefix|done_prefix|finish_line_key
+tolya|0|tolya_bottles|quest.tolya.offer|quest.tolya.progress|quest.tolya.finish|quest.tolya.done|quest.tolya.finish.line
+tolya|1|sacred_tich|quest.sacred.offer.v2|quest.sacred.progress|quest.sacred.finish|quest.sacred.done|quest.sacred.finish.line
+tolya|2|secret_cellar||quest.secret.progress|quest.secret.finish|quest.secret.done|
+ebobo|0|ebobo_ufo|quest.ebobo.offer|quest.ebobo.progress|quest.ebobo.finish|quest.ebobo.done|quest.ebobo.finish.line
