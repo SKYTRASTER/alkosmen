@@ -762,23 +762,23 @@ public final class Game extends Canvas implements Runnable {
    }
 
    private void animatePlayer() {
-      boolean isWalking = this.leftPressed || this.rightPressed || this.upPressed || this.downPressed;
+      boolean isWalking = this.leftPressed != this.rightPressed || this.upPressed != this.downPressed;
       long now = System.currentTimeMillis();
+      if (!isWalking) {
+         this.animFrame = 0;
+         this.playerMotionTick = 0;
+         this.lastAnim = now;
+         return;
+      }
       int frameCount = this.playerSprites != null && this.playerDir >= 0 && this.playerDir < this.playerSprites.length ? this.playerSprites[this.playerDir].length : 0;
       if (frameCount > 0) {
          if (isWalking && now - this.lastAnim > 90L) {
             this.animFrame = (this.animFrame + 1) % frameCount;
             ++this.playerMotionTick;
             this.lastAnim = now;
-            if (this.playerMotionTick % 4 == 0) {
+            if (this.playerMotionTick % 4 == 0 && this.stepSound != null) {
                this.stepSound.play();
             }
-         }
-
-         if (!isWalking && now - this.lastAnim > 110L) {
-            this.animFrame = (this.animFrame + 1) % frameCount;
-            ++this.playerMotionTick;
-            this.lastAnim = now;
          }
 
       }
