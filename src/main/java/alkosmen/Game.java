@@ -855,7 +855,12 @@ public final class Game extends Canvas implements Runnable {
                               }
 
                               if (c == 'V') {
-                                 this.drawQuestMarker(g, drawX + cell / 2, npcY - 27, "?", this.eboboQuest.completed());
+                                 QuestAvailability availability = this.questAvailability("ebobo_ufo");
+                                 if (availability == QuestAvailability.NEW) {
+                                    this.drawQuestMarker(g, drawX + cell / 2, npcY - 27, "!", false);
+                                 } else if (availability == QuestAvailability.ACTIVE || availability == QuestAvailability.READY) {
+                                    this.drawQuestMarker(g, drawX + cell / 2, npcY - 27, "?", availability == QuestAvailability.READY);
+                                 }
                               }
                            }
                         } else {
@@ -1223,7 +1228,12 @@ public final class Game extends Canvas implements Runnable {
          return;
       }
       switch (event.action()) {
-         case "LINE" -> this.showLine(this.dbText(event.dialogueKey()), now);
+         case "LINE" -> {
+            if ("chest".equals(targetId)) {
+               this.cellarChestOpeningAt = now;
+            }
+            this.showLine(this.dbText(event.dialogueKey()), now);
+         }
          case "EXIT" -> {
             this.secretArea = false;
             this.showLine(this.dbText(event.dialogueKey()), now);
@@ -1341,11 +1351,11 @@ public final class Game extends Canvas implements Runnable {
       g2.drawString("ВЫХОД", exit.x + (exit.width - g2.getFontMetrics().stringWidth("ВЫХОД")) / 2, exit.y + 33);
 
       Rectangle chest = this.cellarChestBounds();
-      boolean opening = this.cellarChestOpeningAt > 0 && sceneTime - this.cellarChestOpeningAt < 360;
-      int chestFrame = this.cellarQuest.stage() == 0 || opening && sceneTime - this.cellarChestOpeningAt < 150 ? 0 : 1;
+      boolean opening = this.cellarChestOpeningAt > 0 && sceneTime - this.cellarChestOpeningAt < 800;
+      int chestFrame = this.cellarQuest.stage() == 0 || opening && sceneTime - this.cellarChestOpeningAt < 300 ? 0 : 1;
       int chestSize = Math.min(chest.width - 12, chest.height + 18);
       if (opening) {
-         chestSize += (int)(6 * Math.sin(Math.PI * (sceneTime - this.cellarChestOpeningAt) / 360.0));
+         chestSize += (int)(12 * Math.sin(Math.PI * (sceneTime - this.cellarChestOpeningAt) / 800.0));
       }
       int chestX = chest.x + (chest.width - chestSize) / 2;
       int chestY = chest.y + chest.height - chestSize + 6;
