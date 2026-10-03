@@ -74,3 +74,12 @@ tasks.register('packageWindowsExe', Exec) {
         )
     }
 }
+
+
+tasks.register('runEboboWalk', JavaExec) {
+    group = 'application'
+    description = 'Runs the Vyatsky Ebobo left/right walk test.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'alkosmen.gdx.EboboWalkLauncher'
+    workingDir = projectDir
+}
