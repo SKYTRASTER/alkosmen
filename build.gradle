@@ -14,12 +14,26 @@ javafx {
     modules = [ 'javafx.controls', 'javafx.graphics', 'javafx.media' ]
 }
 
+def gdxVersion = '1.13.1'
+
 dependencies {
     implementation 'org.xerial:sqlite-jdbc:3.53.4.0'
+
+    implementation "com.badlogicgames.gdx:gdx:${gdxVersion}"
+    implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersion}"
+    runtimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersion}:natives-desktop"
 }
 
 application {
     mainClass = 'alkosmen.app.DesktopStartGame'
+}
+
+tasks.register('runGdxMenu', JavaExec) {
+    group = 'application'
+    description = 'Runs the experimental libGDX main menu.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'alkosmen.gdx.GdxDesktopLauncher'
+    workingDir = projectDir
 }
 
 def packagingToolchain = javaToolchains.launcherFor {
@@ -33,7 +47,6 @@ tasks.register('packageWindowsExe', Exec) {
 
     def portableDir = layout.buildDirectory.dir('portable')
     outputs.dir(portableDir)
-    // jpackage embeds the whole app image, so stale output is worse than a short rebuild.
     outputs.upToDateWhen { false }
 
     doFirst {
@@ -59,4 +72,3 @@ tasks.register('packageWindowsExe', Exec) {
         )
     }
 }
-
