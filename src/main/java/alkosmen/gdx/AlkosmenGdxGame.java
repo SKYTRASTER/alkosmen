@@ -8,11 +8,8 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
@@ -36,9 +33,7 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
     private Viewport viewport;
     private SpriteBatch batch;
     private ShapeRenderer shapes;
-    private BitmapFont menuFont;
-    private GlyphLayout glyphLayout;
-    private final Vector2 pointer = new Vector2();
+    private GdxMainMenu mainMenu;
 
     private Texture background;
     private Texture logo;
@@ -54,15 +49,18 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         viewport = new FitViewport(WORLD_WIDTH, WORLD_HEIGHT, camera);
         batch = new SpriteBatch();
         shapes = new ShapeRenderer();
-        menuFont = new BitmapFont();
-        menuFont.getData().setScale(2.0f);
-        glyphLayout = new GlyphLayout();
 
         background = loadBackground();
         logo = new Texture(Gdx.files.internal(LOGO));
 
         loadDanceFrames();
         loadMusic();
+        mainMenu = new GdxMainMenu(
+            viewport,
+            this::onStartClicked,
+            this::onSettingsClicked,
+            Gdx.app::exit
+        );
     }
 
     private Texture loadBackground() {
@@ -116,8 +114,7 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         drawBackground();
         drawCharacter();
         drawLogo();
-        drawMenu();
-        handleMenuInput();
+        mainMenu.render(Gdx.graphics.getDeltaTime());
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             Gdx.app.exit();
@@ -209,86 +206,12 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         batch.end();
     }
 
-    private void drawMenu() {
-        float x = 105f;
-        float width = 300f;
-        float height = 58f;
-        float gap = 18f;
-        float startY = 500f;
-
-        drawMenuButton("START", x, startY, width, height, isPointerInside(x, startY, width, height));
-        drawMenuButton("SETTINGS", x, startY - height - gap, width, height,
-            isPointerInside(x, startY - height - gap, width, height));
-        drawMenuButton("EXIT", x, startY - (height + gap) * 2f, width, height,
-            isPointerInside(x, startY - (height + gap) * 2f, width, height));
+    private void onStartClicked() {
+        Gdx.app.log("Menu", "Старт нажат. Игровой экран libGDX еще переносится.");
     }
 
-    private void drawMenuButton(String text, float x, float y, float width, float height, boolean hovered) {
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(
-            hovered ? 0.10f : 0.03f,
-            hovered ? 0.16f : 0.06f,
-            hovered ? 0.28f : 0.13f,
-            hovered ? 0.92f : 0.78f
-        );
-        shapes.rect(x, y, width, height);
-        shapes.end();
-
-        shapes.begin(ShapeRenderer.ShapeType.Line);
-        shapes.setColor(0.25f, 0.90f, 1f, hovered ? 1f : 0.78f);
-        shapes.rect(x, y, width, height);
-        shapes.end();
-
-        batch.begin();
-        menuFont.setColor(hovered ? new Color(1f, 0.88f, 0.42f, 1f) : Color.WHITE);
-        glyphLayout.setText(menuFont, text);
-        menuFont.draw(
-            batch,
-            text,
-            x + (width - glyphLayout.width) / 2f,
-            y + (height + glyphLayout.height) / 2f
-        );
-        batch.end();
-
-        Gdx.gl.glDisable(GL20.GL_BLEND);
-    }
-
-    private void handleMenuInput() {
-        if (!Gdx.input.justTouched()) {
-            return;
-        }
-
-        float x = 105f;
-        float width = 300f;
-        float height = 58f;
-        float gap = 18f;
-        float startY = 500f;
-
-        if (isPointerInside(x, startY, width, height)) {
-            Gdx.app.log("Menu", "START: gameplay port is next");
-            return;
-        }
-
-        float settingsY = startY - height - gap;
-        if (isPointerInside(x, settingsY, width, height)) {
-            Gdx.app.log("Menu", "SETTINGS: screen is not ported yet");
-            return;
-        }
-
-        float exitY = startY - (height + gap) * 2f;
-        if (isPointerInside(x, exitY, width, height)) {
-            Gdx.app.exit();
-        }
-    }
-
-    private boolean isPointerInside(float x, float y, float width, float height) {
-        pointer.set(Gdx.input.getX(), Gdx.input.getY());
-        viewport.unproject(pointer);
-        return pointer.x >= x && pointer.x <= x + width
-            && pointer.y >= y && pointer.y <= y + height;
+    private void onSettingsClicked() {
+        Gdx.app.log("Menu", "Настройки нажаты. Экран настроек libGDX еще переносится.");
     }
 
     private Texture currentFrame() {
@@ -303,6 +226,9 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
     @Override
     public void resize(int width, int height) {
         viewport.update(width, height, true);
+        if (mainMenu != null) {
+            mainMenu.resize(width, height);
+        }
     }
 
     @Override
@@ -319,8 +245,8 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         if (shapes != null) {
             shapes.dispose();
         }
-        if (menuFont != null) {
-            menuFont.dispose();
+        if (mainMenu != null) {
+            mainMenu.dispose();
         }
     }
 
