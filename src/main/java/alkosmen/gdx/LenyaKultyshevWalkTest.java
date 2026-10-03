@@ -13,8 +13,8 @@ import java.util.List;
 
 public final class LenyaKultyshevWalkTest extends ApplicationAdapter {
     private static final int FRAME_COUNT = 6;
-    private static final float FRAME_DURATION = 0.12f;
-    private static final float MOVE_SPEED = 105f;
+    private static final float FRAME_DURATION = 0.15f;
+    private static final float MOVE_SPEED = 90f;
     private static final String BASE_PATH = "alkosmen/ui/lenya_kultyshev";
 
     private SpriteBatch batch;
