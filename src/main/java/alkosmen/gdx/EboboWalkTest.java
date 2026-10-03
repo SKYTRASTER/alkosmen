@@ -4,24 +4,18 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 public final class EboboWalkTest extends ApplicationAdapter {
     private static final int FRAME_COUNT = 6;
     private static final float FRAME_DURATION = 0.12f;
     private static final float MOVE_SPEED = 120f;
-    private static final String SPRITE_ZIP = "alkosmen/ui/ebobo/ebobo_walk_all.zip";
+    private static final String BASE_PATH = "alkosmen/ui/ebobo";
 
     private SpriteBatch batch;
     private final List<Texture> textures = new ArrayList<>();
@@ -57,58 +51,20 @@ public final class EboboWalkTest extends ApplicationAdapter {
 
     private TextureRegion[] loadFrames(String folder) {
         TextureRegion[] frames = new TextureRegion[FRAME_COUNT];
-        boolean[] loaded = new boolean[FRAME_COUNT];
-
-        try (InputStream raw = Gdx.files.internal(SPRITE_ZIP).read();
-             ZipInputStream zip = new ZipInputStream(raw)) {
-
-            ZipEntry entry;
-            while ((entry = zip.getNextEntry()) != null) {
-                String name = entry.getName().replace('\\', '/');
-
-                for (int i = 0; i < FRAME_COUNT; i++) {
-                    String expected = folder + "/" + String.format("%02d.png", i);
-                    if (name.equals(expected)) {
-                        byte[] bytes = readAll(zip);
-                        Pixmap pixmap = new Pixmap(bytes, 0, bytes.length);
-                        Texture texture = new Texture(pixmap);
-                        pixmap.dispose();
-
-                        textures.add(texture);
-                        frames[i] = new TextureRegion(texture);
-                        loaded[i] = true;
-                        break;
-                    }
-                }
-
-                zip.closeEntry();
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot read Ebobo sprite archive: " + SPRITE_ZIP, e);
-        }
 
         for (int i = 0; i < FRAME_COUNT; i++) {
-            if (!loaded[i]) {
-                throw new IllegalStateException(
-                        "Ebobo frame not found in archive: "
-                                + folder + "/" + String.format("%02d.png", i)
-                );
+            String path = String.format("%s/%s/%02d.png", BASE_PATH, folder, i);
+
+            if (!Gdx.files.internal(path).exists()) {
+                throw new IllegalStateException("Ebobo walk frame not found: " + path);
             }
+
+            Texture texture = new Texture(Gdx.files.internal(path));
+            textures.add(texture);
+            frames[i] = new TextureRegion(texture);
         }
 
         return frames;
-    }
-
-    private static byte[] readAll(InputStream input) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] buffer = new byte[8192];
-        int read;
-
-        while ((read = input.read(buffer)) != -1) {
-            out.write(buffer, 0, read);
-        }
-
-        return out.toByteArray();
     }
 
     @Override
