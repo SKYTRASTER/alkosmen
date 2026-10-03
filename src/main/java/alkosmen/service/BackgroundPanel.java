@@ -2,10 +2,13 @@ package alkosmen.service;
 
 import alkosmen.audio.MenuMusicPlayer;
 import alkosmen.gfx.CharacterSpriteAssets;
+import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
+import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URL;
@@ -29,14 +32,6 @@ public final class BackgroundPanel extends JPanel {
    private static final int REPAINT_INTERVAL_MS = 16;
    private static final double DEFAULT_DANCE_FPS = 9.0;
 
-   /*
-    * Dance speed timeline for each menu track.
-    *
-    * The first number is the song position in milliseconds,
-    * the second is the animation speed in sprite frames per second.
-    *
-    * Add/change cues here when the final musical accents are known.
-    */
    private static final SpeedCue[][] TRACK_SPEED_CUES = {
       {
          new SpeedCue(0L, 7.0),
@@ -227,14 +222,67 @@ public final class BackgroundPanel extends JPanel {
       int targetHeight = (int)Math.round(this.getHeight() * 0.43);
       int targetWidth = (int)Math.round(targetHeight * pose.getWidth() / (double)pose.getHeight());
 
+      double centerX = this.getWidth() * 0.65 + sway;
+      double feetY = this.getHeight() * 0.91 - bob;
+
+      drawContactShadow(g, centerX, feetY, targetWidth, targetHeight);
+
       Graphics2D dancer = (Graphics2D)g.create();
       try {
          dancer.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-         dancer.translate(this.getWidth() * 0.65 + sway, this.getHeight() * 0.91 - bob);
+         dancer.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+         dancer.translate(centerX, feetY);
          dancer.rotate(tilt);
+
          dancer.drawImage(pose, -targetWidth / 2, -targetHeight, targetWidth, targetHeight, this);
+
+         // Cool night tint so the character inherits some of the scene lighting.
+         dancer.setComposite(AlphaComposite.SrcAtop.derive(0.13f));
+         dancer.setColor(new Color(18, 31, 58));
+         dancer.fillRect(-targetWidth / 2, -targetHeight, targetWidth, targetHeight);
+
+         // Soft warm spill from the square lamps. It is intentionally weak:
+         // enough to connect the sprite to the background without repainting it.
+         Point2D center = new Point2D.Double(targetWidth * 0.18, -targetHeight * 0.48);
+         float radius = Math.max(targetWidth, targetHeight) * 0.72f;
+         float[] fractions = {0.0f, 0.55f, 1.0f};
+         Color[] colors = {
+            new Color(255, 185, 96, 48),
+            new Color(255, 150, 72, 18),
+            new Color(255, 140, 60, 0)
+         };
+         dancer.setComposite(AlphaComposite.SrcAtop);
+         dancer.setPaint(new RadialGradientPaint(center, radius, fractions, colors));
+         dancer.fillRect(-targetWidth / 2, -targetHeight, targetWidth, targetHeight);
       } finally {
          dancer.dispose();
+      }
+   }
+
+   private void drawContactShadow(Graphics2D g, double centerX, double feetY, int targetWidth, int targetHeight) {
+      Graphics2D shadow = (Graphics2D)g.create();
+      try {
+         shadow.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+         int shadowWidth = Math.max(24, (int)Math.round(targetWidth * 0.54));
+         int shadowHeight = Math.max(8, (int)Math.round(targetHeight * 0.075));
+         int shadowX = (int)Math.round(centerX - shadowWidth / 2.0);
+         int shadowY = (int)Math.round(feetY - shadowHeight * 0.40);
+
+         // Outer feather.
+         shadow.setColor(new Color(0, 0, 0, 36));
+         shadow.fillOval(
+            shadowX - shadowWidth / 8,
+            shadowY - shadowHeight / 2,
+            shadowWidth + shadowWidth / 4,
+            shadowHeight * 2
+         );
+
+         // Contact core directly below the boots.
+         shadow.setColor(new Color(0, 0, 0, 88));
+         shadow.fillOval(shadowX, shadowY, shadowWidth, shadowHeight);
+      } finally {
+         shadow.dispose();
       }
    }
 
