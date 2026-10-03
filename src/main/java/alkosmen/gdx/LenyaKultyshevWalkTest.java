@@ -4,6 +4,7 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
@@ -57,12 +58,52 @@ public final class LenyaKultyshevWalkTest extends ApplicationAdapter {
                 throw new IllegalStateException("Lenya Kultyshev frame not found: " + path);
             }
 
-            Texture texture = new Texture(Gdx.files.internal(path));
+            Pixmap source = new Pixmap(Gdx.files.internal(path));
+            Pixmap cropped = cropTransparentPadding(source);
+            source.dispose();
+
+            Texture texture = new Texture(cropped);
+            cropped.dispose();
+
             textures.add(texture);
             frames[i] = new TextureRegion(texture);
         }
 
         return frames;
+    }
+
+    private Pixmap cropTransparentPadding(Pixmap source) {
+        int minX = source.getWidth();
+        int minY = source.getHeight();
+        int maxX = -1;
+        int maxY = -1;
+
+        for (int y = 0; y < source.getHeight(); y++) {
+            for (int x = 0; x < source.getWidth(); x++) {
+                int rgba = source.getPixel(x, y);
+                int alpha = rgba & 0xff;
+
+                if (alpha > 8) {
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+
+        if (maxX < minX || maxY < minY) {
+            return new Pixmap(source.getWidth(), source.getHeight(), source.getFormat());
+        }
+
+        int width = maxX - minX + 1;
+        int height = maxY - minY + 1;
+
+        Pixmap cropped = new Pixmap(width, height, source.getFormat());
+        cropped.setBlending(Pixmap.Blending.None);
+        cropped.drawPixmap(source, 0, 0, minX, minY, width, height);
+
+        return cropped;
     }
 
     @Override
