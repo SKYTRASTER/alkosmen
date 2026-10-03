@@ -83,3 +83,12 @@ tasks.register('runEboboWalk', JavaExec) {
     mainClass = 'alkosmen.gdx.EboboWalkLauncher'
     workingDir = projectDir
 }
+
+
+tasks.register('runLenyaKultyshevWalk', JavaExec) {
+    group = 'application'
+    description = 'Runs the Lenya Kultyshev walk test.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'alkosmen.gdx.LenyaKultyshevWalkLauncher'
+    workingDir = projectDir
+}
