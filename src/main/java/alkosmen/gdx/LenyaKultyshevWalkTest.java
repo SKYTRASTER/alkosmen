@@ -104,6 +104,13 @@ public final class LenyaKultyshevWalkTest extends ApplicationAdapter {
         }
 
         float targetHeight = 360f;
+
+        // Side frames have more transparent padding than front/back frames,
+        // so at the same texture height Lenya looks smaller. Compensate here.
+        if (moving && (direction == Direction.LEFT || direction == Direction.RIGHT)) {
+            targetHeight = 400f;
+        }
+
         float targetWidth = targetHeight * frame.getRegionWidth() / (float) frame.getRegionHeight();
 
         x = Math.max(0f, Math.min(x, Gdx.graphics.getWidth() - targetWidth));
