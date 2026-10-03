@@ -111,7 +111,7 @@ public class DesktopStartGame {
             menuMusic.stop();
          }
       });
-      BackgroundPanel background = new BackgroundPanel();
+      BackgroundPanel background = new BackgroundPanel(menuMusic);
       background.setPreferredSize(new Dimension(Constants.Width, Constants.Height));
       frame.setContentPane(background);
       frame.getContentPane().setLayout(new BorderLayout());
