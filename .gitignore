@@ -30,3 +30,13 @@ executionHistory.bin
 fileHashes.bin
 resourceHashesCache.bin
 previous-compilation-data.bin
+
+# Временные папки скачивания и распаковки драйверов.
+.tmp-driver-downloads/
+.tmp-driver-scan-*/
+.tmp-chipset-extract/
+.android-home/
+.worktrees/
+*.keystore
+IdeaProjects.lnk
+install_intel_missing_drivers.*
