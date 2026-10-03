@@ -18,7 +18,8 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
     private static final float WORLD_WIDTH = 1672f;
     private static final float WORLD_HEIGHT = 941f;
 
-    private static final String BACKGROUND = "alkosmen/ui/menu/town_square_dance_bg_v1.png";
+    private static final String BACKGROUND = "alkosmen/ui/menu/town_square_dance_bg_v2.png";
+    private static final String BACKGROUND_FALLBACK = "alkosmen/ui/menu/town_square_dance_bg_v1.png";
     private static final String LOGO = "alkosmen/ui/menu/alkosmeny_title_logo_v1_transparent.png";
     private static final String HERO_FALLBACK = "alkosmen/ui/characters/white_alkosmen_player_red_nose_v2.png";
     private static final String MUSIC = "alkosmen/sounds/menu/night_training_1.mp3";
@@ -48,11 +49,18 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         batch = new SpriteBatch();
         shapes = new ShapeRenderer();
 
-        background = new Texture(Gdx.files.internal(BACKGROUND));
+        background = loadBackground();
         logo = new Texture(Gdx.files.internal(LOGO));
 
         loadDanceFrames();
         loadMusic();
+    }
+
+    private Texture loadBackground() {
+        String path = Gdx.files.internal(BACKGROUND).exists()
+            ? BACKGROUND
+            : BACKGROUND_FALLBACK;
+        return new Texture(Gdx.files.internal(path));
     }
 
     private void loadDanceFrames() {
@@ -146,7 +154,7 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         float sway = (float) Math.sin(phase) * 2.5f;
         float bob = Math.abs((float) Math.sin(phase)) * 2f;
 
-        float centerX = WORLD_WIDTH * 0.65f + sway;
+        float centerX = WORLD_WIDTH * 0.67f + sway;
         float feetY = WORLD_HEIGHT * 0.09f + bob;
         float x = centerX - targetWidth / 2f;
         float y = feetY;
