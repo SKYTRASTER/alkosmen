@@ -1,6 +1,7 @@
 package alkosmen.gdx;
 
 import alkosmen.gdx.items.StorageKey;
+import alkosmen.gdx.render.CharacterRenderMetrics;
 import alkosmen.gdx.story.StoryManager;
 import alkosmen.gdx.story.StoryState;
 import alkosmen.gdx.story.StoryTrigger;
@@ -11,6 +12,7 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
@@ -28,6 +30,9 @@ public final class NewParkGame extends ApplicationAdapter {
     private static final float VIEWPORT_HEIGHT = 720f;
     private static final float PLAYER_SPEED = 330f;
     private static final float PLAYER_DRAW_HEIGHT = 132f;
+    private static final float ALKOSMEN_VISIBLE_HEIGHT = 150f;
+    private static final float MALE_POLICE_VISIBLE_HEIGHT = 158f;
+    private static final float FEMALE_POLICE_VISIBLE_HEIGHT = 153f;
     private static final float PLAYER_BODY_WIDTH = 36f;
     private static final float PLAYER_BODY_HEIGHT = 26f;
     private static final float FRAME_DURATION = 0.14f;
@@ -41,9 +46,12 @@ public final class NewParkGame extends ApplicationAdapter {
     private Texture playerAtlas;
     private Texture parkBackground;
     private TextureRegion[][] playerFrames;
+    private CharacterRenderMetrics.FrameMetrics[][] playerMetrics;
     private final List<Texture> policeTextures = new ArrayList<>();
     private TextureRegion[] malePoliceFrames;
     private TextureRegion[] femalePoliceFrames;
+    private CharacterRenderMetrics.FrameMetrics[] malePoliceMetrics;
+    private CharacterRenderMetrics.FrameMetrics[] femalePoliceMetrics;
     private NewParkWorld world;
     private StorageKey storageKey;
     private StoryManager story;
@@ -55,14 +63,19 @@ public final class NewParkGame extends ApplicationAdapter {
     private Direction direction = Direction.DOWN;
     private boolean debugCollisions;
     private boolean debugStoryState;
+    private boolean debugCharacterMetrics;
     private PoliceScenePhase policeScene = PoliceScenePhase.WAITING;
     private float policeX;
     private float policeY;
     private float policeTargetX;
     private float policeSceneTimer;
+    private float policeAnimationTime;
     private float stationObjectiveDelay = -1f;
     private String message;
     private float messageUntil;
+    private CharacterRenderMetrics.Placement playerPlacement;
+    private CharacterRenderMetrics.Placement malePolicePlacement;
+    private CharacterRenderMetrics.Placement femalePolicePlacement;
 
     private enum Direction {
         LEFT(2), RIGHT(1), IDLE(0), UP(4), DOWN(3);
@@ -81,6 +94,18 @@ public final class NewParkGame extends ApplicationAdapter {
         FINISHED
     }
 
+    private record PlayerAtlas(
+        TextureRegion[][] frames,
+        CharacterRenderMetrics.FrameMetrics[][] metrics
+    ) {
+    }
+
+    private record LoadedFrames(
+        TextureRegion[] frames,
+        CharacterRenderMetrics.FrameMetrics[] metrics
+    ) {
+    }
+
     @Override
     public void create() {
         camera = new OrthographicCamera();
@@ -91,11 +116,19 @@ public final class NewParkGame extends ApplicationAdapter {
 
         playerAtlas = new Texture(Gdx.files.internal(PLAYER_ATLAS));
         playerAtlas.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        playerFrames = splitPlayerAtlas(playerAtlas);
+        Pixmap playerPixels = new Pixmap(Gdx.files.internal(PLAYER_ATLAS));
+        PlayerAtlas playerAtlasFrames = splitPlayerAtlas(playerAtlas, playerPixels);
+        playerPixels.dispose();
+        playerFrames = playerAtlasFrames.frames();
+        playerMetrics = playerAtlasFrames.metrics();
         parkBackground = new Texture(Gdx.files.internal(PARK_BACKGROUND));
         parkBackground.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-        malePoliceFrames = loadPoliceFrames("alkosmen/ui/police_male/walk_right");
-        femalePoliceFrames = loadPoliceFrames("alkosmen/ui/police_female/walk_right");
+        LoadedFrames malePolice = loadPoliceFrames("alkosmen/ui/police_male/walk_right");
+        malePoliceFrames = malePolice.frames();
+        malePoliceMetrics = malePolice.metrics();
+        LoadedFrames femalePolice = loadPoliceFrames("alkosmen/ui/police_female/walk_right");
+        femalePoliceFrames = femalePolice.frames();
+        femalePoliceMetrics = femalePolice.metrics();
         world = new NewParkWorld();
         storageKey = new StorageKey(3070f, 900f, 84f);
         story = new StoryManager();
@@ -124,6 +157,9 @@ public final class NewParkGame extends ApplicationAdapter {
         if (debugCollisions) {
             drawCollisionDebug();
         }
+        if (debugCharacterMetrics) {
+            drawCharacterMetrics();
+        }
         drawHud();
     }
 
@@ -138,6 +174,9 @@ public final class NewParkGame extends ApplicationAdapter {
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
             debugCollisions = !debugCollisions;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F4)) {
+            debugCharacterMetrics = !debugCharacterMetrics;
         }
         if (policeScene == PoliceScenePhase.WALKING_IN || policeScene == PoliceScenePhase.SPEAKING) {
             return;
@@ -157,6 +196,7 @@ public final class NewParkGame extends ApplicationAdapter {
         boolean moving = moveX != 0f || moveY != 0f;
         if (!moving) {
             animationTime = 0f;
+            direction = Direction.IDLE;
             return;
         }
 
@@ -183,6 +223,7 @@ public final class NewParkGame extends ApplicationAdapter {
 
         if (policeScene == PoliceScenePhase.WALKING_IN) {
             policeX = Math.max(policeTargetX, policeX - 250f * delta);
+            policeAnimationTime += delta;
             if (policeX <= policeTargetX) {
                 policeScene = PoliceScenePhase.SPEAKING;
                 policeSceneTimer = 3.4f;
@@ -210,6 +251,7 @@ public final class NewParkGame extends ApplicationAdapter {
         policeX = playerX + 650f;
         policeY = playerY;
         policeScene = PoliceScenePhase.WALKING_IN;
+        policeAnimationTime = 0f;
     }
 
     private void resetStory() {
@@ -222,6 +264,7 @@ public final class NewParkGame extends ApplicationAdapter {
         playerX = NewParkWorld.SPAWN_X;
         playerY = NewParkWorld.SPAWN_Y;
         animationTime = 0f;
+        policeAnimationTime = 0f;
     }
 
     private void showMessage(String nextMessage, float seconds) {
@@ -240,7 +283,7 @@ public final class NewParkGame extends ApplicationAdapter {
 
     private boolean canStandAt(float x, float y) {
         Rectangle body = new Rectangle(
-            x + (PLAYER_DRAW_HEIGHT * 0.42f - PLAYER_BODY_WIDTH / 2f),
+            x - PLAYER_BODY_WIDTH / 2f,
             y + 8f,
             PLAYER_BODY_WIDTH,
             PLAYER_BODY_HEIGHT
@@ -252,7 +295,7 @@ public final class NewParkGame extends ApplicationAdapter {
         float halfWidth = viewport.getWorldWidth() / 2f;
         float halfHeight = viewport.getWorldHeight() / 2f;
         camera.position.set(
-            MathUtils.clamp(playerX + PLAYER_DRAW_HEIGHT * 0.42f, halfWidth, NewParkWorld.WIDTH - halfWidth),
+            MathUtils.clamp(playerX, halfWidth, NewParkWorld.WIDTH - halfWidth),
             MathUtils.clamp(playerY + PLAYER_DRAW_HEIGHT * 0.20f, halfHeight, NewParkWorld.HEIGHT - halfHeight),
             0f
         );
@@ -267,16 +310,16 @@ public final class NewParkGame extends ApplicationAdapter {
     private void drawPlayer() {
         int column = direction == Direction.IDLE ? 0 : (int)(animationTime / FRAME_DURATION) % playerFrames[direction.atlasRow].length;
         TextureRegion frame = playerFrames[direction.atlasRow][column];
-        float width = PLAYER_DRAW_HEIGHT * frame.getRegionWidth() / (float)frame.getRegionHeight();
-        float drawX = playerX;
-
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         shapes.setColor(0f, 0f, 0f, 0.24f);
-        shapes.ellipse(drawX + width * 0.20f, playerY + 2f, width * 0.58f, 13f);
+        shapes.ellipse(playerX - 40f, playerY + 2f, 80f, 13f);
         shapes.end();
 
         batch.begin();
-        batch.draw(frame, drawX, playerY, width, PLAYER_DRAW_HEIGHT);
+        playerPlacement = CharacterRenderMetrics.draw(
+            batch, frame, playerMetrics[direction.atlasRow][column], playerX, playerY,
+            ALKOSMEN_VISIBLE_HEIGHT, false
+        );
         batch.end();
     }
 
@@ -298,15 +341,18 @@ public final class NewParkGame extends ApplicationAdapter {
         if (policeScene == PoliceScenePhase.WAITING) {
             return;
         }
-        int frame = (int)(animationTime / FRAME_DURATION) % malePoliceFrames.length;
-        float height = 118f;
-        float maleWidth = height * malePoliceFrames[frame].getRegionWidth() / (float)malePoliceFrames[frame].getRegionHeight();
-        float femaleWidth = height * femalePoliceFrames[frame].getRegionWidth() / (float)femalePoliceFrames[frame].getRegionHeight();
+        int frame = (int)(policeAnimationTime / FRAME_DURATION) % malePoliceFrames.length;
 
         batch.begin();
         // The pair walk in from the right, so the existing right-walk art is mirrored.
-        batch.draw(malePoliceFrames[frame], policeX + maleWidth, policeY, -maleWidth, height);
-        batch.draw(femalePoliceFrames[frame], policeX + femaleWidth + 82f, policeY + 10f, -femaleWidth, height);
+        malePolicePlacement = CharacterRenderMetrics.draw(
+            batch, malePoliceFrames[frame], malePoliceMetrics[frame], policeX, policeY,
+            MALE_POLICE_VISIBLE_HEIGHT, true
+        );
+        femalePolicePlacement = CharacterRenderMetrics.draw(
+            batch, femalePoliceFrames[frame], femalePoliceMetrics[frame], policeX + 100f, policeY,
+            FEMALE_POLICE_VISIBLE_HEIGHT, true
+        );
         batch.end();
     }
 
@@ -318,13 +364,21 @@ public final class NewParkGame extends ApplicationAdapter {
             shapes.rect(bounds.x, bounds.y, bounds.width, bounds.height);
         }
         Rectangle body = new Rectangle(
-            playerX + (PLAYER_DRAW_HEIGHT * 0.42f - PLAYER_BODY_WIDTH / 2f),
+            playerX - PLAYER_BODY_WIDTH / 2f,
             playerY + 8f,
             PLAYER_BODY_WIDTH,
             PLAYER_BODY_HEIGHT
         );
         shapes.setColor(Color.CYAN);
         shapes.rect(body.x, body.y, body.width, body.height);
+        shapes.end();
+    }
+
+    private void drawCharacterMetrics() {
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        CharacterRenderMetrics.drawDebug(shapes, playerPlacement);
+        CharacterRenderMetrics.drawDebug(shapes, malePolicePlacement);
+        CharacterRenderMetrics.drawDebug(shapes, femalePolicePlacement);
         shapes.end();
     }
 
@@ -367,24 +421,30 @@ public final class NewParkGame extends ApplicationAdapter {
         }
     }
 
-    private TextureRegion[] loadPoliceFrames(String folder) {
+    private LoadedFrames loadPoliceFrames(String folder) {
         TextureRegion[] frames = new TextureRegion[6];
+        CharacterRenderMetrics.FrameMetrics[] metrics = new CharacterRenderMetrics.FrameMetrics[frames.length];
         for (int index = 0; index < frames.length; index++) {
-            Texture texture = new Texture(Gdx.files.internal(String.format("%s/%02d.png", folder, index)));
+            String path = String.format("%s/%02d.png", folder, index);
+            Texture texture = new Texture(Gdx.files.internal(path));
             texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
             policeTextures.add(texture);
             frames[index] = new TextureRegion(texture);
+            Pixmap pixels = new Pixmap(Gdx.files.internal(path));
+            metrics[index] = CharacterRenderMetrics.scan(pixels, 0, 0, pixels.getWidth(), pixels.getHeight());
+            pixels.dispose();
         }
-        return frames;
+        return new LoadedFrames(frames, metrics);
     }
 
-    private static TextureRegion[][] splitPlayerAtlas(Texture atlas) {
+    private static PlayerAtlas splitPlayerAtlas(Texture atlas, Pixmap pixels) {
         int columns = 4;
         int rows = 5;
         int frameWidth = atlas.getWidth() / columns;
         int fullFrameHeight = atlas.getHeight() / rows;
         int frameHeight = fullFrameHeight - 30;
         TextureRegion[][] frames = new TextureRegion[rows][columns];
+        CharacterRenderMetrics.FrameMetrics[][] metrics = new CharacterRenderMetrics.FrameMetrics[rows][columns];
         for (int row = 0; row < rows; row++) {
             for (int column = 0; column < columns; column++) {
                 frames[row][column] = new TextureRegion(
@@ -394,8 +454,11 @@ public final class NewParkGame extends ApplicationAdapter {
                     frameWidth,
                     frameHeight
                 );
+                metrics[row][column] = CharacterRenderMetrics.scan(
+                    pixels, column * frameWidth, row * fullFrameHeight, frameWidth, frameHeight
+                );
             }
         }
-        return frames;
+        return new PlayerAtlas(frames, metrics);
     }
 }

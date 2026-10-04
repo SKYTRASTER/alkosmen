@@ -44,7 +44,7 @@ public final class ObjectiveHud implements Disposable {
         font.setColor(Color.WHITE);
         font.draw(batch, "Цель: " + objective.text(), 28f, height - 28f);
         font.setColor(new Color(0.78f, 0.88f, 1f, 1f));
-        font.draw(batch, "WASD / стрелки - ходить    F3 - коллизии", 28f, height - 55f);
+        font.draw(batch, "WASD / стрелки - ходить    F3 - коллизии    F4 - опоры", 28f, height - 55f);
         if (interaction != null) {
             font.setColor(new Color(1f, 0.83f, 0.30f, 1f));
             font.draw(batch, interaction, 28f, 48f);
