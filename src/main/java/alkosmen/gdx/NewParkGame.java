@@ -32,12 +32,14 @@ public final class NewParkGame extends ApplicationAdapter {
     private static final float PLAYER_BODY_HEIGHT = 26f;
     private static final float FRAME_DURATION = 0.14f;
     private static final String PLAYER_ATLAS = "alkosmen/ui/sprites/alkosmen/walk_atlas_v1.png";
+    private static final String PARK_BACKGROUND = "alkosmen/ui/levels/new_park_zuevka_v1.png";
 
     private OrthographicCamera camera;
     private Viewport viewport;
     private SpriteBatch batch;
     private ShapeRenderer shapes;
     private Texture playerAtlas;
+    private Texture parkBackground;
     private TextureRegion[][] playerFrames;
     private final List<Texture> policeTextures = new ArrayList<>();
     private TextureRegion[] malePoliceFrames;
@@ -89,15 +91,13 @@ public final class NewParkGame extends ApplicationAdapter {
 
         playerAtlas = new Texture(Gdx.files.internal(PLAYER_ATLAS));
         playerAtlas.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        playerFrames = TextureRegion.split(
-            playerAtlas,
-            playerAtlas.getWidth() / 4,
-            playerAtlas.getHeight() / 5
-        );
+        playerFrames = splitPlayerAtlas(playerAtlas);
+        parkBackground = new Texture(Gdx.files.internal(PARK_BACKGROUND));
+        parkBackground.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
         malePoliceFrames = loadPoliceFrames("alkosmen/ui/police_male/walk_right");
         femalePoliceFrames = loadPoliceFrames("alkosmen/ui/police_female/walk_right");
         world = new NewParkWorld();
-        storageKey = new StorageKey(2460f, 1160f, 84f);
+        storageKey = new StorageKey(3070f, 900f, 84f);
         story = new StoryManager();
         updateCamera();
     }
@@ -259,27 +259,9 @@ public final class NewParkGame extends ApplicationAdapter {
     }
 
     private void drawWorld() {
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(new Color(0.20f, 0.42f, 0.20f, 1f));
-        shapes.rect(0f, 0f, NewParkWorld.WIDTH, NewParkWorld.HEIGHT);
-
-        shapes.setColor(new Color(0.48f, 0.46f, 0.37f, 1f));
-        shapes.rect(0f, 740f, NewParkWorld.WIDTH, 260f);
-        shapes.rect(1880f, 0f, 280f, NewParkWorld.HEIGHT);
-        shapes.setColor(new Color(0.78f, 0.72f, 0.51f, 1f));
-        shapes.rect(720f, 960f, 1200f, 92f);
-        shapes.rect(1690f, 980f, 92f, 1070f);
-
-        for (NewParkWorld.ParkObject object : world.objects()) {
-            Rectangle bounds = object.bounds();
-            shapes.setColor(object.kind().color());
-            shapes.rect(bounds.x, bounds.y, bounds.width, bounds.height);
-            if (object.kind() == NewParkWorld.ObjectKind.TREE) {
-                shapes.setColor(new Color(0.14f, 0.48f, 0.18f, 1f));
-                shapes.circle(bounds.x + bounds.width / 2f, bounds.y + bounds.height * 0.72f, bounds.width * 0.62f);
-            }
-        }
-        shapes.end();
+        batch.begin();
+        batch.draw(parkBackground, 0f, 0f, NewParkWorld.WIDTH, NewParkWorld.HEIGHT);
+        batch.end();
     }
 
     private void drawPlayer() {
@@ -367,6 +349,9 @@ public final class NewParkGame extends ApplicationAdapter {
         if (playerAtlas != null) {
             playerAtlas.dispose();
         }
+        if (parkBackground != null) {
+            parkBackground.dispose();
+        }
         if (batch != null) {
             batch.dispose();
         }
@@ -389,6 +374,27 @@ public final class NewParkGame extends ApplicationAdapter {
             texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
             policeTextures.add(texture);
             frames[index] = new TextureRegion(texture);
+        }
+        return frames;
+    }
+
+    private static TextureRegion[][] splitPlayerAtlas(Texture atlas) {
+        int columns = 4;
+        int rows = 5;
+        int frameWidth = atlas.getWidth() / columns;
+        int fullFrameHeight = atlas.getHeight() / rows;
+        int frameHeight = fullFrameHeight - 30;
+        TextureRegion[][] frames = new TextureRegion[rows][columns];
+        for (int row = 0; row < rows; row++) {
+            for (int column = 0; column < columns; column++) {
+                frames[row][column] = new TextureRegion(
+                    atlas,
+                    column * frameWidth,
+                    row * fullFrameHeight,
+                    frameWidth,
+                    frameHeight
+                );
+            }
         }
         return frames;
     }

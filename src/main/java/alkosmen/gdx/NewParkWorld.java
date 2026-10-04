@@ -12,42 +12,41 @@ import java.util.List;
  */
 public final class NewParkWorld {
     public static final float WIDTH = 3840f;
-    public static final float HEIGHT = 2560f;
-    public static final float SPAWN_X = 870f;
-    public static final float SPAWN_Y = 970f;
+    public static final float HEIGHT = 1920f;
+    public static final float SPAWN_X = 1320f;
+    public static final float SPAWN_Y = 770f;
 
     private final List<ParkObject> objects;
 
     public NewParkWorld() {
         List<ParkObject> layout = new ArrayList<>();
 
-        // Sverdlova 12 and the surrounding houses.
-        layout.add(ParkObject.house("Sverdlova 12", 1060f, 1120f, 570f, 410f));
-        layout.add(ParkObject.house("House", 2120f, 1560f, 500f, 350f));
-        layout.add(ParkObject.house("House", 2920f, 660f, 520f, 390f));
+        // Collision data matches the hand-painted New Park background.
+        layout.add(ParkObject.house("Sverdlova 12", 1160f, 1040f, 780f, 370f));
+        layout.add(ParkObject.house("House", 120f, 1330f, 540f, 360f));
+        layout.add(ParkObject.house("House", 720f, 1110f, 540f, 340f));
+        layout.add(ParkObject.house("House", 1510f, 1450f, 640f, 340f));
+        layout.add(ParkObject.fence(90f, 970f, 860f, 30f));
+        layout.add(ParkObject.fence(1040f, 930f, 970f, 30f));
+        layout.add(ParkObject.fence(2130f, 720f, 30f, 840f));
+        layout.add(ParkObject.fence(2470f, 780f, 30f, 780f));
+        // Gap between both fence sections is the walkable New Park entrance.
+        layout.add(ParkObject.fence(2540f, 710f, 440f, 28f));
+        layout.add(ParkObject.fence(3220f, 710f, 440f, 28f));
 
-        // Fences make the district readable now and become collision data later too.
-        layout.add(ParkObject.fence(780f, 850f, 1060f, 34f));
-        layout.add(ParkObject.fence(780f, 850f, 34f, 520f));
-        layout.add(ParkObject.fence(1806f, 850f, 34f, 250f));
-        layout.add(ParkObject.fence(1806f, 1280f, 34f, 380f));
-        layout.add(ParkObject.fence(2020f, 1390f, 700f, 30f));
-        layout.add(ParkObject.fence(2710f, 1390f, 30f, 600f));
-        layout.add(ParkObject.fence(2810f, 510f, 720f, 30f));
+        // Only the trunks block movement; leaves stay visual in the background.
+        layout.add(ParkObject.tree(360f, 760f));
+        layout.add(ParkObject.tree(760f, 1540f));
+        layout.add(ParkObject.tree(970f, 820f));
+        layout.add(ParkObject.tree(2130f, 1660f));
+        layout.add(ParkObject.tree(2520f, 1550f));
+        layout.add(ParkObject.tree(2920f, 860f));
+        layout.add(ParkObject.tree(3440f, 1320f));
+        layout.add(ParkObject.tree(3610f, 1690f));
 
-        // The tree crowns are decoration; their trunks are the actual blockers.
-        layout.add(ParkObject.tree(350f, 420f));
-        layout.add(ParkObject.tree(540f, 1860f));
-        layout.add(ParkObject.tree(860f, 2020f));
-        layout.add(ParkObject.tree(1880f, 460f));
-        layout.add(ParkObject.tree(2420f, 680f));
-        layout.add(ParkObject.tree(3090f, 1940f));
-        layout.add(ParkObject.tree(3490f, 1450f));
-        layout.add(ParkObject.tree(3610f, 360f));
-
-        layout.add(ParkObject.obstacle(ObjectKind.BENCH, 2280f, 930f, 180f, 52f));
-        layout.add(ParkObject.obstacle(ObjectKind.PLAYGROUND, 3200f, 1740f, 220f, 180f));
-        layout.add(ParkObject.obstacle(ObjectKind.FOUNTAIN, 1860f, 2050f, 190f, 190f));
+        layout.add(ParkObject.obstacle(ObjectKind.BENCH, 2760f, 940f, 170f, 46f));
+        layout.add(ParkObject.obstacle(ObjectKind.PLAYGROUND, 3370f, 1360f, 250f, 190f));
+        layout.add(ParkObject.obstacle(ObjectKind.FOUNTAIN, 3040f, 1110f, 200f, 200f));
 
         this.objects = Collections.unmodifiableList(layout);
     }
