@@ -101,3 +101,20 @@ tasks.register('runMozolWalk', JavaExec) {
     mainClass = 'alkosmen.gdx.MozolWalkLauncher'
     workingDir = projectDir
 }
+
+
+tasks.register('runPoliceMaleWalk', JavaExec) {
+    group = 'application'
+    description = 'Runs the male police walk test.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'alkosmen.gdx.PoliceMaleWalkLauncher'
+    workingDir = projectDir
+}
+
+tasks.register('runPoliceFemaleWalk', JavaExec) {
+    group = 'application'
+    description = 'Runs the female police walk test.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'alkosmen.gdx.PoliceFemaleWalkLauncher'
+    workingDir = projectDir
+}
