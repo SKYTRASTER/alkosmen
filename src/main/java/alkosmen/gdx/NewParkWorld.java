@@ -26,6 +26,9 @@ public final class NewParkWorld {
         layout.add(ParkObject.house("House", 120f, 1330f, 540f, 360f));
         layout.add(ParkObject.house("House", 720f, 1110f, 540f, 340f));
         layout.add(ParkObject.house("House", 1510f, 1450f, 640f, 340f));
+
+        // Railway and yard fencing: tracks are scenery, not a walkable shortcut.
+        layout.add(ParkObject.grate(0f, 260f, WIDTH, 34f));
         layout.add(ParkObject.fence(90f, 970f, 860f, 30f));
         layout.add(ParkObject.fence(1040f, 930f, 970f, 30f));
         layout.add(ParkObject.fence(2130f, 720f, 30f, 840f));
@@ -33,6 +36,22 @@ public final class NewParkWorld {
         // Gap between both fence sections is the walkable New Park entrance.
         layout.add(ParkObject.fence(2540f, 710f, 440f, 28f));
         layout.add(ParkObject.fence(3220f, 710f, 440f, 28f));
+
+        // Hedges have their own hitboxes, so the player does not walk through foliage.
+        layout.add(ParkObject.bush(90f, 1020f, 770f, 92f));
+        layout.add(ParkObject.bush(720f, 1480f, 420f, 78f));
+        layout.add(ParkObject.bush(1160f, 1460f, 760f, 72f));
+        layout.add(ParkObject.bush(2020f, 1610f, 170f, 220f));
+        layout.add(ParkObject.bush(2520f, 1510f, 260f, 92f));
+        layout.add(ParkObject.bush(2840f, 1510f, 410f, 82f));
+        layout.add(ParkObject.bush(3300f, 940f, 260f, 74f));
+        layout.add(ParkObject.bush(3470f, 1180f, 250f, 70f));
+        layout.add(ParkObject.bush(2710f, 1710f, 700f, 70f));
+
+        // Park railings retain the gate gap from the scene entrance above.
+        layout.add(ParkObject.grate(2520f, 1660f, 1050f, 26f));
+        layout.add(ParkObject.grate(3550f, 850f, 26f, 810f));
+        layout.add(ParkObject.grate(2520f, 1660f, 26f, 180f));
 
         // Only the trunks block movement; leaves stay visual in the background.
         layout.add(ParkObject.tree(360f, 760f));
@@ -71,6 +90,8 @@ public final class NewParkWorld {
         HOUSE(new Color(0.48f, 0.25f, 0.16f, 1f)),
         FENCE(new Color(0.28f, 0.16f, 0.09f, 1f)),
         TREE(new Color(0.08f, 0.30f, 0.13f, 1f)),
+        BUSH(new Color(0.10f, 0.45f, 0.16f, 1f)),
+        GRATE(new Color(0.48f, 0.55f, 0.57f, 1f)),
         BENCH(new Color(0.46f, 0.29f, 0.12f, 1f)),
         PLAYGROUND(new Color(0.66f, 0.31f, 0.13f, 1f)),
         FOUNTAIN(new Color(0.10f, 0.36f, 0.55f, 1f));
@@ -96,7 +117,15 @@ public final class NewParkWorld {
         }
 
         public static ParkObject tree(float x, float y) {
-            return obstacle(ObjectKind.TREE, x, y, 82f, 82f);
+            return obstacle(ObjectKind.TREE, x, y, 98f, 98f);
+        }
+
+        public static ParkObject bush(float x, float y, float width, float height) {
+            return obstacle(ObjectKind.BUSH, x, y, width, height);
+        }
+
+        public static ParkObject grate(float x, float y, float width, float height) {
+            return obstacle(ObjectKind.GRATE, x, y, width, height);
         }
 
         public static ParkObject obstacle(ObjectKind kind, float x, float y, float width, float height) {
