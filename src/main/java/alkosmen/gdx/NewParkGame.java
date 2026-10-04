@@ -1,5 +1,10 @@
 package alkosmen.gdx;
 
+import alkosmen.gdx.items.StorageKey;
+import alkosmen.gdx.story.StoryManager;
+import alkosmen.gdx.story.StoryState;
+import alkosmen.gdx.story.StoryTrigger;
+import alkosmen.gdx.ui.ObjectiveHud;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -7,7 +12,6 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
@@ -15,6 +19,8 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import java.util.ArrayList;
+import java.util.List;
 
 /** First playable libGDX scene: Sverdlova 12 and New Park. */
 public final class NewParkGame extends ApplicationAdapter {
@@ -31,16 +37,30 @@ public final class NewParkGame extends ApplicationAdapter {
     private Viewport viewport;
     private SpriteBatch batch;
     private ShapeRenderer shapes;
-    private BitmapFont hudFont;
     private Texture playerAtlas;
     private TextureRegion[][] playerFrames;
+    private final List<Texture> policeTextures = new ArrayList<>();
+    private TextureRegion[] malePoliceFrames;
+    private TextureRegion[] femalePoliceFrames;
     private NewParkWorld world;
+    private StorageKey storageKey;
+    private StoryManager story;
+    private ObjectiveHud objectiveHud;
 
     private float playerX = NewParkWorld.SPAWN_X;
     private float playerY = NewParkWorld.SPAWN_Y;
     private float animationTime;
     private Direction direction = Direction.DOWN;
     private boolean debugCollisions;
+    private boolean debugStoryState;
+    private PoliceScenePhase policeScene = PoliceScenePhase.WAITING;
+    private float policeX;
+    private float policeY;
+    private float policeTargetX;
+    private float policeSceneTimer;
+    private float stationObjectiveDelay = -1f;
+    private String message;
+    private float messageUntil;
 
     private enum Direction {
         LEFT(2), RIGHT(1), IDLE(0), UP(4), DOWN(3);
@@ -52,13 +72,20 @@ public final class NewParkGame extends ApplicationAdapter {
         }
     }
 
+    private enum PoliceScenePhase {
+        WAITING,
+        WALKING_IN,
+        SPEAKING,
+        FINISHED
+    }
+
     @Override
     public void create() {
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
         batch = new SpriteBatch();
         shapes = new ShapeRenderer();
-        hudFont = new BitmapFont();
+        objectiveHud = new ObjectiveHud();
 
         playerAtlas = new Texture(Gdx.files.internal(PLAYER_ATLAS));
         playerAtlas.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
@@ -67,7 +94,11 @@ public final class NewParkGame extends ApplicationAdapter {
             playerAtlas.getWidth() / 4,
             playerAtlas.getHeight() / 5
         );
+        malePoliceFrames = loadPoliceFrames("alkosmen/ui/police_male/walk_right");
+        femalePoliceFrames = loadPoliceFrames("alkosmen/ui/police_female/walk_right");
         world = new NewParkWorld();
+        storageKey = new StorageKey(2460f, 1160f, 84f);
+        story = new StoryManager();
         updateCamera();
     }
 
@@ -75,6 +106,7 @@ public final class NewParkGame extends ApplicationAdapter {
     public void render() {
         float delta = Math.min(Gdx.graphics.getDeltaTime(), 0.05f);
         updatePlayer(delta);
+        updateStory(delta);
         updateCamera();
 
         Gdx.gl.glClearColor(0.10f, 0.21f, 0.13f, 1f);
@@ -86,6 +118,8 @@ public final class NewParkGame extends ApplicationAdapter {
         batch.setProjectionMatrix(camera.combined);
 
         drawWorld();
+        drawStorageKey();
+        drawPoliceScene();
         drawPlayer();
         if (debugCollisions) {
             drawCollisionDebug();
@@ -96,6 +130,18 @@ public final class NewParkGame extends ApplicationAdapter {
     private void updatePlayer(float delta) {
         float moveX = 0f;
         float moveY = 0f;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
+            debugStoryState = !debugStoryState;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F2)) {
+            resetStory();
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
+            debugCollisions = !debugCollisions;
+        }
+        if (policeScene == PoliceScenePhase.WALKING_IN || policeScene == PoliceScenePhase.SPEAKING) {
+            return;
+        }
         if (Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
             moveX -= 1f;
         }
@@ -108,10 +154,6 @@ public final class NewParkGame extends ApplicationAdapter {
         if (Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.DOWN)) {
             moveY -= 1f;
         }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
-            debugCollisions = !debugCollisions;
-        }
-
         boolean moving = moveX != 0f || moveY != 0f;
         if (!moving) {
             animationTime = 0f;
@@ -129,6 +171,62 @@ public final class NewParkGame extends ApplicationAdapter {
         moveY = moveY / length * PLAYER_SPEED * delta;
         moveAlongAxes(moveX, moveY);
         animationTime += delta;
+    }
+
+    private void updateStory(float delta) {
+        if (!storageKey.collected() && storageKey.isNear(playerX, playerY)
+            && Gdx.input.isKeyJustPressed(Input.Keys.E) && storageKey.collect()) {
+            story.trigger(StoryTrigger.KEY_COLLECTED);
+            showMessage("Ключ от камеры хранения. Вокзал.", 3.5f);
+            startPoliceScene();
+        }
+
+        if (policeScene == PoliceScenePhase.WALKING_IN) {
+            policeX = Math.max(policeTargetX, policeX - 250f * delta);
+            if (policeX <= policeTargetX) {
+                policeScene = PoliceScenePhase.SPEAKING;
+                policeSceneTimer = 3.4f;
+            }
+        } else if (policeScene == PoliceScenePhase.SPEAKING) {
+            policeSceneTimer -= delta;
+            if (policeSceneTimer <= 0f) {
+                policeScene = PoliceScenePhase.FINISHED;
+                if (story.trigger(StoryTrigger.POLICE_SCENE_FINISHED)) {
+                    stationObjectiveDelay = 1.0f;
+                }
+            }
+        }
+
+        if (stationObjectiveDelay >= 0f) {
+            stationObjectiveDelay -= delta;
+            if (stationObjectiveDelay <= 0f) {
+                story.trigger(StoryTrigger.STATION_OBJECTIVE_READY);
+            }
+        }
+    }
+
+    private void startPoliceScene() {
+        policeTargetX = playerX + 150f;
+        policeX = playerX + 650f;
+        policeY = playerY;
+        policeScene = PoliceScenePhase.WALKING_IN;
+    }
+
+    private void resetStory() {
+        story.reset();
+        storageKey.reset();
+        policeScene = PoliceScenePhase.WAITING;
+        stationObjectiveDelay = -1f;
+        message = null;
+        messageUntil = 0f;
+        playerX = NewParkWorld.SPAWN_X;
+        playerY = NewParkWorld.SPAWN_Y;
+        animationTime = 0f;
+    }
+
+    private void showMessage(String nextMessage, float seconds) {
+        message = nextMessage;
+        messageUntil = (float)(System.nanoTime() / 1_000_000_000.0) + seconds;
     }
 
     private void moveAlongAxes(float moveX, float moveY) {
@@ -200,6 +298,36 @@ public final class NewParkGame extends ApplicationAdapter {
         batch.end();
     }
 
+    private void drawStorageKey() {
+        if (storageKey.collected()) {
+            return;
+        }
+        float pulse = 4f + MathUtils.sin((float)(System.nanoTime() / 500_000_000.0)) * 2f;
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(new Color(1f, 0.78f, 0.18f, 1f));
+        shapes.circle(storageKey.x(), storageKey.y(), 12f + pulse);
+        shapes.setColor(new Color(0.32f, 0.20f, 0.04f, 1f));
+        shapes.rect(storageKey.x() - 4f, storageKey.y() - 34f, 8f, 28f);
+        shapes.circle(storageKey.x(), storageKey.y() - 4f, 9f);
+        shapes.end();
+    }
+
+    private void drawPoliceScene() {
+        if (policeScene == PoliceScenePhase.WAITING) {
+            return;
+        }
+        int frame = (int)(animationTime / FRAME_DURATION) % malePoliceFrames.length;
+        float height = 118f;
+        float maleWidth = height * malePoliceFrames[frame].getRegionWidth() / (float)malePoliceFrames[frame].getRegionHeight();
+        float femaleWidth = height * femalePoliceFrames[frame].getRegionWidth() / (float)femalePoliceFrames[frame].getRegionHeight();
+
+        batch.begin();
+        // The pair walk in from the right, so the existing right-walk art is mirrored.
+        batch.draw(malePoliceFrames[frame], policeX + maleWidth, policeY, -maleWidth, height);
+        batch.draw(femalePoliceFrames[frame], policeX + femaleWidth + 82f, policeY + 10f, -femaleWidth, height);
+        batch.end();
+    }
+
     private void drawCollisionDebug() {
         shapes.begin(ShapeRenderer.ShapeType.Line);
         shapes.setColor(Color.YELLOW);
@@ -219,18 +347,19 @@ public final class NewParkGame extends ApplicationAdapter {
     }
 
     private void drawHud() {
-        batch.begin();
-        hudFont.setColor(Color.WHITE);
-        hudFont.draw(batch, "NEW PARK / SVERDLOVA 12", camera.position.x - viewport.getWorldWidth() / 2f + 20f,
-            camera.position.y + viewport.getWorldHeight() / 2f - 20f);
-        hudFont.draw(batch, "WASD / arrows - walk    F3 - collisions", camera.position.x - viewport.getWorldWidth() / 2f + 20f,
-            camera.position.y + viewport.getWorldHeight() / 2f - 42f);
-        batch.end();
+        String interaction = !storageKey.collected() && storageKey.isNear(playerX, playerY)
+            ? "E — подобрать"
+            : null;
+        String activeMessage = policeScene == PoliceScenePhase.SPEAKING
+            ? "Ищем белого с сумкой."
+            : ((float)(System.nanoTime() / 1_000_000_000.0) < messageUntil ? message : null);
+        objectiveHud.render(shapes, batch, story.objective(), interaction, activeMessage, story.state(), debugStoryState);
     }
 
     @Override
     public void resize(int width, int height) {
         viewport.update(width, height, true);
+        objectiveHud.resize(width, height);
     }
 
     @Override
@@ -244,8 +373,23 @@ public final class NewParkGame extends ApplicationAdapter {
         if (shapes != null) {
             shapes.dispose();
         }
-        if (hudFont != null) {
-            hudFont.dispose();
+        for (Texture texture : policeTextures) {
+            texture.dispose();
         }
+        policeTextures.clear();
+        if (objectiveHud != null) {
+            objectiveHud.dispose();
+        }
+    }
+
+    private TextureRegion[] loadPoliceFrames(String folder) {
+        TextureRegion[] frames = new TextureRegion[6];
+        for (int index = 0; index < frames.length; index++) {
+            Texture texture = new Texture(Gdx.files.internal(String.format("%s/%02d.png", folder, index)));
+            texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            policeTextures.add(texture);
+            frames[index] = new TextureRegion(texture);
+        }
+        return frames;
     }
 }
