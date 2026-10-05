@@ -282,7 +282,7 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
             activeSceneTest.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         } catch (RuntimeException exception) {
             Gdx.app.error("SceneTests", "Не удалось запустить тестовую сцену", exception);
-            dispose(activeSceneTest);
+            activeSceneTest.dispose();
             activeSceneTest = null;
             mode = Mode.SCENE_TEST_MENU;
             resumeMenuMusic();
@@ -291,8 +291,10 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
     }
 
     private void closeSceneTest() {
-        dispose(activeSceneTest);
-        activeSceneTest = null;
+        if (activeSceneTest != null) {
+            activeSceneTest.dispose();
+            activeSceneTest = null;
+        }
         mode = Mode.SCENE_TEST_MENU;
         Gdx.input.setInputProcessor(null);
         resumeMenuMusic();
@@ -353,8 +355,10 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
 
     @Override
     public void dispose() {
-        dispose(activeSceneTest);
-        activeSceneTest = null;
+        if (activeSceneTest != null) {
+            activeSceneTest.dispose();
+            activeSceneTest = null;
+        }
 
         dispose(background);
         dispose(logo);
