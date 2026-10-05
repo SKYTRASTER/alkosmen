@@ -17,6 +17,7 @@ public final class NewParkWorld {
     public static final float SPAWN_Y = 770f;
 
     private final List<ParkObject> objects;
+    private final CollisionMap collisionMap;
 
     public NewParkWorld() {
         List<ParkObject> layout = new ArrayList<>();
@@ -68,6 +69,7 @@ public final class NewParkWorld {
         layout.add(ParkObject.obstacle(ObjectKind.FOUNTAIN, 3040f, 1110f, 200f, 200f));
 
         this.objects = Collections.unmodifiableList(layout);
+        this.collisionMap = new CollisionMap(this.objects);
     }
 
     public List<ParkObject> objects() {
@@ -78,12 +80,7 @@ public final class NewParkWorld {
         if (body.x < 0f || body.y < 0f || body.x + body.width > WIDTH || body.y + body.height > HEIGHT) {
             return true;
         }
-        for (ParkObject object : objects) {
-            if (object.solid() && object.bounds().overlaps(body)) {
-                return true;
-            }
-        }
-        return false;
+        return collisionMap.blocks(body);
     }
 
     public enum ObjectKind {
@@ -94,7 +91,8 @@ public final class NewParkWorld {
         GRATE(new Color(0.48f, 0.55f, 0.57f, 1f)),
         BENCH(new Color(0.46f, 0.29f, 0.12f, 1f)),
         PLAYGROUND(new Color(0.66f, 0.31f, 0.13f, 1f)),
-        FOUNTAIN(new Color(0.10f, 0.36f, 0.55f, 1f));
+        FOUNTAIN(new Color(0.10f, 0.36f, 0.55f, 1f)),
+        KIOSK(new Color(0.60f, 0.38f, 0.16f, 1f));
 
         private final Color color;
 
@@ -128,6 +126,10 @@ public final class NewParkWorld {
             return obstacle(ObjectKind.GRATE, x, y, width, height);
         }
 
+        public static ParkObject kiosk(String label, float x, float y, float width, float height) {
+            return obstacle(ObjectKind.KIOSK, x, y, width, height, label);
+        }
+
         public static ParkObject obstacle(ObjectKind kind, float x, float y, float width, float height) {
             return obstacle(kind, x, y, width, height, "");
         }
@@ -137,3 +139,5 @@ public final class NewParkWorld {
         }
     }
 }
+
+

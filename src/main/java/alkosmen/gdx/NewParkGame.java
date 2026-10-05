@@ -33,6 +33,8 @@ public final class NewParkGame extends ApplicationAdapter {
     private static final float ALKOSMEN_VISIBLE_HEIGHT = 150f;
     private static final float MALE_POLICE_VISIBLE_HEIGHT = 158f;
     private static final float FEMALE_POLICE_VISIBLE_HEIGHT = 153f;
+    private static final float MOZOL_VISIBLE_HEIGHT = 154f;
+    private static final boolean NEW_PARK_POLICE_ENABLED = false;
     private static final float PLAYER_BODY_WIDTH = 36f;
     private static final float PLAYER_BODY_HEIGHT = 26f;
     private static final float FRAME_DURATION = 0.14f;
@@ -52,10 +54,14 @@ public final class NewParkGame extends ApplicationAdapter {
     private TextureRegion[] femalePoliceFrames;
     private CharacterRenderMetrics.FrameMetrics[] malePoliceMetrics;
     private CharacterRenderMetrics.FrameMetrics[] femalePoliceMetrics;
+    private final List<Texture> mozolTextures = new ArrayList<>();
+    private TextureRegion[] mozolIdleFrames;
+    private CharacterRenderMetrics.FrameMetrics[] mozolIdleMetrics;
     private NewParkWorld world;
     private StorageKey storageKey;
     private StoryManager story;
     private ObjectiveHud objectiveHud;
+    private NpcEntity mozol;
 
     private float playerX = NewParkWorld.SPAWN_X;
     private float playerY = NewParkWorld.SPAWN_Y;
@@ -71,11 +77,13 @@ public final class NewParkGame extends ApplicationAdapter {
     private float policeSceneTimer;
     private float policeAnimationTime;
     private float stationObjectiveDelay = -1f;
+    private float mozolAnimationTime;
     private String message;
     private float messageUntil;
     private CharacterRenderMetrics.Placement playerPlacement;
     private CharacterRenderMetrics.Placement malePolicePlacement;
     private CharacterRenderMetrics.Placement femalePolicePlacement;
+    private CharacterRenderMetrics.Placement mozolPlacement;
 
     private enum Direction {
         LEFT(2), RIGHT(1), IDLE(0), UP(4), DOWN(3);
@@ -129,6 +137,10 @@ public final class NewParkGame extends ApplicationAdapter {
         LoadedFrames femalePolice = loadPoliceFrames("alkosmen/ui/police_female/walk_right");
         femalePoliceFrames = femalePolice.frames();
         femalePoliceMetrics = femalePolice.metrics();
+        LoadedFrames mozolIdle = loadMozolIdleFrames();
+        mozolIdleFrames = mozolIdle.frames();
+        mozolIdleMetrics = mozolIdle.metrics();
+        mozol = new NpcEntity("mozol", "Мозоль", 1990f, 1380f, 108f, 44f, 30f);
         world = new NewParkWorld();
         storageKey = new StorageKey(3070f, 900f, 84f);
         story = new StoryManager();
@@ -152,8 +164,7 @@ public final class NewParkGame extends ApplicationAdapter {
 
         drawWorld();
         drawStorageKey();
-        drawPoliceScene();
-        drawPlayer();
+        drawActors();
         if (debugCollisions) {
             drawCollisionDebug();
         }
@@ -214,12 +225,15 @@ public final class NewParkGame extends ApplicationAdapter {
     }
 
     private void updateStory(float delta) {
+        boolean interactionPressed = Gdx.input.isKeyJustPressed(Input.Keys.E);
         if (!storageKey.collected() && storageKey.isNear(playerX, playerY)
-            && Gdx.input.isKeyJustPressed(Input.Keys.E) && storageKey.collect()) {
+            && interactionPressed && storageKey.collect()) {
             story.trigger(StoryTrigger.KEY_COLLECTED);
             showMessage("Ключ от камеры хранения. Вокзал.", 3.5f);
-            startPoliceScene();
+        } else if (mozol.isNear(playerX, playerY) && interactionPressed) {
+            showMessage("Мозоль: Я тут просто у павильона стою.", 3.5f);
         }
+        mozolAnimationTime += delta;
 
         if (policeScene == PoliceScenePhase.WALKING_IN) {
             policeX = Math.max(policeTargetX, policeX - 250f * delta);
@@ -288,7 +302,7 @@ public final class NewParkGame extends ApplicationAdapter {
             PLAYER_BODY_WIDTH,
             PLAYER_BODY_HEIGHT
         );
-        return !world.blocks(body);
+        return !world.blocks(body) && !body.overlaps(mozol.collisionBody());
     }
 
     private void updateCamera() {
@@ -304,6 +318,31 @@ public final class NewParkGame extends ApplicationAdapter {
     private void drawWorld() {
         batch.begin();
         batch.draw(parkBackground, 0f, 0f, NewParkWorld.WIDTH, NewParkWorld.HEIGHT);
+        batch.end();
+    }
+
+    private void drawActors() {
+        if (playerY <= mozol.y()) {
+            drawPlayer();
+            drawMozol();
+        } else {
+            drawMozol();
+            drawPlayer();
+        }
+    }
+
+    private void drawMozol() {
+        int frame = (int)(mozolAnimationTime / FRAME_DURATION) % mozolIdleFrames.length;
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(0f, 0f, 0f, 0.24f);
+        shapes.ellipse(mozol.x() - 42f, mozol.y() + 2f, 84f, 13f);
+        shapes.end();
+
+        batch.begin();
+        mozolPlacement = CharacterRenderMetrics.draw(
+            batch, mozolIdleFrames[frame], mozolIdleMetrics[frame], mozol.x(), mozol.y(),
+            MOZOL_VISIBLE_HEIGHT, false
+        );
         batch.end();
     }
 
@@ -338,7 +377,7 @@ public final class NewParkGame extends ApplicationAdapter {
     }
 
     private void drawPoliceScene() {
-        if (policeScene == PoliceScenePhase.WAITING) {
+        if (!NEW_PARK_POLICE_ENABLED || policeScene == PoliceScenePhase.WAITING) {
             return;
         }
         int frame = (int)(policeAnimationTime / FRAME_DURATION) % malePoliceFrames.length;
@@ -379,13 +418,14 @@ public final class NewParkGame extends ApplicationAdapter {
         CharacterRenderMetrics.drawDebug(shapes, playerPlacement);
         CharacterRenderMetrics.drawDebug(shapes, malePolicePlacement);
         CharacterRenderMetrics.drawDebug(shapes, femalePolicePlacement);
+        CharacterRenderMetrics.drawDebug(shapes, mozolPlacement);
         shapes.end();
     }
 
     private void drawHud() {
         String interaction = !storageKey.collected() && storageKey.isNear(playerX, playerY)
             ? "E — подобрать"
-            : null;
+            : (mozol.isNear(playerX, playerY) ? "E — поговорить с Мозолем" : null);
         String activeMessage = policeScene == PoliceScenePhase.SPEAKING
             ? "Ищем белого с сумкой."
             : ((float)(System.nanoTime() / 1_000_000_000.0) < messageUntil ? message : null);
@@ -416,9 +456,29 @@ public final class NewParkGame extends ApplicationAdapter {
             texture.dispose();
         }
         policeTextures.clear();
+        for (Texture texture : mozolTextures) {
+            texture.dispose();
+        }
+        mozolTextures.clear();
         if (objectiveHud != null) {
             objectiveHud.dispose();
         }
+    }
+
+    private LoadedFrames loadMozolIdleFrames() {
+        TextureRegion[] frames = new TextureRegion[6];
+        CharacterRenderMetrics.FrameMetrics[] metrics = new CharacterRenderMetrics.FrameMetrics[frames.length];
+        for (int index = 0; index < frames.length; index++) {
+            String path = String.format("alkosmen/ui/mozol/idle/%02d.png", index);
+            Texture texture = new Texture(Gdx.files.internal(path));
+            texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            mozolTextures.add(texture);
+            frames[index] = new TextureRegion(texture);
+            Pixmap pixels = new Pixmap(Gdx.files.internal(path));
+            metrics[index] = CharacterRenderMetrics.scan(pixels, 0, 0, pixels.getWidth(), pixels.getHeight());
+            pixels.dispose();
+        }
+        return new LoadedFrames(frames, metrics);
     }
 
     private LoadedFrames loadPoliceFrames(String folder) {
@@ -462,3 +522,4 @@ public final class NewParkGame extends ApplicationAdapter {
         return new PlayerAtlas(frames, metrics);
     }
 }
+
