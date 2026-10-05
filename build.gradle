@@ -11,7 +11,7 @@ java {
 
 javafx {
     version = "21"
-    modules = [ 'javafx.controls', 'javafx.graphics', 'javafx.media' ]
+    modules = ['javafx.controls', 'javafx.graphics', 'javafx.media']
 }
 
 def gdxVersion = '1.13.1'
@@ -41,7 +41,17 @@ tasks.register('runGdxMenu', JavaExec) {
 def packagingToolchain = javaToolchains.launcherFor {
     languageVersion = JavaLanguageVersion.of(21)
 }
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
 
+tasks.withType(JavaExec).configureEach {
+    jvmArgs(
+            '-Dfile.encoding=UTF-8',
+            '-Dsun.stdout.encoding=UTF-8',
+            '-Dsun.stderr.encoding=UTF-8'
+    )
+}
 tasks.register('packageWindowsExe', Exec) {
     group = 'distribution'
     description = 'Builds a portable self-contained Windows application with an .exe launcher.'
