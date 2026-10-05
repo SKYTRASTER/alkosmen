@@ -29,11 +29,20 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         6, 5, 4, 3, 2, 1
     };
 
+    private enum Mode {
+        MAIN_MENU,
+        SCENE_TEST_MENU,
+        ACTIVE_SCENE_TEST
+    }
+
     private OrthographicCamera camera;
     private Viewport viewport;
     private SpriteBatch batch;
     private ShapeRenderer shapes;
     private GdxMainMenu mainMenu;
+    private SceneTestMenu sceneTestMenu;
+    private ApplicationAdapter activeSceneTest;
+    private Mode mode = Mode.MAIN_MENU;
 
     private Texture background;
     private Texture logo;
@@ -55,12 +64,27 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
 
         loadDanceFrames();
         loadMusic();
+
         mainMenu = new GdxMainMenu(
             viewport,
             this::onStartClicked,
+            this::showSceneTests,
             this::onSettingsClicked,
             Gdx.app::exit
         );
+
+        sceneTestMenu = new SceneTestMenu(
+            viewport,
+            () -> launchSceneTest(new NewParkGame()),
+            () -> launchSceneTest(new EboboWalkTest()),
+            () -> launchSceneTest(new LenyaKultyshevWalkTest()),
+            () -> launchSceneTest(new MozolWalkTest()),
+            () -> launchSceneTest(new PoliceMaleWalkTest()),
+            () -> launchSceneTest(new PoliceFemaleWalkTest()),
+            this::showMainMenu
+        );
+
+        mainMenu.activate();
     }
 
     private Texture loadBackground() {
@@ -100,6 +124,38 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
 
     @Override
     public void render() {
+        if (mode == Mode.ACTIVE_SCENE_TEST) {
+            renderActiveSceneTest();
+            return;
+        }
+
+        renderMenuBackdrop();
+
+        if (mode == Mode.MAIN_MENU) {
+            mainMenu.render(Gdx.graphics.getDeltaTime());
+            if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+                Gdx.app.exit();
+            }
+        } else {
+            sceneTestMenu.render(Gdx.graphics.getDeltaTime());
+            if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+                showMainMenu();
+            }
+        }
+    }
+
+    private void renderActiveSceneTest() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            closeSceneTest();
+            return;
+        }
+
+        if (activeSceneTest != null) {
+            activeSceneTest.render();
+        }
+    }
+
+    private void renderMenuBackdrop() {
         updateDance();
 
         Gdx.gl.glClearColor(0.025f, 0.04f, 0.08f, 1f);
@@ -114,11 +170,6 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         drawBackground();
         drawCharacter();
         drawLogo();
-        mainMenu.render(Gdx.graphics.getDeltaTime());
-
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            Gdx.app.exit();
-        }
     }
 
     private void updateDance() {
@@ -170,11 +221,8 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         drawShadow(centerX, feetY, targetWidth, targetHeight);
 
         batch.begin();
-
-        // Slight blue-grey tint helps the sprite sit in the night scene.
         batch.setColor(0.80f, 0.86f, 0.96f, 1f);
         batch.draw(frame, x, y, targetWidth, targetHeight);
-
         batch.setColor(Color.WHITE);
         batch.end();
     }
@@ -206,6 +254,57 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         batch.end();
     }
 
+    private void showSceneTests() {
+        mainMenu.deactivate();
+        mode = Mode.SCENE_TEST_MENU;
+        sceneTestMenu.activate();
+    }
+
+    private void showMainMenu() {
+        sceneTestMenu.deactivate();
+        mode = Mode.MAIN_MENU;
+        mainMenu.activate();
+    }
+
+    private void launchSceneTest(ApplicationAdapter test) {
+        sceneTestMenu.deactivate();
+        Gdx.input.setInputProcessor(null);
+
+        if (music != null && music.isPlaying()) {
+            music.pause();
+        }
+
+        activeSceneTest = test;
+        mode = Mode.ACTIVE_SCENE_TEST;
+
+        try {
+            activeSceneTest.create();
+            activeSceneTest.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        } catch (RuntimeException exception) {
+            Gdx.app.error("SceneTests", "Не удалось запустить тестовую сцену", exception);
+            dispose(activeSceneTest);
+            activeSceneTest = null;
+            mode = Mode.SCENE_TEST_MENU;
+            resumeMenuMusic();
+            sceneTestMenu.activate();
+        }
+    }
+
+    private void closeSceneTest() {
+        dispose(activeSceneTest);
+        activeSceneTest = null;
+        mode = Mode.SCENE_TEST_MENU;
+        Gdx.input.setInputProcessor(null);
+        resumeMenuMusic();
+        sceneTestMenu.activate();
+    }
+
+    private void resumeMenuMusic() {
+        if (music != null && !music.isPlaying()) {
+            music.play();
+        }
+    }
+
     private void onStartClicked() {
         Gdx.app.log("Menu", "Старт нажат. Игровой экран libGDX еще переносится.");
     }
@@ -226,13 +325,37 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
     @Override
     public void resize(int width, int height) {
         viewport.update(width, height, true);
+
         if (mainMenu != null) {
             mainMenu.resize(width, height);
+        }
+        if (sceneTestMenu != null) {
+            sceneTestMenu.resize(width, height);
+        }
+        if (mode == Mode.ACTIVE_SCENE_TEST && activeSceneTest != null) {
+            activeSceneTest.resize(width, height);
+        }
+    }
+
+    @Override
+    public void pause() {
+        if (mode == Mode.ACTIVE_SCENE_TEST && activeSceneTest != null) {
+            activeSceneTest.pause();
+        }
+    }
+
+    @Override
+    public void resume() {
+        if (mode == Mode.ACTIVE_SCENE_TEST && activeSceneTest != null) {
+            activeSceneTest.resume();
         }
     }
 
     @Override
     public void dispose() {
+        dispose(activeSceneTest);
+        activeSceneTest = null;
+
         dispose(background);
         dispose(logo);
         dispose(fallbackHero);
@@ -247,6 +370,9 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         }
         if (mainMenu != null) {
             mainMenu.dispose();
+        }
+        if (sceneTestMenu != null) {
+            sceneTestMenu.dispose();
         }
     }
 
