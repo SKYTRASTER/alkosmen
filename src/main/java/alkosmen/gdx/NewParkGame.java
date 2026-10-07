@@ -50,6 +50,7 @@ public final class NewParkGame extends ApplicationAdapter {
 
     private boolean debugCollisions;
     private boolean debugPlayerAnchor;
+    private boolean playerFacingLeft;
 
     @Override
     public void create() {
@@ -125,6 +126,12 @@ public final class NewParkGame extends ApplicationAdapter {
 
         if (moveX == 0f && moveY == 0f) {
             return;
+        }
+
+        if (moveX < 0f) {
+            playerFacingLeft = true;
+        } else if (moveX > 0f) {
+            playerFacingLeft = false;
         }
 
         float length = (float) Math.sqrt(moveX * moveX + moveY * moveY);
@@ -210,7 +217,7 @@ public final class NewParkGame extends ApplicationAdapter {
             playerX,
             playerY,
             PLAYER_VISIBLE_HEIGHT,
-            false
+            playerFacingLeft
         );
         batch.end();
     }
