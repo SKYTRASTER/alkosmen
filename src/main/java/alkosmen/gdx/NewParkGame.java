@@ -38,7 +38,7 @@ public final class NewParkGame extends ApplicationAdapter {
     private static final float PLAYER_BODY_WIDTH = 36f;
     private static final float PLAYER_BODY_HEIGHT = 26f;
     private static final float FRAME_DURATION = 0.14f;
-    private static final String PLAYER_ATLAS = "alkosmen/ui/sprites/alkosmen/walk_atlas_v1.png";
+    private static final String PLAYER_ATLAS = "alkosmen/ui/archive/alkosmen/walk_atlas_v1.png";
     private static final String PARK_BACKGROUND = "alkosmen/ui/levels/new_park_zuevka_v1.png";
 
     private OrthographicCamera camera;
