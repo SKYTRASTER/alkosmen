@@ -6,7 +6,12 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import alkosmen.gdx.render.CharacterRenderMetrics;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.FitViewport;
@@ -27,10 +32,17 @@ public final class NewParkGame extends ApplicationAdapter {
     private static final float PLAYER_BODY_WIDTH = 36f;
     private static final float PLAYER_BODY_HEIGHT = 26f;
     private static final float PLAYER_BODY_Y_OFFSET = 8f;
+    private static final float PLAYER_VISIBLE_HEIGHT = 150f;
+    private static final String PLAYER_SPRITE = "alkosmen/ui/menu/dance/00.png";
 
     private OrthographicCamera camera;
     private Viewport viewport;
     private ShapeRenderer shapes;
+    private SpriteBatch batch;
+    private Texture playerTexture;
+    private TextureRegion playerRegion;
+    private CharacterRenderMetrics.FrameMetrics playerMetrics;
+    private CharacterRenderMetrics.Placement playerPlacement;
     private NewParkWorld world;
 
     private float playerX = NewParkWorld.SPAWN_X;
@@ -44,6 +56,17 @@ public final class NewParkGame extends ApplicationAdapter {
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
         shapes = new ShapeRenderer();
+        batch = new SpriteBatch();
+
+        playerTexture = new Texture(Gdx.files.internal(PLAYER_SPRITE));
+        playerTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        playerRegion = new TextureRegion(playerTexture);
+        Pixmap playerPixels = new Pixmap(Gdx.files.internal(PLAYER_SPRITE));
+        playerMetrics = CharacterRenderMetrics.scan(
+            playerPixels, 0, 0, playerPixels.getWidth(), playerPixels.getHeight()
+        );
+        playerPixels.dispose();
+
         world = new NewParkWorld();
 
         updateCamera();
@@ -62,10 +85,11 @@ public final class NewParkGame extends ApplicationAdapter {
         viewport.apply();
         camera.update();
         shapes.setProjectionMatrix(camera.combined);
+        batch.setProjectionMatrix(camera.combined);
 
         drawGround();
         drawRoadMarks();
-        drawPlayerPlaceholder();
+        drawPlayer();
 
         if (debugCollisions) {
             drawCollisionDebug();
@@ -172,20 +196,23 @@ public final class NewParkGame extends ApplicationAdapter {
         shapes.end();
     }
 
-    private void drawPlayerPlaceholder() {
-        // Тень/точка опоры.
+    private void drawPlayer() {
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         shapes.setColor(0f, 0f, 0f, 0.28f);
-        shapes.ellipse(playerX - 32f, playerY - 5f, 64f, 14f);
-
-        // Временная капсула вместо спрайта героя.
-        shapes.setColor(new Color(0.92f, 0.89f, 0.80f, 1f));
-        shapes.rect(playerX - 24f, playerY + 8f, 48f, 68f);
-
-        shapes.setColor(new Color(0.78f, 0.18f, 0.15f, 1f));
-        shapes.circle(playerX, playerY + 78f, 19f);
-
+        shapes.ellipse(playerX - 34f, playerY - 5f, 68f, 14f);
         shapes.end();
+
+        batch.begin();
+        playerPlacement = CharacterRenderMetrics.draw(
+            batch,
+            playerRegion,
+            playerMetrics,
+            playerX,
+            playerY,
+            PLAYER_VISIBLE_HEIGHT,
+            false
+        );
+        batch.end();
     }
 
     private void drawCollisionDebug() {
@@ -206,9 +233,7 @@ public final class NewParkGame extends ApplicationAdapter {
 
     private void drawPlayerAnchor() {
         shapes.begin(ShapeRenderer.ShapeType.Line);
-        shapes.setColor(Color.MAGENTA);
-        shapes.line(playerX - 24f, playerY, playerX + 24f, playerY);
-        shapes.line(playerX, playerY - 24f, playerX, playerY + 24f);
+        CharacterRenderMetrics.drawDebug(shapes, playerPlacement);
         shapes.end();
     }
 
@@ -219,6 +244,12 @@ public final class NewParkGame extends ApplicationAdapter {
 
     @Override
     public void dispose() {
+        if (playerTexture != null) {
+            playerTexture.dispose();
+        }
+        if (batch != null) {
+            batch.dispose();
+        }
         if (shapes != null) {
             shapes.dispose();
         }
