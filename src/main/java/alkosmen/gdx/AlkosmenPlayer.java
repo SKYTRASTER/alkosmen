@@ -28,7 +28,7 @@ public final class AlkosmenPlayer implements Disposable {
 
     private static final float BODY_Y_OFFSET = 8f;
     private static final float FRAME_DURATION = 0.14f;
-    private static final String ATLAS_PATH = "alkosmen/ui/menu/dance/00.png";
+    private static final String ATLAS_PATH = "alkosmen/ui/sprites/alkosmen/walk_atlas_v1.png";
 
     private final Texture atlas;
     private final TextureRegion[][] frames;
