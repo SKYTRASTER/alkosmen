@@ -38,7 +38,7 @@ public final class NewParkGame extends ApplicationAdapter {
     private static final float PLAYER_BODY_WIDTH = 36f;
     private static final float PLAYER_BODY_HEIGHT = 26f;
     private static final float FRAME_DURATION = 0.14f;
-    private static final String PLAYER_ATLAS = "alkosmen/ui/archive/alkosmen/walk_atlas_v1.png";
+    private static final String PLAYER_ATLAS = "alkosmen/ui/menu/dance/00.png";
     private static final String PARK_BACKGROUND = "alkosmen/ui/levels/new_park_zuevka_v1.png";
 
     private OrthographicCamera camera;
@@ -123,12 +123,21 @@ public final class NewParkGame extends ApplicationAdapter {
         objectiveHud = new ObjectiveHud();
 
         playerAtlas = new Texture(Gdx.files.internal(PLAYER_ATLAS));
-        playerAtlas.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        playerAtlas.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
         Pixmap playerPixels = new Pixmap(Gdx.files.internal(PLAYER_ATLAS));
-        PlayerAtlas playerAtlasFrames = splitPlayerAtlas(playerAtlas, playerPixels);
+        TextureRegion canonicalFrame = new TextureRegion(playerAtlas);
+        CharacterRenderMetrics.FrameMetrics canonicalMetrics =
+            CharacterRenderMetrics.scan(playerPixels, 0, 0, playerPixels.getWidth(), playerPixels.getHeight());
         playerPixels.dispose();
-        playerFrames = playerAtlasFrames.frames();
-        playerMetrics = playerAtlasFrames.metrics();
+
+        playerFrames = new TextureRegion[5][4];
+        playerMetrics = new CharacterRenderMetrics.FrameMetrics[5][4];
+        for (int row = 0; row < playerFrames.length; row++) {
+            for (int column = 0; column < playerFrames[row].length; column++) {
+                playerFrames[row][column] = canonicalFrame;
+                playerMetrics[row][column] = canonicalMetrics;
+            }
+        }
         parkBackground = new Texture(Gdx.files.internal(PARK_BACKGROUND));
         parkBackground.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
         LoadedFrames malePolice = loadPoliceFrames("alkosmen/ui/police_male/walk_right");
