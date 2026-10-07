@@ -28,7 +28,7 @@ public final class AlkosmenPlayer implements Disposable {
 
     private static final float BODY_Y_OFFSET = 8f;
     private static final float FRAME_DURATION = 0.14f;
-    private static final String ATLAS_PATH = "alkosmen/ui/archive/alkosmen/walk_atlas_v1.png";
+    private static final String ATLAS_PATH = "alkosmen/ui/menu/dance/00.png";
 
     private final Texture atlas;
     private final TextureRegion[][] frames;
@@ -48,14 +48,22 @@ public final class AlkosmenPlayer implements Disposable {
         y = spawnY;
 
         atlas = new Texture(Gdx.files.internal(ATLAS_PATH));
-        atlas.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        atlas.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
         Pixmap pixels = new Pixmap(Gdx.files.internal(ATLAS_PATH));
-        AtlasData atlasData = splitAtlas(atlas, pixels);
+        TextureRegion canonicalFrame = new TextureRegion(atlas);
+        CharacterRenderMetrics.FrameMetrics canonicalMetrics =
+            CharacterRenderMetrics.scan(pixels, 0, 0, pixels.getWidth(), pixels.getHeight());
         pixels.dispose();
 
-        frames = atlasData.frames();
-        metrics = atlasData.metrics();
+        frames = new TextureRegion[5][4];
+        metrics = new CharacterRenderMetrics.FrameMetrics[5][4];
+        for (int row = 0; row < frames.length; row++) {
+            for (int column = 0; column < frames[row].length; column++) {
+                frames[row][column] = canonicalFrame;
+                metrics[row][column] = canonicalMetrics;
+            }
+        }
         updateCollisionBody();
     }
 
