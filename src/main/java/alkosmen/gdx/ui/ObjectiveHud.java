@@ -69,10 +69,12 @@ public final class ObjectiveHud implements Disposable {
         font.dispose();
     }
 
-    private static BitmapFont createRussianFont() {
+    public static BitmapFont createRussianFont() {
         String[] candidates = {
             "C:/Windows/Fonts/segoeui.ttf",
-            "C:/Windows/Fonts/arial.ttf"
+            "C:/Windows/Fonts/arial.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/System/Library/Fonts/Supplemental/Arial.ttf"
         };
         for (String path : candidates) {
             if (!Gdx.files.absolute(path).exists()) {

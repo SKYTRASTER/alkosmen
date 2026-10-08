@@ -107,6 +107,19 @@ tasks.named('check') {
     dependsOn tasks.named('verifyWalkCycle')
 }
 
+tasks.register('verifySprintState', JavaExec) {
+    group = 'verification'
+    description = 'Checks sprint exhaustion, recovery and collision behavior without graphics.'
+    dependsOn tasks.testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'alkosmen.gdx.SprintStateTest'
+    enableAssertions = true
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifySprintState')
+}
+
 
 tasks.register('runEboboWalk', JavaExec) {
     group = 'application'

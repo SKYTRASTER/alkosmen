@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import alkosmen.gdx.render.CharacterRenderMetrics;
 import alkosmen.gdx.render.AlkosmenWalkAnimation;
+import alkosmen.gdx.ui.SprintHud;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.FitViewport;
@@ -47,6 +48,8 @@ public final class NewParkGame extends ApplicationAdapter {
     private AlkosmenWalkAnimation playerAnimation;
     private CharacterRenderMetrics.Placement playerPlacement;
     private NewParkWorld world;
+    private final SprintState sprint = new SprintState();
+    private SprintHud sprintHud;
 
     private float playerX;
     private float playerY;
@@ -65,6 +68,8 @@ public final class NewParkGame extends ApplicationAdapter {
         viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
         shapes = new ShapeRenderer();
         batch = new SpriteBatch();
+        sprintHud = new SprintHud();
+        sprintHud.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 
         playerAnimation = new AlkosmenWalkAnimation();
 
@@ -104,6 +109,7 @@ public final class NewParkGame extends ApplicationAdapter {
         if (debugPlayerAnchor) {
             drawPlayerAnchor();
         }
+        sprintHud.render(shapes, batch, sprint);
     }
 
     private void updateInput(float delta) {
@@ -123,6 +129,7 @@ public final class NewParkGame extends ApplicationAdapter {
 
         if (moveX == 0f && moveY == 0f) {
             playerAnimation.reset();
+            sprint.update(delta, false, false);
             return;
         }
         if (Math.abs(moveX) >= Math.abs(moveY)) {
@@ -131,12 +138,15 @@ public final class NewParkGame extends ApplicationAdapter {
             playerDirection = moveY < 0f ? Direction.DOWN : Direction.UP;
         }
         float length = (float) Math.hypot(moveX, moveY);
-        float distance = PLAYER_SPEED * delta;
+        boolean sprintRequested = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)
+            || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
+        float distance = PLAYER_SPEED * delta * sprint.speedMultiplier(delta, sprintRequested);
         float previousX = playerX;
         float previousY = playerY;
         moveAlongAxes(moveX / length * distance, moveY / length * distance);
-        playerAnimation.advance(
-            (float) Math.hypot(playerX - previousX, playerY - previousY), PLAYER_VISIBLE_HEIGHT);
+        float actualDistance = (float) Math.hypot(playerX - previousX, playerY - previousY);
+        sprint.update(delta, sprintRequested, actualDistance > 0.0001f);
+        playerAnimation.advance(actualDistance, PLAYER_VISIBLE_HEIGHT);
     }
 
     private void moveAlongAxes(float moveX, float moveY) {
@@ -325,10 +335,12 @@ public final class NewParkGame extends ApplicationAdapter {
     @Override
     public void resize(int width, int height) {
         viewport.update(width, height, true);
+        if (sprintHud != null) sprintHud.resize(width, height);
     }
 
     @Override
     public void dispose() {
+        if (sprintHud != null) sprintHud.dispose();
         if (playerAnimation != null) {
             playerAnimation.dispose();
         }
