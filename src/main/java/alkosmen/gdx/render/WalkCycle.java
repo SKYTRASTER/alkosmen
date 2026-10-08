@@ -18,10 +18,9 @@ public final class WalkCycle {
             throw new IllegalArgumentException("Invalid walk distance");
         }
         if (distance <= 0.0001f) {
-            reset();
-        } else {
-            phase = (phase + distance / cycleDistance) % 1f;
+            return;
         }
+        phase = (phase + distance / cycleDistance) % 1f;
     }
 
     public int frameIndex() {
