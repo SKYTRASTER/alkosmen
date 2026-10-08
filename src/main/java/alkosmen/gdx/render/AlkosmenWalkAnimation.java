@@ -21,7 +21,7 @@ public final class AlkosmenWalkAnimation implements Disposable {
     private final WalkCycle cycle = new WalkCycle(FRAME_COUNT);
 
     public AlkosmenWalkAnimation() {
-        String[] folders = {"walk_right", "walk_front", "walk_back"};
+        String[] folders = {"walk_right_v2", "walk_front", "walk_back"};
         try {
             for (int row = 0; row < folders.length; row++) {
                 for (int column = 0; column < FRAME_COUNT; column++) {
