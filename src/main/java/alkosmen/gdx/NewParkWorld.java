@@ -38,11 +38,43 @@ public final class NewParkWorld {
     private final NewParkMapLayout mapLayout;
     private final float width;
     private final float height;
+    private final float rotationCos;
+    private final float rotationSin;
+    private final float minRotatedX;
+    private final float minRotatedY;
 
     public NewParkWorld(NewParkMapLayout mapLayout) {
         this.mapLayout = Objects.requireNonNull(mapLayout, "mapLayout");
-        this.width = mapLayout.imageWidth() * MAP_SCALE;
-        this.height = mapLayout.imageHeight() * MAP_SCALE;
+        NewParkMapLayout.Road mainRoad = mapLayout.roads().stream()
+            .filter(road -> road.id().equals("sverdlova"))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Main road is missing"));
+        List<NewParkMapLayout.MapPoint> axis = mainRoad.centerline();
+        NewParkMapLayout.MapPoint first = axis.get(0);
+        NewParkMapLayout.MapPoint last = axis.get(axis.size() - 1);
+        float angle = (float) Math.atan2(last.y() - first.y(), last.x() - first.x());
+        this.rotationCos = (float) Math.cos(angle);
+        this.rotationSin = (float) Math.sin(angle);
+
+        float minX = Float.POSITIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY;
+        float maxY = Float.NEGATIVE_INFINITY;
+        for (float x : new float[] {0f, mapLayout.imageWidth()}) {
+            for (float y : new float[] {0f, mapLayout.imageHeight()}) {
+                float uprightY = mapLayout.imageHeight() - y;
+                float rotatedX = x * rotationCos - uprightY * rotationSin;
+                float rotatedY = x * rotationSin + uprightY * rotationCos;
+                minX = Math.min(minX, rotatedX);
+                minY = Math.min(minY, rotatedY);
+                maxX = Math.max(maxX, rotatedX);
+                maxY = Math.max(maxY, rotatedY);
+            }
+        }
+        this.minRotatedX = minX;
+        this.minRotatedY = minY;
+        this.width = (maxX - minX) * MAP_SCALE;
+        this.height = (maxY - minY) * MAP_SCALE;
         List<SurfaceZone> ground = new ArrayList<>();
         ground.add(new SurfaceZone(
             SurfaceKind.GRASS,
@@ -62,11 +94,11 @@ public final class NewParkWorld {
     }
 
     public float spawnX() {
-        return toWorldX(SPAWN_IMAGE_X);
+        return toWorldX(SPAWN_IMAGE_X, SPAWN_IMAGE_Y);
     }
 
     public float spawnY() {
-        return toWorldY(SPAWN_IMAGE_Y);
+        return toWorldY(SPAWN_IMAGE_X, SPAWN_IMAGE_Y);
     }
 
     public float width() {
@@ -77,12 +109,14 @@ public final class NewParkWorld {
         return height;
     }
 
-    public float toWorldX(float imageX) {
-        return imageX * MAP_SCALE;
+    public float toWorldX(float imageX, float imageY) {
+        float uprightY = mapLayout.imageHeight() - imageY;
+        return (imageX * rotationCos - uprightY * rotationSin - minRotatedX) * MAP_SCALE;
     }
 
-    public float toWorldY(float imageY) {
-        return (mapLayout.imageHeight() - imageY) * MAP_SCALE;
+    public float toWorldY(float imageX, float imageY) {
+        float uprightY = mapLayout.imageHeight() - imageY;
+        return (imageX * rotationSin + uprightY * rotationCos - minRotatedY) * MAP_SCALE;
     }
 
     public float toWorldLength(float imageLength) {
@@ -103,14 +137,23 @@ public final class NewParkWorld {
     }
 
     public boolean blocks(Rectangle body) {
-        if (body.x < 0f
-            || body.y < 0f
-            || body.x + body.width > width
-            || body.y + body.height > height) {
+        if (!insideMap(body.x, body.y)
+            || !insideMap(body.x + body.width, body.y)
+            || !insideMap(body.x, body.y + body.height)
+            || !insideMap(body.x + body.width, body.y + body.height)) {
             return true;
         }
 
         return collisionMap.blocks(body);
+    }
+
+    private boolean insideMap(float worldX, float worldY) {
+        float rotatedX = worldX / MAP_SCALE + minRotatedX;
+        float rotatedY = worldY / MAP_SCALE + minRotatedY;
+        float imageX = rotatedX * rotationCos + rotatedY * rotationSin;
+        float uprightY = -rotatedX * rotationSin + rotatedY * rotationCos;
+        return imageX >= -0.001f && imageX <= mapLayout.imageWidth() + 0.001f
+            && uprightY >= -0.001f && uprightY <= mapLayout.imageHeight() + 0.001f;
     }
 
     public enum SurfaceKind {

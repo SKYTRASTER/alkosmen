@@ -232,11 +232,15 @@ public final class NewParkGame extends ApplicationAdapter {
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         shapes.setColor(RAIL_BED);
         for (int i = 1; i < count; i++) {
-            float x1 = world.toWorldX((left.get(i - 1).x() + right.get(i - 1).x()) / 2f);
-            float y1 = world.toWorldY((left.get(i - 1).y() + right.get(i - 1).y()) / 2f);
-            float x2 = world.toWorldX((left.get(i).x() + right.get(i).x()) / 2f);
-            float y2 = world.toWorldY((left.get(i).y() + right.get(i).y()) / 2f);
-            shapes.rectLine(x1, y1, x2, y2, world.toWorldLength(24f));
+            NewParkMapLayout.MapPoint a0 = left.get(i - 1);
+            NewParkMapLayout.MapPoint a1 = left.get(i);
+            NewParkMapLayout.MapPoint b0 = right.get(i - 1);
+            NewParkMapLayout.MapPoint b1 = right.get(i);
+            drawImageLine(
+                (a0.x() + b0.x()) / 2f, (a0.y() + b0.y()) / 2f,
+                (a1.x() + b1.x()) / 2f, (a1.y() + b1.y()) / 2f,
+                world.toWorldLength(24f)
+            );
         }
 
         shapes.setColor(RAIL_TIE);
@@ -246,16 +250,18 @@ public final class NewParkGame extends ApplicationAdapter {
             NewParkMapLayout.MapPoint b0 = right.get(i - 1);
             NewParkMapLayout.MapPoint b1 = right.get(i);
             float segmentLength = (float) Math.hypot(
-                world.toWorldX(a1.x() - a0.x()), world.toWorldLength(a1.y() - a0.y())
-            );
+                a1.x() - a0.x(), a1.y() - a0.y()
+            ) * world.toWorldLength(1f);
             int ties = Math.max(1, (int) (segmentLength / world.toWorldLength(8f)));
             for (int tie = 0; tie < ties; tie++) {
                 float t = tie / (float) ties;
-                float ax = world.toWorldX(a0.x() + (a1.x() - a0.x()) * t);
-                float ay = world.toWorldY(a0.y() + (a1.y() - a0.y()) * t);
-                float bx = world.toWorldX(b0.x() + (b1.x() - b0.x()) * t);
-                float by = world.toWorldY(b0.y() + (b1.y() - b0.y()) * t);
-                shapes.rectLine(ax, ay, bx, by, world.toWorldLength(2f));
+                drawImageLine(
+                    a0.x() + (a1.x() - a0.x()) * t,
+                    a0.y() + (a1.y() - a0.y()) * t,
+                    b0.x() + (b1.x() - b0.x()) * t,
+                    b0.y() + (b1.y() - b0.y()) * t,
+                    world.toWorldLength(2f)
+                );
             }
         }
 
@@ -271,14 +277,24 @@ public final class NewParkGame extends ApplicationAdapter {
         for (int i = 1; i < points.size(); i++) {
             NewParkMapLayout.MapPoint from = points.get(i - 1);
             NewParkMapLayout.MapPoint to = points.get(i);
-            shapes.rectLine(
-                world.toWorldX(from.x()), world.toWorldY(from.y()),
-                world.toWorldX(to.x()), world.toWorldY(to.y()), width
-            );
+            drawImageLine(from.x(), from.y(), to.x(), to.y(), width);
         }
         for (NewParkMapLayout.MapPoint point : points) {
-            shapes.circle(world.toWorldX(point.x()), world.toWorldY(point.y()), width / 2f);
+            shapes.circle(
+                world.toWorldX(point.x(), point.y()),
+                world.toWorldY(point.x(), point.y()),
+                width / 2f
+            );
         }
+    }
+
+    private void drawImageLine(
+        float x1, float y1, float x2, float y2, float width
+    ) {
+        shapes.rectLine(
+            world.toWorldX(x1, y1), world.toWorldY(x1, y1),
+            world.toWorldX(x2, y2), world.toWorldY(x2, y2), width
+        );
     }
 
     private void drawPlayer() {
@@ -348,6 +364,19 @@ public final class NewParkGame extends ApplicationAdapter {
     private void drawCollisionDebug() {
         shapes.begin(ShapeRenderer.ShapeType.Line);
         shapes.setColor(Color.YELLOW);
+        float mapWidth = world.mapLayout().imageWidth();
+        float mapHeight = world.mapLayout().imageHeight();
+        float[][] corners = {
+            {0f, 0f}, {mapWidth, 0f}, {mapWidth, mapHeight}, {0f, mapHeight}
+        };
+        for (int i = 0; i < corners.length; i++) {
+            float[] from = corners[i];
+            float[] to = corners[(i + 1) % corners.length];
+            shapes.line(
+                world.toWorldX(from[0], from[1]), world.toWorldY(from[0], from[1]),
+                world.toWorldX(to[0], to[1]), world.toWorldY(to[0], to[1])
+            );
+        }
 
         for (NewParkWorld.ParkObject object : world.objects()) {
             Rectangle bounds = object.bounds();
