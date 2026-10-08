@@ -16,43 +16,37 @@ import java.util.Objects;
  * поверх этой геометрии, не меняя базовую логику движения.
  */
 public final class NewParkWorld {
-    public static final float WIDTH = 3840f;
-    public static final float HEIGHT = 1920f;
+    public static final float UNITS_PER_METER = 100f;
+    public static final float REGULAR_ROAD_WIDTH_METERS = 5.5f;
+    public static final float SIDEWALK_WIDTH_METERS = 1.25f;
+    private static final float REGULAR_ROAD_WIDTH_IMAGE_PIXELS = 12f;
+    private static final float MAP_SCALE =
+        units(REGULAR_ROAD_WIDTH_METERS) / REGULAR_ROAD_WIDTH_IMAGE_PIXELS;
 
-    public static final float SPAWN_X = 1320f;
-    public static final float SPAWN_Y = 780f;
+    // Northern sidewalk near the Sverdlova junction, in reference-image pixels.
+    private static final float SPAWN_IMAGE_X = 660f;
+    private static final float SPAWN_IMAGE_Y = 614f;
+
+    public static float units(float meters) {
+        return meters * UNITS_PER_METER;
+    }
 
     private final List<SurfaceZone> surfaces;
     private final List<ParkObject> objects;
     private final CollisionMap collisionMap;
     private final NewParkMapLayout mapLayout;
+    private final float width;
+    private final float height;
 
     public NewParkWorld(NewParkMapLayout mapLayout) {
         this.mapLayout = Objects.requireNonNull(mapLayout, "mapLayout");
+        this.width = mapLayout.imageWidth() * MAP_SCALE;
+        this.height = mapLayout.imageHeight() * MAP_SCALE;
         List<SurfaceZone> ground = new ArrayList<>();
-
-        // Сначала только крупная геометрия уровня.
-        ground.add(new SurfaceZone(
-            SurfaceKind.YARD,
-            new Rectangle(0f, 1180f, WIDTH, 740f)
-        ));
-        ground.add(new SurfaceZone(
-            SurfaceKind.SIDEWALK,
-            new Rectangle(0f, 1060f, WIDTH, 120f)
-        ));
-        ground.add(new SurfaceZone(
-            SurfaceKind.ROAD,
-            new Rectangle(0f, 520f, WIDTH, 540f)
-        ));
-        ground.add(new SurfaceZone(
-            SurfaceKind.SIDEWALK,
-            new Rectangle(0f, 400f, WIDTH, 120f)
-        ));
         ground.add(new SurfaceZone(
             SurfaceKind.GRASS,
-            new Rectangle(0f, 0f, WIDTH, 400f)
+            new Rectangle(0f, 0f, width, height)
         ));
-
         this.surfaces = Collections.unmodifiableList(ground);
 
         // На этапе каркаса намеренно почти нет препятствий.
@@ -66,6 +60,34 @@ public final class NewParkWorld {
         return mapLayout;
     }
 
+    public float spawnX() {
+        return toWorldX(SPAWN_IMAGE_X);
+    }
+
+    public float spawnY() {
+        return toWorldY(SPAWN_IMAGE_Y);
+    }
+
+    public float width() {
+        return width;
+    }
+
+    public float height() {
+        return height;
+    }
+
+    public float toWorldX(float imageX) {
+        return imageX * MAP_SCALE;
+    }
+
+    public float toWorldY(float imageY) {
+        return (mapLayout.imageHeight() - imageY) * MAP_SCALE;
+    }
+
+    public float toWorldLength(float imageLength) {
+        return imageLength * MAP_SCALE;
+    }
+
     public List<SurfaceZone> surfaces() {
         return surfaces;
     }
@@ -77,8 +99,8 @@ public final class NewParkWorld {
     public boolean blocks(Rectangle body) {
         if (body.x < 0f
             || body.y < 0f
-            || body.x + body.width > WIDTH
-            || body.y + body.height > HEIGHT) {
+            || body.x + body.width > width
+            || body.y + body.height > height) {
             return true;
         }
 

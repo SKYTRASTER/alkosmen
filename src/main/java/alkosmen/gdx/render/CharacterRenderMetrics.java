@@ -38,6 +38,22 @@ public final class CharacterRenderMetrics {
         return new FrameMetrics(width, height, minX, minY, maxX - minX + 1, maxY - minY + 1, maxY + 1);
     }
 
+    /** Width of the opaque shoes/ground contact in the bottom fifth of the silhouette. */
+    public static int footWidth(Pixmap pixmap, int sourceX, int sourceY, FrameMetrics metrics) {
+        int bandHeight = Math.max(1, Math.round(metrics.visibleHeight() * 0.2f));
+        int firstY = metrics.footBottomY() - bandHeight;
+        int minX = metrics.canvasWidth();
+        int maxX = -1;
+        for (int y = firstY; y < metrics.footBottomY(); y++) {
+            for (int x = 0; x < metrics.canvasWidth(); x++) {
+                if ((pixmap.getPixel(sourceX + x, sourceY + y) & 0xff) > ALPHA_THRESHOLD) {
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                }
+            }
+        }
+        return maxX >= minX ? maxX - minX + 1 : metrics.visibleWidth();
+    }
     public static Placement draw(
         SpriteBatch batch,
         TextureRegion frame,
@@ -47,7 +63,21 @@ public final class CharacterRenderMetrics {
         float targetVisibleHeight,
         boolean flipX
     ) {
-        float scale = targetVisibleHeight / metrics.visibleHeight();
+        return drawAtScale(
+            batch, frame, metrics, footX, footY,
+            targetVisibleHeight / metrics.visibleHeight(), flipX
+        );
+    }
+
+    public static Placement drawAtScale(
+        SpriteBatch batch,
+        TextureRegion frame,
+        FrameMetrics metrics,
+        float footX,
+        float footY,
+        float scale,
+        boolean flipX
+    ) {
         float drawWidth = metrics.canvasWidth() * scale;
         float drawHeight = metrics.canvasHeight() * scale;
         float visibleCenterX = metrics.visibleX() + metrics.visibleWidth() / 2f;
@@ -67,7 +97,7 @@ public final class CharacterRenderMetrics {
             ? metrics.canvasWidth() - metrics.visibleX() - metrics.visibleWidth()
             : metrics.visibleX()) * scale;
         return new Placement(drawX, drawY, drawWidth, drawHeight, visibleLeft, footY,
-            metrics.visibleWidth() * scale, targetVisibleHeight, footX, footY);
+            metrics.visibleWidth() * scale, metrics.visibleHeight() * scale, footX, footY);
     }
 
     public static void drawDebug(ShapeRenderer shapes, Placement placement) {
