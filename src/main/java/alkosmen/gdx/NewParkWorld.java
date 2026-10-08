@@ -17,11 +17,12 @@ import java.util.Objects;
  */
 public final class NewParkWorld {
     public static final float UNITS_PER_METER = 100f;
-    public static final float REGULAR_ROAD_WIDTH_METERS = 5.5f;
+    private static final float REFERENCE_ROAD_WIDTH_METERS = 5.5f;
+    public static final float REGULAR_ROAD_WIDTH_METERS = REFERENCE_ROAD_WIDTH_METERS / 2.5f;
     public static final float SIDEWALK_WIDTH_METERS = 1.25f;
     private static final float REGULAR_ROAD_WIDTH_IMAGE_PIXELS = 12f;
     private static final float MAP_SCALE =
-        units(REGULAR_ROAD_WIDTH_METERS) / REGULAR_ROAD_WIDTH_IMAGE_PIXELS;
+        units(REFERENCE_ROAD_WIDTH_METERS) / REGULAR_ROAD_WIDTH_IMAGE_PIXELS;
 
     // Northern sidewalk near the Sverdlova junction, in reference-image pixels.
     private static final float SPAWN_IMAGE_X = 660f;
@@ -86,6 +87,11 @@ public final class NewParkWorld {
 
     public float toWorldLength(float imageLength) {
         return imageLength * MAP_SCALE;
+    }
+
+    public float roadWidthUnits(float imageWidth) {
+        return units(REGULAR_ROAD_WIDTH_METERS)
+            * imageWidth / REGULAR_ROAD_WIDTH_IMAGE_PIXELS;
     }
 
     public List<SurfaceZone> surfaces() {

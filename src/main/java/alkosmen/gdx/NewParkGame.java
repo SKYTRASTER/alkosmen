@@ -31,7 +31,7 @@ public final class NewParkGame extends ApplicationAdapter {
     private static final float VIEWPORT_WIDTH = NewParkWorld.units(16f);
     private static final float VIEWPORT_HEIGHT = NewParkWorld.units(9f);
 
-    // Six frames form two steps; at 1.35 m/s a 5.5 m street takes about nine steps.
+    // Movement speed uses the same meters as the map and collision body.
     private static final float PLAYER_SPEED = NewParkWorld.units(1.35f);
     private static final float PLAYER_BODY_WIDTH = NewParkWorld.units(0.48f);
     private static final float PLAYER_BODY_HEIGHT = NewParkWorld.units(0.28f);
@@ -63,6 +63,7 @@ public final class NewParkGame extends ApplicationAdapter {
     private float playerX;
     private float playerY;
     private float playerSpriteScale;
+    private int playerCanonicalCanvasWidth;
 
     private boolean debugCollisions;
     private boolean debugPlayerAnchor;
@@ -87,6 +88,7 @@ public final class NewParkGame extends ApplicationAdapter {
         frontFrames = front.frames();
         frontMetrics = front.metrics();
         playerSpriteScale = PLAYER_FOOT_WIDTH / front.footWidth();
+        playerCanonicalCanvasWidth = frontMetrics[0].canvasWidth();
         PlayerFrames back = loadPlayerFrames("walk_back");
         backFrames = back.frames();
         backMetrics = back.metrics();
@@ -208,12 +210,12 @@ public final class NewParkGame extends ApplicationAdapter {
     private void drawRoads() {
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         for (NewParkMapLayout.Road road : world.mapLayout().roads()) {
-            float width = world.toWorldLength(road.widthPx())
+            float width = world.roadWidthUnits(road.widthPx())
                 + 2f * NewParkWorld.units(NewParkWorld.SIDEWALK_WIDTH_METERS);
             drawMapLine(road.centerline(), width, WOOD_SIDEWALK);
         }
         for (NewParkMapLayout.Road road : world.mapLayout().roads()) {
-            drawMapLine(road.centerline(), world.toWorldLength(road.widthPx()), ROAD_SURFACE);
+            drawMapLine(road.centerline(), world.roadWidthUnits(road.widthPx()), ROAD_SURFACE);
         }
         shapes.end();
     }
@@ -297,9 +299,12 @@ public final class NewParkGame extends ApplicationAdapter {
             case DOWN -> frontMetrics[frameIndex];
         };
 
+        // Two front-walk PNGs have a 1024px canvas; the others are 144px wide.
+        float frameScale = playerSpriteScale
+            * playerCanonicalCanvasWidth / metrics.canvasWidth();
         batch.begin();
         playerPlacement = CharacterRenderMetrics.drawAtScale(
-            batch, frame, metrics, playerX, playerY, playerSpriteScale,
+            batch, frame, metrics, playerX, playerY, frameScale,
             playerDirection == Direction.LEFT
         );
         batch.end();
