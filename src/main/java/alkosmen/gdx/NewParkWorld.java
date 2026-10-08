@@ -6,6 +6,7 @@ import com.badlogic.gdx.math.Rectangle;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Каркас мира Нового парка.
@@ -24,8 +25,10 @@ public final class NewParkWorld {
     private final List<SurfaceZone> surfaces;
     private final List<ParkObject> objects;
     private final CollisionMap collisionMap;
+    private final NewParkMapLayout mapLayout;
 
-    public NewParkWorld() {
+    public NewParkWorld(NewParkMapLayout mapLayout) {
+        this.mapLayout = Objects.requireNonNull(mapLayout, "mapLayout");
         List<SurfaceZone> ground = new ArrayList<>();
 
         // Сначала только крупная геометрия уровня.
@@ -57,6 +60,10 @@ public final class NewParkWorld {
         List<ParkObject> colliders = new ArrayList<>();
         this.objects = Collections.unmodifiableList(colliders);
         this.collisionMap = new CollisionMap(this.objects);
+    }
+
+    public NewParkMapLayout mapLayout() {
+        return mapLayout;
     }
 
     public List<SurfaceZone> surfaces() {

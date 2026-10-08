@@ -68,7 +68,7 @@ public final class NewParkGame extends ApplicationAdapter {
         );
         playerPixels.dispose();
 
-        world = new NewParkWorld();
+        world = new NewParkWorld(NewParkMapLayout.load());
 
         updateCamera();
     }
