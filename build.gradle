@@ -94,6 +94,19 @@ tasks.register('runAlkosmenWalk', JavaExec) {
     workingDir = projectDir
 }
 
+tasks.register('verifyWalkCycle', JavaExec) {
+    group = 'verification'
+    description = 'Checks distance-driven walk timing without a graphics context.'
+    dependsOn tasks.testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'alkosmen.gdx.render.WalkCycleTest'
+    enableAssertions = true
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyWalkCycle')
+}
+
 
 tasks.register('runEboboWalk', JavaExec) {
     group = 'application'

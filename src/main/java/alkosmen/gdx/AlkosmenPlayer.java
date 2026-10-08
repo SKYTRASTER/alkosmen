@@ -1,12 +1,10 @@
 package alkosmen.gdx;
 
 import alkosmen.gdx.render.CharacterRenderMetrics;
+import alkosmen.gdx.render.AlkosmenWalkAnimation;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
-import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.Disposable;
@@ -21,25 +19,19 @@ import java.util.function.Predicate;
  * an individual scene.</p>
  */
 public final class AlkosmenPlayer implements Disposable {
-    public static final float DEFAULT_SPEED = 330f;
-    public static final float DEFAULT_VISIBLE_HEIGHT = 150f;
+    public static final float DEFAULT_SPEED = 135f;
+    public static final float DEFAULT_VISIBLE_HEIGHT = 170f;
     public static final float BODY_WIDTH = 36f;
     public static final float BODY_HEIGHT = 26f;
 
     private static final float BODY_Y_OFFSET = 8f;
-    private static final float FRAME_DURATION = 0.14f;
-    private static final String ATLAS_PATH = "alkosmen/ui/sprites/alkosmen/walk_atlas_v1.png";
-
-    private final Texture atlas;
-    private final TextureRegion[][] frames;
-    private final CharacterRenderMetrics.FrameMetrics[][] metrics;
+    private final AlkosmenWalkAnimation animation;
     private final Rectangle collisionBody = new Rectangle();
 
     private float x;
     private float y;
     private float speed = DEFAULT_SPEED;
     private float visibleHeight = DEFAULT_VISIBLE_HEIGHT;
-    private float animationTime;
     private Direction direction = Direction.DOWN;
     private CharacterRenderMetrics.Placement placement;
 
@@ -47,23 +39,7 @@ public final class AlkosmenPlayer implements Disposable {
         x = spawnX;
         y = spawnY;
 
-        atlas = new Texture(Gdx.files.internal(ATLAS_PATH));
-        atlas.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-
-        Pixmap pixels = new Pixmap(Gdx.files.internal(ATLAS_PATH));
-        TextureRegion canonicalFrame = new TextureRegion(atlas);
-        CharacterRenderMetrics.FrameMetrics canonicalMetrics =
-            CharacterRenderMetrics.scan(pixels, 0, 0, pixels.getWidth(), pixels.getHeight());
-        pixels.dispose();
-
-        frames = new TextureRegion[5][4];
-        metrics = new CharacterRenderMetrics.FrameMetrics[5][4];
-        for (int row = 0; row < frames.length; row++) {
-            for (int column = 0; column < frames[row].length; column++) {
-                frames[row][column] = canonicalFrame;
-                metrics[row][column] = canonicalMetrics;
-            }
-        }
+        animation = new AlkosmenWalkAnimation();
         updateCollisionBody();
     }
 
@@ -91,12 +67,11 @@ public final class AlkosmenPlayer implements Disposable {
         }
 
         if (moveX == 0f && moveY == 0f) {
-            animationTime = 0f;
-            direction = Direction.IDLE;
+            animation.reset();
             return;
         }
 
-        if (Math.abs(moveX) > Math.abs(moveY)) {
+        if (Math.abs(moveX) >= Math.abs(moveY)) {
             direction = moveX < 0f ? Direction.LEFT : Direction.RIGHT;
         } else {
             direction = moveY < 0f ? Direction.DOWN : Direction.UP;
@@ -106,8 +81,10 @@ public final class AlkosmenPlayer implements Disposable {
         moveX = moveX / length * speed * delta;
         moveY = moveY / length * speed * delta;
 
+        float previousX = x;
+        float previousY = y;
         moveAlongAxes(moveX, moveY, blocked);
-        animationTime += delta;
+        animation.advance((float) Math.hypot(x - previousX, y - previousY), visibleHeight);
     }
 
     /**
@@ -133,21 +110,13 @@ public final class AlkosmenPlayer implements Disposable {
     }
 
     public CharacterRenderMetrics.Placement render(SpriteBatch batch) {
-        int row = direction.atlasRow;
-        int column = direction == Direction.IDLE
-            ? 0
-            : (int) (animationTime / FRAME_DURATION) % frames[row].length;
-
-        TextureRegion frame = frames[row][column];
-        placement = CharacterRenderMetrics.draw(
-            batch,
-            frame,
-            metrics[row][column],
-            x,
-            y,
-            visibleHeight,
-            false
-        );
+        AlkosmenWalkAnimation.Facing facing = switch (direction) {
+            case LEFT -> AlkosmenWalkAnimation.Facing.LEFT;
+            case RIGHT -> AlkosmenWalkAnimation.Facing.RIGHT;
+            case UP -> AlkosmenWalkAnimation.Facing.UP;
+            case DOWN, IDLE -> AlkosmenWalkAnimation.Facing.DOWN;
+        };
+        placement = animation.draw(batch, facing, x, y, visibleHeight);
         return placement;
     }
 
@@ -159,7 +128,7 @@ public final class AlkosmenPlayer implements Disposable {
     public void reset(float spawnX, float spawnY) {
         x = spawnX;
         y = spawnY;
-        animationTime = 0f;
+        animation.reset();
         direction = Direction.DOWN;
         updateCollisionBody();
     }
@@ -220,59 +189,10 @@ public final class AlkosmenPlayer implements Disposable {
 
     @Override
     public void dispose() {
-        atlas.dispose();
-    }
-
-    private static AtlasData splitAtlas(Texture atlas, Pixmap pixels) {
-        int columns = 4;
-        int rows = 5;
-        int frameWidth = atlas.getWidth() / columns;
-        int fullFrameHeight = atlas.getHeight() / rows;
-        int frameHeight = fullFrameHeight - 30;
-
-        TextureRegion[][] frames = new TextureRegion[rows][columns];
-        CharacterRenderMetrics.FrameMetrics[][] metrics =
-            new CharacterRenderMetrics.FrameMetrics[rows][columns];
-
-        for (int row = 0; row < rows; row++) {
-            for (int column = 0; column < columns; column++) {
-                frames[row][column] = new TextureRegion(
-                    atlas,
-                    column * frameWidth,
-                    row * fullFrameHeight,
-                    frameWidth,
-                    frameHeight
-                );
-                metrics[row][column] = CharacterRenderMetrics.scan(
-                    pixels,
-                    column * frameWidth,
-                    row * fullFrameHeight,
-                    frameWidth,
-                    frameHeight
-                );
-            }
-        }
-
-        return new AtlasData(frames, metrics);
+        animation.dispose();
     }
 
     public enum Direction {
-        LEFT(2),
-        RIGHT(1),
-        IDLE(0),
-        UP(4),
-        DOWN(3);
-
-        private final int atlasRow;
-
-        Direction(int atlasRow) {
-            this.atlasRow = atlasRow;
-        }
-    }
-
-    private record AtlasData(
-        TextureRegion[][] frames,
-        CharacterRenderMetrics.FrameMetrics[][] metrics
-    ) {
+        LEFT, RIGHT, IDLE, UP, DOWN
     }
 }

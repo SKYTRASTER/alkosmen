@@ -6,18 +6,15 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import alkosmen.gdx.render.CharacterRenderMetrics;
+import alkosmen.gdx.render.AlkosmenWalkAnimation;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -36,10 +33,7 @@ public final class NewParkGame extends ApplicationAdapter {
     private static final float PLAYER_BODY_WIDTH = NewParkWorld.units(0.48f);
     private static final float PLAYER_BODY_HEIGHT = NewParkWorld.units(0.28f);
     private static final float PLAYER_BODY_Y_OFFSET = NewParkWorld.units(0.06f);
-    private static final float PLAYER_FOOT_WIDTH = NewParkWorld.units(0.55f);
-    private static final int PLAYER_FRAME_COUNT = 6;
-    private static final float PLAYER_FRAME_DURATION = 0.15f;
-    private static final String PLAYER_BASE_PATH = "alkosmen/ui/alkosmen";
+    private static final float PLAYER_VISIBLE_HEIGHT = NewParkWorld.units(1.7f);
     private static final Color WOOD_SIDEWALK = new Color(0.46f, 0.34f, 0.22f, 1f);
     private static final Color ROAD_SURFACE = new Color(0.26f, 0.28f, 0.27f, 1f);
     private static final Color RAIL_BED = new Color(0.28f, 0.25f, 0.21f, 1f);
@@ -50,24 +44,15 @@ public final class NewParkGame extends ApplicationAdapter {
     private Viewport viewport;
     private ShapeRenderer shapes;
     private SpriteBatch batch;
-    private final List<Texture> playerTextures = new ArrayList<>();
-    private TextureRegion[] rightFrames;
-    private TextureRegion[] frontFrames;
-    private TextureRegion[] backFrames;
-    private CharacterRenderMetrics.FrameMetrics[] rightMetrics;
-    private CharacterRenderMetrics.FrameMetrics[] frontMetrics;
-    private CharacterRenderMetrics.FrameMetrics[] backMetrics;
+    private AlkosmenWalkAnimation playerAnimation;
     private CharacterRenderMetrics.Placement playerPlacement;
     private NewParkWorld world;
 
     private float playerX;
     private float playerY;
-    private float playerSpriteScale;
-    private int playerCanonicalCanvasWidth;
 
     private boolean debugCollisions;
     private boolean debugPlayerAnchor;
-    private float playerStateTime;
     private Direction playerDirection = Direction.DOWN;
 
     private enum Direction {
@@ -81,17 +66,7 @@ public final class NewParkGame extends ApplicationAdapter {
         shapes = new ShapeRenderer();
         batch = new SpriteBatch();
 
-        PlayerFrames right = loadPlayerFrames("walk_right");
-        rightFrames = right.frames();
-        rightMetrics = right.metrics();
-        PlayerFrames front = loadPlayerFrames("walk_front");
-        frontFrames = front.frames();
-        frontMetrics = front.metrics();
-        playerSpriteScale = PLAYER_FOOT_WIDTH / front.footWidth();
-        playerCanonicalCanvasWidth = frontMetrics[0].canvasWidth();
-        PlayerFrames back = loadPlayerFrames("walk_back");
-        backFrames = back.frames();
-        backMetrics = back.metrics();
+        playerAnimation = new AlkosmenWalkAnimation();
 
         world = new NewParkWorld(NewParkMapLayout.load());
         playerX = world.spawnX();
@@ -139,27 +114,29 @@ public final class NewParkGame extends ApplicationAdapter {
             debugPlayerAnchor = !debugPlayerAnchor;
         }
 
-        float distance = PLAYER_SPEED * delta;
-        boolean moving = false;
-        if (Gdx.input.isKeyPressed(Input.Keys.RIGHT) || Gdx.input.isKeyPressed(Input.Keys.D)) {
-            moveAlongAxes(distance, 0f);
-            playerDirection = Direction.RIGHT;
-            moving = true;
-        } else if (Gdx.input.isKeyPressed(Input.Keys.LEFT) || Gdx.input.isKeyPressed(Input.Keys.A)) {
-            moveAlongAxes(-distance, 0f);
-            playerDirection = Direction.LEFT;
-            moving = true;
-        } else if (Gdx.input.isKeyPressed(Input.Keys.UP) || Gdx.input.isKeyPressed(Input.Keys.W)) {
-            moveAlongAxes(0f, distance);
-            playerDirection = Direction.UP;
-            moving = true;
-        } else if (Gdx.input.isKeyPressed(Input.Keys.DOWN) || Gdx.input.isKeyPressed(Input.Keys.S)) {
-            moveAlongAxes(0f, -distance);
-            playerDirection = Direction.DOWN;
-            moving = true;
-        }
+        float moveX = 0f;
+        float moveY = 0f;
+        if (Gdx.input.isKeyPressed(Input.Keys.RIGHT) || Gdx.input.isKeyPressed(Input.Keys.D)) moveX += 1f;
+        if (Gdx.input.isKeyPressed(Input.Keys.LEFT) || Gdx.input.isKeyPressed(Input.Keys.A)) moveX -= 1f;
+        if (Gdx.input.isKeyPressed(Input.Keys.UP) || Gdx.input.isKeyPressed(Input.Keys.W)) moveY += 1f;
+        if (Gdx.input.isKeyPressed(Input.Keys.DOWN) || Gdx.input.isKeyPressed(Input.Keys.S)) moveY -= 1f;
 
-        playerStateTime = moving ? playerStateTime + delta : 0f;
+        if (moveX == 0f && moveY == 0f) {
+            playerAnimation.reset();
+            return;
+        }
+        if (Math.abs(moveX) >= Math.abs(moveY)) {
+            playerDirection = moveX < 0f ? Direction.LEFT : Direction.RIGHT;
+        } else {
+            playerDirection = moveY < 0f ? Direction.DOWN : Direction.UP;
+        }
+        float length = (float) Math.hypot(moveX, moveY);
+        float distance = PLAYER_SPEED * delta;
+        float previousX = playerX;
+        float previousY = playerY;
+        moveAlongAxes(moveX / length * distance, moveY / length * distance);
+        playerAnimation.advance(
+            (float) Math.hypot(playerX - previousX, playerY - previousY), PLAYER_VISIBLE_HEIGHT);
     }
 
     private void moveAlongAxes(float moveX, float moveY) {
@@ -303,62 +280,11 @@ public final class NewParkGame extends ApplicationAdapter {
         shapes.ellipse(playerX - 34f, playerY - 5f, 68f, 14f);
         shapes.end();
 
-        int frameIndex = (int) (playerStateTime / PLAYER_FRAME_DURATION) % PLAYER_FRAME_COUNT;
-        TextureRegion frame = switch (playerDirection) {
-            case LEFT, RIGHT -> rightFrames[frameIndex];
-            case UP -> backFrames[frameIndex];
-            case DOWN -> frontFrames[frameIndex];
-        };
-        CharacterRenderMetrics.FrameMetrics metrics = switch (playerDirection) {
-            case LEFT, RIGHT -> rightMetrics[frameIndex];
-            case UP -> backMetrics[frameIndex];
-            case DOWN -> frontMetrics[frameIndex];
-        };
-
-        // Two front-walk PNGs have a 1024px canvas; the others are 144px wide.
-        float frameScale = playerSpriteScale
-            * playerCanonicalCanvasWidth / metrics.canvasWidth();
         batch.begin();
-        playerPlacement = CharacterRenderMetrics.drawAtScale(
-            batch, frame, metrics, playerX, playerY, frameScale,
-            playerDirection == Direction.LEFT
-        );
+        playerPlacement = playerAnimation.draw(batch,
+            AlkosmenWalkAnimation.Facing.valueOf(playerDirection.name()),
+            playerX, playerY, PLAYER_VISIBLE_HEIGHT);
         batch.end();
-    }
-
-    private PlayerFrames loadPlayerFrames(String folder) {
-        TextureRegion[] frames = new TextureRegion[PLAYER_FRAME_COUNT];
-        CharacterRenderMetrics.FrameMetrics[] metrics =
-            new CharacterRenderMetrics.FrameMetrics[PLAYER_FRAME_COUNT];
-        int footWidth = 0;
-
-        for (int i = 0; i < PLAYER_FRAME_COUNT; i++) {
-            String path = String.format("%s/%s/%02d.png", PLAYER_BASE_PATH, folder, i);
-            if (!Gdx.files.internal(path).exists()) {
-                throw new IllegalStateException("Кадр Алкосмена не найден: " + path);
-            }
-            Texture texture = new Texture(Gdx.files.internal(path));
-            texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-            playerTextures.add(texture);
-            frames[i] = new TextureRegion(texture);
-
-            Pixmap pixels = new Pixmap(Gdx.files.internal(path));
-            metrics[i] = CharacterRenderMetrics.scan(
-                pixels, 0, 0, pixels.getWidth(), pixels.getHeight()
-            );
-            if (i == 0) {
-                footWidth = CharacterRenderMetrics.footWidth(pixels, 0, 0, metrics[i]);
-            }
-            pixels.dispose();
-        }
-        return new PlayerFrames(frames, metrics, footWidth);
-    }
-
-    private record PlayerFrames(
-        TextureRegion[] frames,
-        CharacterRenderMetrics.FrameMetrics[] metrics,
-        int footWidth
-    ) {
     }
 
     private void drawCollisionDebug() {
@@ -403,10 +329,9 @@ public final class NewParkGame extends ApplicationAdapter {
 
     @Override
     public void dispose() {
-        for (Texture texture : playerTextures) {
-            texture.dispose();
+        if (playerAnimation != null) {
+            playerAnimation.dispose();
         }
-        playerTextures.clear();
         if (batch != null) {
             batch.dispose();
         }
