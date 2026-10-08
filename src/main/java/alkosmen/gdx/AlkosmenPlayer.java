@@ -67,7 +67,7 @@ public final class AlkosmenPlayer implements Disposable {
         }
 
         if (moveX == 0f && moveY == 0f) {
-            animation.reset();
+            // Preserve gait phase across short key releases.
             return;
         }
 
