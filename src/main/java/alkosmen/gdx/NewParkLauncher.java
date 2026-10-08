@@ -10,7 +10,7 @@ public final class NewParkLauncher {
 
     public static void main(String[] args) {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
-        config.setTitle("Алкосмены - Свердлова 12 / Новый парк");
+        config.setTitle("Алкосмены - Новый парк");
         config.setWindowedMode(1280, 720);
         config.setResizable(true);
         config.useVsync(true);
