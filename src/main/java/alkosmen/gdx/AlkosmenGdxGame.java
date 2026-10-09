@@ -7,6 +7,9 @@ import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
@@ -50,6 +53,14 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
     private Texture[] danceFrames;
     private Music music;
 
+    private static final float BACK_X = 32f;
+    private static final float BACK_Y = 32f;
+    private static final float BACK_W = 285f;
+    private static final float BACK_H = 60f;
+    private final Vector2 backPointer = new Vector2();
+    private BitmapFont backFont;
+    private String backText;
+
     private float dancePosition;
 
     @Override
@@ -58,6 +69,7 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         viewport = new FitViewport(WORLD_WIDTH, WORLD_HEIGHT, camera);
         batch = new SpriteBatch();
         shapes = new ShapeRenderer();
+        initBackButton();
 
         background = loadBackground();
         logo = new Texture(Gdx.files.internal(LOGO));
@@ -146,6 +158,16 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
     }
 
     private void renderActiveSceneTest() {
+        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
+            backPointer.set(Gdx.input.getX(), Gdx.input.getY());
+            viewport.unproject(backPointer);
+            if (backPointer.x >= BACK_X && backPointer.x <= BACK_X + BACK_W
+                && backPointer.y >= BACK_Y && backPointer.y <= BACK_Y + BACK_H) {
+                closeSceneTest();
+                showMainMenu();
+                return;
+            }
+        }
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             closeSceneTest();
             return;
@@ -153,7 +175,51 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
 
         if (activeSceneTest != null) {
             activeSceneTest.render();
+            renderBackButton();
         }
+    }
+
+    private void initBackButton() {
+        backText = "Главное меню";
+        for (String fontPath : new String[] {"C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/segoeui.ttf"}) {
+            if (!Gdx.files.absolute(fontPath).exists()) continue;
+            FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.absolute(fontPath));
+            try {
+                FreeTypeFontGenerator.FreeTypeFontParameter settings =
+                    new FreeTypeFontGenerator.FreeTypeFontParameter();
+                settings.size = 30;
+                settings.characters = "Главное меню";
+                backFont = generator.generateFont(settings);
+            } finally {
+                generator.dispose();
+            }
+            return;
+        }
+        backFont = new BitmapFont();
+        backFont.getData().setScale(2f);
+        backText = "Main menu";
+    }
+
+    private void renderBackButton() {
+        // A screen-space overlay, independent of the test scene's camera.
+        viewport.apply();
+        camera.update();
+        shapes.setProjectionMatrix(camera.combined);
+        batch.setProjectionMatrix(camera.combined);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(0.03f, 0.06f, 0.13f, 0.90f);
+        shapes.rect(BACK_X, BACK_Y, BACK_W, BACK_H);
+        shapes.end();
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        shapes.setColor(0.25f, 0.90f, 1f, 1f);
+        shapes.rect(BACK_X, BACK_Y, BACK_W, BACK_H);
+        shapes.end();
+        batch.begin();
+        backFont.setColor(Color.WHITE);
+        backFont.draw(batch, backText, BACK_X + 18f, BACK_Y + 40f);
+        batch.end();
     }
 
     private void renderMenuBackdrop() {
@@ -366,6 +432,7 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         dispose(fallbackHero);
         disposeAll(danceFrames);
         dispose(music);
+        dispose(backFont);
 
         if (batch != null) {
             batch.dispose();
