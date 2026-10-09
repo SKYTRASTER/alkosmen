@@ -12,6 +12,13 @@ public final class WalkCycleTest {
         int frameBeforeStop = at30Fps.frameIndex();
         at30Fps.advance(0f, 122.4f);
         assert at30Fps.frameIndex() == frameBeforeStop : "No movement must preserve the gait phase";
+        WalkCycle tapped = new WalkCycle(6);
+        tapped.step();
+        assert tapped.frameIndex() == 1 : "A quick tap must change the frame";
+        tapped.advance(0f, 122.4f);
+        assert tapped.frameIndex() == 1 : "Releasing the key must freeze the frame";
+        for (int i = 0; i < 5; i++) tapped.step();
+        assert tapped.frameIndex() == 0 : "Taps must wrap around the cycle";
         WalkCycle wrapped = new WalkCycle(6);
         wrapped.advance(122.4f * 2.25f, 122.4f);
         assert wrapped.frameIndex() == 1 : "Multi-cycle wrap failed";
