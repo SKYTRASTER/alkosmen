@@ -57,6 +57,7 @@ public final class NewParkGame extends ApplicationAdapter {
     private boolean debugCollisions;
     private boolean debugPlayerAnchor;
     private Direction playerDirection = Direction.DOWN;
+    private boolean movingLastFrame;
 
     private enum Direction {
         LEFT, RIGHT, UP, DOWN
@@ -128,7 +129,7 @@ public final class NewParkGame extends ApplicationAdapter {
         if (Gdx.input.isKeyPressed(Input.Keys.DOWN) || Gdx.input.isKeyPressed(Input.Keys.S)) moveY -= 1f;
 
         if (moveX == 0f && moveY == 0f) {
-            playerAnimation.reset();
+            movingLastFrame = false;
             sprint.update(delta, false, false);
             return;
         }
@@ -146,7 +147,12 @@ public final class NewParkGame extends ApplicationAdapter {
         moveAlongAxes(moveX / length * distance, moveY / length * distance);
         float actualDistance = (float) Math.hypot(playerX - previousX, playerY - previousY);
         sprint.update(delta, sprintRequested, actualDistance > 0.0001f);
-        playerAnimation.advance(actualDistance, PLAYER_VISIBLE_HEIGHT);
+        if (!movingLastFrame && actualDistance > 0.0001f) {
+            playerAnimation.step();
+        } else {
+            playerAnimation.advance(actualDistance, PLAYER_VISIBLE_HEIGHT);
+        }
+        movingLastFrame = true;
     }
 
     private void moveAlongAxes(float moveX, float moveY) {
