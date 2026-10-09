@@ -26,7 +26,7 @@ public final class AlkosmenWalkAnimation implements Disposable {
 
     /** Use the approved new front-facing walk only for explicit preview scenes. */
     public AlkosmenWalkAnimation(boolean previewFrontV2) {
-        String[] folders = {"walk_right_v2", previewFrontV2 ? "walk_front_v2" : "walk_front", "walk_back"};
+        String[] folders = {"walk_right_v2", previewFrontV2 ? "walk_front" : "walk_front", "walk_back"};
         try {
             for (int row = 0; row < folders.length; row++) {
                 for (int column = 0; column < FRAME_COUNT; column++) {
