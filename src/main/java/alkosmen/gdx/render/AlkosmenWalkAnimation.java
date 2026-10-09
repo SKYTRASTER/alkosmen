@@ -14,6 +14,16 @@ import java.util.List;
 public final class AlkosmenWalkAnimation implements Disposable {
     private static final int FRAME_COUNT = 6;
     private static final String BASE_PATH = "alkosmen/ui/alkosmen";
+    // Neutral frames divide the alternating foot steps in the frontal walk.
+    // Short taps still advance a single phase and freeze on key release.
+    private static final String[] FRONT_WALK_SEQUENCE = {
+        "idle_front/00.png",
+        "walk_front/01.png",
+        "walk_front/02.png",
+        "idle_front/03.png",
+        "walk_front/03.png",
+        "walk_front/04.png"
+    };
     private final List<Texture> textures = new ArrayList<>();
     private final TextureRegion[][] frames = new TextureRegion[3][FRAME_COUNT];
     private final CharacterRenderMetrics.FrameMetrics[][] metrics =
@@ -25,7 +35,9 @@ public final class AlkosmenWalkAnimation implements Disposable {
         try {
             for (int row = 0; row < folders.length; row++) {
                 for (int column = 0; column < FRAME_COUNT; column++) {
-                    String path = String.format("%s/%s/%02d.png", BASE_PATH, folders[row], column);
+                    String path = row == 1
+                        ? BASE_PATH + "/" + FRONT_WALK_SEQUENCE[column]
+                        : String.format("%s/%s/%02d.png", BASE_PATH, folders[row], column);
                     Pixmap pixels = new Pixmap(Gdx.files.internal(path));
                     try {
                         metrics[row][column] = CharacterRenderMetrics.scan(
