@@ -50,6 +50,10 @@ public final class AlkosmenWalkAnimation implements Disposable {
         cycle.advance(actualDistance, visibleHeight * 0.72f);
     }
 
+    public void step() {
+        cycle.step();
+    }
+
     public void reset() {
         cycle.reset();
     }
