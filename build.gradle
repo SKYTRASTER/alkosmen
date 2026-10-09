@@ -11,7 +11,7 @@ java {
 
 javafx {
     version = "21"
-    modules = [ 'javafx.controls', 'javafx.graphics', 'javafx.media' ]
+    modules = ['javafx.controls', 'javafx.graphics', 'javafx.media']
 }
 
 def gdxVersion = '1.13.1'
@@ -41,7 +41,17 @@ tasks.register('runGdxMenu', JavaExec) {
 def packagingToolchain = javaToolchains.launcherFor {
     languageVersion = JavaLanguageVersion.of(21)
 }
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
 
+tasks.withType(JavaExec).configureEach {
+    jvmArgs(
+            '-Dfile.encoding=UTF-8',
+            '-Dsun.stdout.encoding=UTF-8',
+            '-Dsun.stderr.encoding=UTF-8'
+    )
+}
 tasks.register('packageWindowsExe', Exec) {
     group = 'distribution'
     description = 'Builds a portable self-contained Windows application with an .exe launcher.'
@@ -76,6 +86,41 @@ tasks.register('packageWindowsExe', Exec) {
 }
 
 
+tasks.register('runAlkosmenWalk', JavaExec) {
+    group = 'application'
+    description = 'Runs the Alkosmen walk test.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'alkosmen.gdx.AlkosmenWalkLauncher'
+    workingDir = projectDir
+}
+
+tasks.register('verifyWalkCycle', JavaExec) {
+    group = 'verification'
+    description = 'Checks distance-driven walk timing without a graphics context.'
+    dependsOn tasks.testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'alkosmen.gdx.render.WalkCycleTest'
+    enableAssertions = true
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyWalkCycle')
+}
+
+tasks.register('verifySprintState', JavaExec) {
+    group = 'verification'
+    description = 'Checks sprint exhaustion, recovery and collision behavior without graphics.'
+    dependsOn tasks.testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'alkosmen.gdx.SprintStateTest'
+    enableAssertions = true
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifySprintState')
+}
+
+
 tasks.register('runEboboWalk', JavaExec) {
     group = 'application'
     description = 'Runs the Vyatsky Ebobo left/right walk test.'
@@ -90,5 +135,39 @@ tasks.register('runLenyaKultyshevWalk', JavaExec) {
     description = 'Runs the Lenya Kultyshev walk test.'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'alkosmen.gdx.LenyaKultyshevWalkLauncher'
+    workingDir = projectDir
+}
+
+
+tasks.register('runMozolWalk', JavaExec) {
+    group = 'application'
+    description = 'Runs the Mozol walk test.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'alkosmen.gdx.MozolWalkLauncher'
+    workingDir = projectDir
+}
+
+
+tasks.register('runPoliceMaleWalk', JavaExec) {
+    group = 'application'
+    description = 'Runs the male police walk test.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'alkosmen.gdx.PoliceMaleWalkLauncher'
+    workingDir = projectDir
+}
+
+tasks.register('runPoliceFemaleWalk', JavaExec) {
+    group = 'application'
+    description = 'Runs the female police walk test.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'alkosmen.gdx.PoliceFemaleWalkLauncher'
+    workingDir = projectDir
+}
+
+tasks.register('runNewPark', JavaExec) {
+    group = 'application'
+    description = 'Runs the first playable Sverdlova 12 / New Park district.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'alkosmen.gdx.NewParkLauncher'
     workingDir = projectDir
 }
