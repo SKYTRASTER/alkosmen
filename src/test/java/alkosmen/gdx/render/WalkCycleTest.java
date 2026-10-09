@@ -9,8 +9,9 @@ public final class WalkCycleTest {
         for (int i = 0; i < 60; i++) at120Fps.advance(135f / 120f, 122.4f);
         assert at30Fps.frameIndex() == at120Fps.frameIndex() : "Gait depends on FPS";
         assert at30Fps.frameIndex() == 3 : "Incorrect distance-driven frame";
+        int frameBeforeStop = at30Fps.frameIndex();
         at30Fps.advance(0f, 122.4f);
-        assert at30Fps.frameIndex() == 0 : "Blocked movement must stop the gait";
+        assert at30Fps.frameIndex() == frameBeforeStop : "No movement must preserve the gait phase";
         WalkCycle wrapped = new WalkCycle(6);
         wrapped.advance(122.4f * 2.25f, 122.4f);
         assert wrapped.frameIndex() == 1 : "Multi-cycle wrap failed";
