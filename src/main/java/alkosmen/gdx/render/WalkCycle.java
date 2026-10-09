@@ -23,6 +23,11 @@ public final class WalkCycle {
         phase = (phase + distance / cycleDistance) % 1f;
     }
 
+    /** Advance one visible frame on a fresh directional key press. */
+    public void step() {
+        phase = (frameIndex() + 1) % frameCount / (float) frameCount;
+    }
+
     public int frameIndex() {
         return Math.min(frameCount - 1, (int) (phase * frameCount));
     }
