@@ -33,6 +33,7 @@ public final class AlkosmenPlayer implements Disposable {
     private float speed = DEFAULT_SPEED;
     private float visibleHeight = DEFAULT_VISIBLE_HEIGHT;
     private Direction direction = Direction.DOWN;
+    private boolean movingLastFrame;
     private CharacterRenderMetrics.Placement placement;
 
     public AlkosmenPlayer(float spawnX, float spawnY) {
@@ -67,7 +68,8 @@ public final class AlkosmenPlayer implements Disposable {
         }
 
         if (moveX == 0f && moveY == 0f) {
-            // Preserve gait phase across short key releases.
+            // A tap freezes the new frame rather than resetting to idle.
+            movingLastFrame = false;
             return;
         }
 
@@ -84,7 +86,13 @@ public final class AlkosmenPlayer implements Disposable {
         float previousX = x;
         float previousY = y;
         moveAlongAxes(moveX, moveY, blocked);
-        animation.advance((float) Math.hypot(x - previousX, y - previousY), visibleHeight);
+        float actualDistance = (float) Math.hypot(x - previousX, y - previousY);
+        if (!movingLastFrame && actualDistance > 0.0001f) {
+            animation.step();
+        } else {
+            animation.advance(actualDistance, visibleHeight);
+        }
+        movingLastFrame = true;
     }
 
     /**
@@ -129,6 +137,7 @@ public final class AlkosmenPlayer implements Disposable {
         x = spawnX;
         y = spawnY;
         animation.reset();
+        movingLastFrame = false;
         direction = Direction.DOWN;
         updateCollisionBody();
     }
