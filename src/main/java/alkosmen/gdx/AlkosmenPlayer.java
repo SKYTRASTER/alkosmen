@@ -37,10 +37,15 @@ public final class AlkosmenPlayer implements Disposable {
     private CharacterRenderMetrics.Placement placement;
 
     public AlkosmenPlayer(float spawnX, float spawnY) {
+        this(spawnX, spawnY, false);
+    }
+
+    /** Allows the walk test to preview the new front frames without changing other scenes. */
+    public AlkosmenPlayer(float spawnX, float spawnY, boolean previewFrontV2) {
         x = spawnX;
         y = spawnY;
 
-        animation = new AlkosmenWalkAnimation();
+        animation = new AlkosmenWalkAnimation(previewFrontV2);
         updateCollisionBody();
     }
 

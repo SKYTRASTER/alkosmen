@@ -18,7 +18,7 @@ public final class AlkosmenWalkTest extends ApplicationAdapter {
     public void create() {
         batch = new SpriteBatch();
         camera = new OrthographicCamera();
-        player = new AlkosmenPlayer(Gdx.graphics.getWidth() / 2f, 60f);
+        player = new AlkosmenPlayer(Gdx.graphics.getWidth() / 2f, 60f, true);
         player.setVisibleHeight(TARGET_HEIGHT);
         player.setSpeed(MOVE_SPEED);
         resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
