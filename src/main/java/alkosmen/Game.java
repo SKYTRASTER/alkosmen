@@ -1,13 +1,9 @@
 package alkosmen;
 
-import alkosmen.audio.MidiPlayer;
-import alkosmen.audio.SoundEffectPlayer;
 import alkosmen.game.CopSystem;
 import alkosmen.game.GameHudRenderer;
 import alkosmen.game.PatrolSystem;
 import alkosmen.game.TopDownPatrol;
-import alkosmen.gfx.CharacterSpriteAssets;
-import alkosmen.gfx.SpriteSheet;
 import alkosmen.lore.LoreCharacter;
 import alkosmen.lore.LoreRepository;
 import alkosmen.maps.LevelLoader;
@@ -33,9 +29,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.awt.image.BufferStrategy;
-import java.awt.image.BufferedImage;
 import java.awt.image.ImageObserver;
-import java.io.IOException;
 import java.net.URL;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -43,7 +37,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
-import javax.imageio.ImageIO;
 import javax.swing.SwingUtilities;
 
 public final class Game extends Canvas implements Runnable {
@@ -52,7 +45,7 @@ public final class Game extends Canvas implements Runnable {
    private int bottleGoal = 8;
    private volatile boolean running;
    private BufferStrategy strategy;
-   private Image[][] playerSprites;
+   private GameAssets assets;
    private Player player;
    private char[][] levelMap;
    private static final String[] LEVELS = new String[]{"/alkosmen/maps/demo_level.txt"};
@@ -61,40 +54,15 @@ public final class Game extends Canvas implements Runnable {
    private boolean rightPressed;
    private boolean upPressed;
    private boolean downPressed;
-   private boolean jumpPressed;
-   private boolean jumpQueued;
-   private long jumpBufferUntil;
-   private long lastOnGroundAt;
    private int playerDir = 2;
    private int animFrame = 0;
    private int playerMotionTick = 0;
    private long lastAnim = 0L;
-   private SoundEffectPlayer stepSound;
-   private SoundEffectPlayer jumpSound;
-   private SoundEffectPlayer bottleCollectSound;
-   private SpriteSheet sheet;
-   private Image tileFloor;
-   private Image tileWall;
    private Image levelBackground;
-   private Image cellarBackground;
-   private Image cellarChestSprite;
-   private Image bottleSprite;
-   private Image npcBoy1Sprite;
-   private Image npcBoy2Sprite;
-   private Image npcTolyaSprite;
-   private Image npcEboboSprite;
-   private Image npcCopSprite;
-   private final Map<Character, Image[]> townNpcFrames = new HashMap<>();
-   private Image[] copWalkLeftFrames;
-   private Image[] copWalkRightFrames;
-   private Image[] copWalkUpFrames;
-   private Image[] copWalkDownFrames;
-   private Image[][] femaleCopFrames;
-   private MidiPlayer levelMidi;
    private float cameraX;
    private float cameraY;
-   private final GameHudRenderer hudRenderer = new GameHudRenderer(56, 1200L);
-   private final CopSystem copSystem = new CopSystem(0.045, (double)1.0F, (double)4.5F, 900L);
+   private final GameHudRenderer hudRenderer = new GameHudRenderer(HUD_HEIGHT, COP_CAUGHT_TEXT_MS);
+   private final CopSystem copSystem = new CopSystem(COP_SPEED, COP_DROP_STEP, COP_VIEW_DISTANCE, COP_CAUGHT_COOLDOWN_MS);
    private final PatrolSystem patrolSystem = new PatrolSystem();
    private final List<TopDownPatrol> patrols = new ArrayList<>();
    private final LoreRepository lore = LoreRepository.loadDefault();
@@ -108,7 +76,6 @@ public final class Game extends Canvas implements Runnable {
    private volatile boolean restartRequested;
    private long lastPatrolCaughtAt;
    private int lives = 3;
-   private boolean spectatorMode;
    private String cityLine = "";
    private long nextCityLineAt;
    private boolean interactionRequested;
@@ -144,18 +111,10 @@ public final class Game extends Canvas implements Runnable {
    private double secretX = 3.5;
    private double secretY = (double)5.0F;
    private static final String CELLAR_QUEST_ID = "secret_cellar";
-   private static final double MOVE_SPEED = 0.12;
    private static final double TOP_DOWN_SPEED = 0.115;
    private static final double PATROL_COLLISION_MARGIN = 0.06;
    private static final double BOTTLE_PICKUP_RADIUS = 0.82;
-   private static final double GRAVITY = 0.035;
-   private static final double JUMP_SPEED = -0.68;
-   private static final double MAX_FALL_SPEED = 0.9;
-   private static final long JUMP_BUFFER_MS = 140L;
-   private static final long COYOTE_TIME_MS = 120L;
-   private static final double JUMP_HOLD_GRAVITY_MULT = 0.55;
    private static final double PLAYER_SCALE = 1.7;
-   private static final double PLAYER_COLLISION_MARGIN = 0.06;
    private static final double BOTTLE_SCALE = (double)1.3125F;
    private static final double NPC_SCALE = 1.7;
    private static final double PATROL_HEIGHT_SCALE = 1.18;
@@ -168,10 +127,6 @@ public final class Game extends Canvas implements Runnable {
    private static final long COP_CAUGHT_TEXT_MS = 1200L;
    private static final long FRAME_DELAY_MS = 16L;
    private static final long CITY_LINE_REFRESH_MS = 9000L;
-   private static final int MAX_LIVES = 3;
-   private static final int DEMO_RANDOM_COPS = 12;
-   private static final int DEMO_RANDOM_COP_ATTEMPTS = 800;
-   private static final int COP_WALK_FRAME_COUNT = 8;
 
    public void run() {
       try {
@@ -185,7 +140,7 @@ public final class Game extends Canvas implements Runnable {
          this.render();
 
          try {
-            Thread.sleep(16L);
+            Thread.sleep(FRAME_DELAY_MS);
          } catch (InterruptedException var2) {
             Thread.currentThread().interrupt();
          }
@@ -214,39 +169,7 @@ public final class Game extends Canvas implements Runnable {
       this.createBufferStrategy(2);
       this.strategy = this.getBufferStrategy();
       this.renderLoadingScreen("Loading assets...");
-      this.sheet = new SpriteSheet("/alkosmen/images/grass_tileset_16x16/grass_tileset_16x16.png", 16);
-      this.tileFloor = this.sheet.tile(0, 0);
-      this.tileWall = this.sheet.tile(1, 0);
-      this.bottleSprite = this.loadImageResource("/alkosmen/images/objects/bottle/bottle_tich_gold.png");
-      this.cellarBackground = this.loadImageResource("/alkosmen/ui/levels/cellar_bg_v1.png");
-      this.cellarChestSprite = this.loadImageResource("/alkosmen/images/objects/chest/mega_chest.png");
-      this.npcBoy1Sprite = this.loadFirstExistingImage("/alkosmen/images/objects/glack/boy1.png", "/alkosmen/images/objects/boy/boy1.png");
-      this.npcBoy2Sprite = this.loadFirstExistingImage("/alkosmen/images/objects/glack/boy2.png", "/alkosmen/images/objects/boy/boy2.png");
-      BufferedImage tolyaSheet = (BufferedImage)this.loadImageResource("/alkosmen/ui/characters/tolya_zuevka_sheet.png");
-      this.npcTolyaSprite = tolyaSheet.getSubimage(50, 480, 460, 480);
-      this.npcEboboSprite = this.loadImageResource("/alkosmen/ui/intro/ebobo/walk_right/00.png");
-      this.loadTownNpc('H', "red_brother");
-      this.loadTownNpc('I', "red_sister");
-      this.loadTownNpc('D', "dnb_partygoer");
-      this.loadTownNpc('J', "train_gopnik");
-      this.loadTownNpc('K', "train_conductor");
-      this.loadTownNpc('S', "suspicious_stranger");
-      Image[][] maleCopFrames = CharacterSpriteAssets.loadGridAtlas("/alkosmen/images/objects/cop/male/walk_atlas.png", 11, 3);
-      this.femaleCopFrames = CharacterSpriteAssets.loadGridAtlas("/alkosmen/images/objects/cop/female/walk_atlas.png", 11, 3);
-      this.copWalkLeftFrames = maleCopFrames[0];
-      this.copWalkRightFrames = maleCopFrames[1];
-      this.copWalkUpFrames = maleCopFrames[2];
-      this.copWalkDownFrames = maleCopFrames[2];
-      this.npcCopSprite = maleCopFrames[2][0];
-      this.stepSound = new SoundEffectPlayer("/alkosmen/sounds/step.wav");
-      this.jumpSound = new SoundEffectPlayer("/alkosmen/sounds/jump.wav");
-      this.bottleCollectSound = new SoundEffectPlayer("/alkosmen/sounds/scratch_bottle.wav");
-      this.levelMidi = new MidiPlayer();
-      if (Constants.GameMusicEnabled) {
-         this.levelMidi.playLoop("/alkosmen/sounds/Caribbean-Blue.mid", 70);
-      }
-
-      this.playerSprites = this.getAlkobotImages();
+      this.assets = new GameAssets();
       this.renderLoadingScreen("Loading level...");
       this.gameStore = LocalGameStore.openDefault();
       this.loadLevel(1);
@@ -288,7 +211,7 @@ public final class Game extends Canvas implements Runnable {
                         this.playerDir = 2;
                      } else {
                         double length = Math.hypot(dx, dy);
-                        this.moveTopDown(dx / length * 0.115, dy / length * 0.115);
+                        this.moveTopDown(dx / length * TOP_DOWN_SPEED, dy / length * TOP_DOWN_SPEED);
                         this.playerDir = Math.abs(dy) > Math.abs(dx) ? (dy < (double)0.0F ? 3 : 4) : (dx < (double)0.0F ? 0 : 1);
                      }
 
@@ -723,14 +646,14 @@ public final class Game extends Canvas implements Runnable {
       if (this.tolyaQuestAccepted && !this.tolyaQuestComplete) {
          double playerCenterX = this.player.x + (double)0.5F;
          double playerCenterY = this.player.y + (double)0.5F;
-         int minX = Math.max(0, (int)Math.floor(playerCenterX - 0.82));
-         int maxX = Math.min(this.levelMap[0].length - 1, (int)Math.floor(playerCenterX + 0.82));
-         int minY = Math.max(0, (int)Math.floor(playerCenterY - 0.82));
-         int maxY = Math.min(this.levelMap.length - 1, (int)Math.floor(playerCenterY + 0.82));
+          int minX = Math.max(0, (int)Math.floor(playerCenterX - BOTTLE_PICKUP_RADIUS));
+          int maxX = Math.min(this.levelMap[0].length - 1, (int)Math.floor(playerCenterX + BOTTLE_PICKUP_RADIUS));
+          int minY = Math.max(0, (int)Math.floor(playerCenterY - BOTTLE_PICKUP_RADIUS));
+          int maxY = Math.min(this.levelMap.length - 1, (int)Math.floor(playerCenterY + BOTTLE_PICKUP_RADIUS));
 
          for(int y = minY; y <= maxY; ++y) {
             for(int x = minX; x <= maxX; ++x) {
-               if (this.levelMap[y][x] == 'B' && Math.hypot(playerCenterX - ((double)x + (double)0.5F), playerCenterY - ((double)y + (double)0.5F)) <= 0.82) {
+               if (this.levelMap[y][x] == 'B' && Math.hypot(playerCenterX - ((double)x + (double)0.5F), playerCenterY - ((double)y + (double)0.5F)) <= BOTTLE_PICKUP_RADIUS) {
                   try {
                      if (!this.gameStore.collectTolyaBottle(x, y)) {
                         this.levelMap[y][x] = '.';
@@ -745,7 +668,7 @@ public final class Game extends Canvas implements Runnable {
 
                   this.levelMap[y][x] = '.';
                   ++this.score;
-                  this.bottleCollectSound.play();
+                  this.assets.bottleCollectSound.play();
                   this.levelGoalReached = this.score >= this.bottleGoal && this.bottleGoal > 0;
                   return;
                }
@@ -780,7 +703,7 @@ public final class Game extends Canvas implements Runnable {
 
    private void checkPatrolCollision(long now) {
       if (this.currentLevel != 1) {
-         if (now - this.lastPatrolCaughtAt >= 1000L) {
+          if (now - this.lastPatrolCaughtAt >= PATROL_CAUGHT_COOLDOWN_MS) {
             for(TopDownPatrol patrol : this.patrols) {
                if (Math.abs(this.player.x - patrol.x()) < 0.55 && Math.abs(this.player.y - patrol.y()) < 0.55) {
                   this.lastPatrolCaughtAt = now;
@@ -799,48 +722,6 @@ public final class Game extends Canvas implements Runnable {
       }
    }
 
-   private void moveHorizontal(double dx) {
-      if (dx != (double)0.0F) {
-         double nx = this.player.x + dx;
-         int tx = (int)Math.floor(nx);
-         int ty = (int)Math.floor(this.player.y);
-         if (this.isSolid(tx, ty)) {
-            if (dx > (double)0.0F) {
-               this.player.x = (double)tx - 0.001;
-            } else {
-               this.player.x = (double)tx + 1.001;
-            }
-
-            this.player.vx = (double)0.0F;
-         } else {
-            this.player.x = nx;
-         }
-
-      }
-   }
-
-   private void moveVertical(double dy) {
-      if (dy != (double)0.0F) {
-         double ny = this.player.y + dy;
-         int tx = (int)Math.floor(this.player.x);
-         int ty = (int)Math.floor(ny);
-         if (this.isSolid(tx, ty)) {
-            if (dy > (double)0.0F) {
-               this.player.y = (double)ty - 0.001;
-               this.player.onGround = true;
-            } else {
-               this.player.y = (double)ty + 1.001;
-            }
-
-            this.player.vy = (double)0.0F;
-         } else {
-            this.player.y = ny;
-            this.player.onGround = false;
-         }
-
-      }
-   }
-
    private void animatePlayer() {
       boolean isWalking = this.leftPressed != this.rightPressed || this.upPressed != this.downPressed;
       long now = System.currentTimeMillis();
@@ -850,14 +731,14 @@ public final class Game extends Canvas implements Runnable {
          this.lastAnim = now;
          return;
       }
-      int frameCount = this.playerSprites != null && this.playerDir >= 0 && this.playerDir < this.playerSprites.length ? this.playerSprites[this.playerDir].length : 0;
+      int frameCount = this.assets.playerSprites != null && this.playerDir >= 0 && this.playerDir < this.assets.playerSprites.length ? this.assets.playerSprites[this.playerDir].length : 0;
       if (frameCount > 0) {
          if (isWalking && now - this.lastAnim > 90L) {
             this.animFrame = (this.animFrame + 1) % frameCount;
             ++this.playerMotionTick;
             this.lastAnim = now;
-            if (this.playerMotionTick % 4 == 0 && this.stepSound != null) {
-               this.stepSound.play();
+            if (this.playerMotionTick % 4 == 0 && this.assets.stepSound != null) {
+               this.assets.stepSound.play();
             }
          }
 
@@ -870,7 +751,7 @@ public final class Game extends Canvas implements Runnable {
       double focusY = this.player.y;
       float worldPx = (float)(focusX * (double)cell);
       float worldPy = (float)(focusY * (double)cell);
-      int gameplayHeight = Math.max(1, this.getHeight() - 56);
+      int gameplayHeight = Math.max(1, this.getHeight() - HUD_HEIGHT);
       int mapPxW = this.levelMap[0].length * cell;
       int mapPxH = this.levelMap.length * cell;
       this.cameraX = worldPx - (float)this.getWidth() / 2.0F + (float)cell / 2.0F;
@@ -891,7 +772,7 @@ public final class Game extends Canvas implements Runnable {
          if (!this.secretArea && this.levelMap != null) {
             int cell = Constants.Size;
             if (this.levelBackground != null) {
-               this.drawLevelBackground(g, this.getHeight() - 56);
+               this.drawLevelBackground(g, this.getHeight() - HUD_HEIGHT);
             }
 
             int firstTileX = Math.max(0, (int)(this.cameraX / (float)cell));
@@ -908,13 +789,13 @@ public final class Game extends Canvas implements Runnable {
                      int drawX = x * cell - (int)this.cameraX;
                      int drawY = y * cell - (int)this.cameraY;
                      if (c != '#') {
-                        if (c == 'B' && this.bottleSprite != null) {
-                           int bottleW = (int)Math.round((double)cell * (double)1.3125F);
-                           int bottleH = (int)Math.round((double)cell * (double)1.3125F);
+                        if (c == 'B' && this.assets.bottleSprite != null) {
+                           int bottleW = (int)Math.round((double)cell * BOTTLE_SCALE);
+                           int bottleH = (int)Math.round((double)cell * BOTTLE_SCALE);
                            int bottleX = drawX - (bottleW - cell) / 2;
                            int bottleBob = (int)Math.round(Math.sin((double)(sceneTime + (long)x * 251L + (long)y * 131L) / (double)280.0F));
                            int bottleY = drawY - (bottleH - cell) + bottleBob;
-                           g.drawImage(this.bottleSprite, bottleX, bottleY, bottleW, bottleH, (ImageObserver)null);
+                           g.drawImage(this.assets.bottleSprite, bottleX, bottleY, bottleW, bottleH, (ImageObserver)null);
                         } else if (c == 'E') {
                            this.drawExit(g, drawX, drawY, cell, this.levelGoalReached);
                         } else if (this.isNpcTile(c)) {
@@ -944,7 +825,7 @@ public final class Game extends Canvas implements Runnable {
                               }
                            }
                         } else {
-                           g.drawImage(this.tileFloor, drawX, drawY, cell, cell, (ImageObserver)null);
+                           g.drawImage(this.assets.tileFloor, drawX, drawY, cell, cell, (ImageObserver)null);
                         }
                      }
                   }
@@ -956,23 +837,23 @@ public final class Game extends Canvas implements Runnable {
             this.drawStorySites(g);
             this.drawUfo(g, sceneTime);
             int cell = Constants.Size;
-            this.copSystem.draw(g, cell, 1.7, this.npcCopSprite, this.copWalkLeftFrames, this.copWalkRightFrames, this.cameraX, this.cameraY, sceneTime);
+            this.copSystem.draw(g, cell, NPC_SCALE, this.assets.npcCopSprite, this.assets.copWalkLeftFrames, this.assets.copWalkRightFrames, this.cameraX, this.cameraY, sceneTime);
             this.drawPatrols(g, cell);
          }
 
-         if (!this.secretArea && !this.spectatorMode && this.player != null && this.playerSprites != null) {
+         if (!this.secretArea && this.player != null && this.assets.playerSprites != null) {
             int cell = Constants.Size;
-            int playerW = (int)Math.round((double)cell * 1.7);
-            int playerH = (int)Math.round((double)cell * 1.7);
+            int playerW = (int)Math.round((double)cell * PLAYER_SCALE);
+            int playerH = (int)Math.round((double)cell * PLAYER_SCALE);
             int drawX = (int)Math.round(this.player.x * (double)cell - (double)this.cameraX - (double)(playerW - cell) / (double)2.0F);
             int drawY = (int)Math.round(this.player.y * (double)cell - (double)this.cameraY + (double)cell - (double)playerH);
-            int maxPlayerY = this.getHeight() - 56 - playerH;
+            int maxPlayerY = this.getHeight() - HUD_HEIGHT - playerH;
             if (drawY > maxPlayerY) {
                drawY = maxPlayerY;
             }
 
             boolean playerIsWalking = this.playerDir != 2;
-            Image[] track = this.playerSprites[this.playerDir];
+            Image[] track = this.assets.playerSprites[this.playerDir];
             Image img = track[Math.floorMod(this.animFrame, track.length)];
             if (this.isPlayerHidden()) {
                Graphics2D g2 = (Graphics2D)g.create();
@@ -991,7 +872,7 @@ public final class Game extends Canvas implements Runnable {
          if (sceneTime < this.photoFlashUntil) {
             Graphics2D flash = (Graphics2D)g.create();
             flash.setColor(new Color(236, 249, 255, 90));
-            flash.fillRect(0, 0, this.getWidth(), this.getHeight() - 56);
+            flash.fillRect(0, 0, this.getWidth(), this.getHeight() - HUD_HEIGHT);
             flash.dispose();
          }
 
@@ -1016,28 +897,28 @@ public final class Game extends Canvas implements Runnable {
    }
 
    private void drawPatrols(Graphics g, int cell) {
-      if (this.npcCopSprite != null) {
+      if (this.assets.npcCopSprite != null) {
          for(int index = 0; index < this.patrols.size(); ++index) {
             TopDownPatrol patrol = this.patrols.get(index);
             Image[] var10000;
             switch (patrol.facing()) {
                case 0:
-                  var10000 = this.copWalkLeftFrames;
+                  var10000 = this.assets.copWalkLeftFrames;
                   break;
                case 1:
                default:
-                  var10000 = this.copWalkRightFrames;
+                  var10000 = this.assets.copWalkRightFrames;
                   break;
                case 2:
-                  var10000 = this.copWalkUpFrames;
+                  var10000 = this.assets.copWalkUpFrames;
                   break;
                case 3:
-                  var10000 = this.copWalkDownFrames;
+                  var10000 = this.assets.copWalkDownFrames;
             }
 
-            Image[] frames = index % 2 == 0 ? var10000 : this.femaleCopFrames[patrol.facing() == 0 ? 0 : patrol.facing() == 1 ? 1 : 2];
-            Image sprite = frames != null && frames.length != 0 ? frames[Math.floorMod(patrol.animationTick() / 7, frames.length)] : this.npcCopSprite;
-            int spriteH = (int)Math.round((double)cell * 1.18);
+            Image[] frames = index % 2 == 0 ? var10000 : this.assets.femaleCopFrames[patrol.facing() == 0 ? 0 : patrol.facing() == 1 ? 1 : 2];
+            Image sprite = frames != null && frames.length != 0 ? frames[Math.floorMod(patrol.animationTick() / 7, frames.length)] : this.assets.npcCopSprite;
+            int spriteH = (int)Math.round((double)cell * PATROL_HEIGHT_SCALE);
             int spriteW = Math.max(1, (int)Math.round((double)spriteH * (double)sprite.getWidth((ImageObserver)null) / (double)sprite.getHeight((ImageObserver)null)));
             int drawX = (int)Math.round(patrol.x() * (double)cell - (double)this.cameraX + (double)(cell - spriteW) / (double)2.0F);
             int drawY = (int)Math.round(patrol.y() * (double)cell - (double)this.cameraY + (double)cell - (double)spriteH);
@@ -1120,7 +1001,7 @@ public final class Game extends Canvas implements Runnable {
       int cell = Constants.Size;
       int x = (int)Math.round(((double)tile.x() + (double)0.5F) * (double)cell - (double)this.cameraX);
       int y = (int)Math.round(((double)tile.y() + (double)0.5F) * (double)cell - (double)this.cameraY);
-      if (x >= -cell && x <= this.getWidth() + cell && y >= -cell && y <= this.getHeight() - 56 + cell) {
+      if (x >= -cell && x <= this.getWidth() + cell && y >= -cell && y <= this.getHeight() - HUD_HEIGHT + cell) {
          Graphics2D g2 = (Graphics2D)g.create();
          g2.setColor(new Color(10, 16, 27, 220));
          g2.fillRoundRect(x - 19, y - 21, 38, 38, 12, 12);
@@ -1352,12 +1233,12 @@ public final class Game extends Canvas implements Runnable {
       LocalGameStore.SceneTarget target = this.cellarScript.target(targetId);
       int tile = this.cellarTileSize();
       return new Rectangle((this.getWidth() - 10 * tile) / 2 + (int)(target.x() * tile),
-         (this.getHeight() - 56 - 8 * tile) / 2 + (int)(target.y() * tile),
+         (this.getHeight() - HUD_HEIGHT - 8 * tile) / 2 + (int)(target.y() * tile),
          (int)(target.width() * tile), (int)(target.height() * tile));
    }
 
    private int cellarTileSize() {
-      return Math.min(64, Math.max(32, (this.getHeight() - 56 - 70) / 8));
+      return Math.min(64, Math.max(32, (this.getHeight() - HUD_HEIGHT - 70) / 8));
    }
 
    private void updateSecretArea() {
@@ -1382,8 +1263,8 @@ public final class Game extends Canvas implements Runnable {
          this.playerDir = 2;
       } else {
          double length = Math.hypot(dx, dy);
-         this.secretX = Math.max((double)1.0F, Math.min((double)8.0F, this.secretX + dx / length * 0.115));
-         this.secretY = Math.max(1.0, Math.min(6.0, this.secretY + dy / length * 0.115));
+          this.secretX = Math.max((double)1.0F, Math.min((double)8.0F, this.secretX + dx / length * TOP_DOWN_SPEED));
+          this.secretY = Math.max(1.0, Math.min(6.0, this.secretY + dy / length * TOP_DOWN_SPEED));
          this.playerDir = Math.abs(dy) > Math.abs(dx) ? (dy < (double)0.0F ? 3 : 4) : (dx < (double)0.0F ? 0 : 1);
       }
 
@@ -1392,17 +1273,17 @@ public final class Game extends Canvas implements Runnable {
 
    private void drawSecretArea(Graphics g, long sceneTime) {
       Graphics2D g2 = (Graphics2D)g.create();
-      g2.setClip(0, 0, this.getWidth(), this.getHeight() - 56);
+      g2.setClip(0, 0, this.getWidth(), this.getHeight() - HUD_HEIGHT);
       g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
       g2.setColor(new Color(8, 13, 19));
-      g2.fillRect(0, 0, this.getWidth(), this.getHeight() - 56);
-      if (this.cellarBackground != null) {
-         int sceneHeight = this.getHeight() - 56;
-         double scale = Math.max(this.getWidth() / (double)this.cellarBackground.getWidth(null),
-            sceneHeight / (double)this.cellarBackground.getHeight(null));
-         int drawWidth = (int)Math.ceil(this.cellarBackground.getWidth(null) * scale);
-         int drawHeight = (int)Math.ceil(this.cellarBackground.getHeight(null) * scale);
-         g2.drawImage(this.cellarBackground, (this.getWidth() - drawWidth) / 2,
+      g2.fillRect(0, 0, this.getWidth(), this.getHeight() - HUD_HEIGHT);
+      if (this.assets.cellarBackground != null) {
+         int sceneHeight = this.getHeight() - HUD_HEIGHT;
+         double scale = Math.max(this.getWidth() / (double)this.assets.cellarBackground.getWidth(null),
+            sceneHeight / (double)this.assets.cellarBackground.getHeight(null));
+         int drawWidth = (int)Math.ceil(this.assets.cellarBackground.getWidth(null) * scale);
+         int drawHeight = (int)Math.ceil(this.assets.cellarBackground.getHeight(null) * scale);
+         g2.drawImage(this.assets.cellarBackground, (this.getWidth() - drawWidth) / 2,
             (sceneHeight - drawHeight) / 2, drawWidth, drawHeight, null);
       }
 
@@ -1439,9 +1320,9 @@ public final class Game extends Canvas implements Runnable {
       }
       int chestX = chest.x + (chest.width - chestSize) / 2;
       int chestY = chest.y + chest.height - chestSize + 6;
-      if (this.cellarChestSprite != null) {
+      if (this.assets.cellarChestSprite != null) {
          g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-         g2.drawImage(this.cellarChestSprite, chestX, chestY, chestX + chestSize, chestY + chestSize,
+         g2.drawImage(this.assets.cellarChestSprite, chestX, chestY, chestX + chestSize, chestY + chestSize,
             chestFrame * 48, 0, chestFrame * 48 + 48, 48, null);
       } else {
          g2.setColor(new Color(112, 59, 28));
@@ -1461,13 +1342,13 @@ public final class Game extends Canvas implements Runnable {
       LocalGameStore.SceneStage activeStage = this.cellarStage();
       this.drawCellarTarget(g2, this.cellarTargetBounds(activeStage.targetId()),
          this.cellarTargetLabels.get(activeStage.stage()), sceneTime);
-      if (this.playerSprites != null) {
-         Image[] track = this.playerSprites[this.playerDir];
+      if (this.assets.playerSprites != null) {
+         Image[] track = this.assets.playerSprites[this.playerDir];
          Image frame = track[Math.floorMod(this.animFrame, track.length)];
          int tile = this.cellarTileSize();
          int originX = (this.getWidth() - 10 * tile) / 2;
-         int originY = (this.getHeight() - 56 - 8 * tile) / 2;
-         int size = (int)Math.round(tile * 1.7);
+         int originY = (this.getHeight() - HUD_HEIGHT - 8 * tile) / 2;
+          int size = (int)Math.round(tile * PLAYER_SCALE);
          int px = originX + (int)(this.secretX * tile) - (size - tile) / 2;
          int py = originY + (int)(this.secretY * tile) - (size - tile);
          g2.drawImage(frame, px, py, size, size, (ImageObserver)null);
@@ -1501,7 +1382,7 @@ public final class Game extends Canvas implements Runnable {
 
    private void drawDialogue(Graphics g, String line) {
       Graphics2D g2 = (Graphics2D)g.create();
-      int y = this.getHeight() - 56 - 70;
+      int y = this.getHeight() - HUD_HEIGHT - 70;
       g2.setColor(new Color(12, 18, 30, 225));
       g2.fillRoundRect(24, y, this.getWidth() - 48, 54, 12, 12);
       g2.setColor(new Color(236, 174, 105));
@@ -1582,10 +1463,9 @@ public final class Game extends Canvas implements Runnable {
    }
 
    private void stopAudio() {
-      if (this.levelMidi != null) {
-         this.levelMidi.stop();
+      if (this.assets != null) {
+         this.assets.stopMusic();
       }
-
    }
 
    private boolean isInsideMap(int x, int y) {
@@ -1604,57 +1484,12 @@ public final class Game extends Canvas implements Runnable {
       return Math.max(min, Math.min(max, value));
    }
 
-   private Image getImage(String fileName) {
-      try {
-         String full = "alkosmen/images/objects/alkoman/" + fileName;
-         URL url = this.getClass().getClassLoader().getResource(full);
-         if (url == null) {
-            throw new RuntimeException("Image not found: " + full);
-         } else {
-            BufferedImage sourceImage = ImageIO.read(url);
-            return sourceImage;
-         }
-      } catch (IOException e) {
-         throw new RuntimeException(e);
-      }
-   }
-
-   private Image loadImageResource(String path) {
-      String normalized = path.startsWith("/") ? path.substring(1) : path;
-      URL url = this.getClass().getClassLoader().getResource(normalized);
-      if (url == null) {
-         throw new RuntimeException("Image not found: " + path);
-      } else {
-         try {
-            return ImageIO.read(url);
-         } catch (IOException e) {
-            throw new RuntimeException("Failed to read image: " + path, e);
-         }
-      }
-   }
-
-   private Image loadFirstExistingImage(String... paths) {
-      for(String path : paths) {
-         String normalized = path.startsWith("/") ? path.substring(1) : path;
-         URL url = this.getClass().getClassLoader().getResource(normalized);
-         if (url != null) {
-            try {
-               return ImageIO.read(url);
-            } catch (IOException e) {
-               throw new RuntimeException("Failed to read image: " + path, e);
-            }
-         }
-      }
-
-      throw new RuntimeException("Image not found. Tried: " + String.join(", ", paths));
-   }
-
    private boolean isNpcTile(char c) {
-      return c == 'N' || c == 'M' || c == 'V' || c == 'G' || c == 'C' || this.townNpcFrames.containsKey(c);
+      return c == 'N' || c == 'M' || c == 'V' || c == 'G' || c == 'C' || this.assets.townNpcFrames.containsKey(c);
    }
 
    private int npcDrawSize(char c, int cell) {
-      return (int)Math.round(cell * (this.townNpcFrames.containsKey(c) ? 2.0 : 1.7));
+      return (int)Math.round(cell * (this.assets.townNpcFrames.containsKey(c) ? 2.0 : NPC_SCALE));
    }
 
    private String npcDialogueKey(char c) {
@@ -1671,47 +1506,22 @@ public final class Game extends Canvas implements Runnable {
       };
    }
 
-   private void loadTownNpc(char tile, String fileName) throws IOException {
-      this.townNpcFrames.put(tile, CharacterSpriteAssets.loadGridAtlas(
-         "/alkosmen/ui/sprites/npc/" + fileName + ".png", 4, 4)[0]);
-   }
-
    private Image npcImageFor(char c, long sceneTime) {
-      Image[] frames = this.townNpcFrames.get(c);
+      Image[] frames = this.assets.townNpcFrames.get(c);
       if (frames != null) {
          return frames[(int)Math.floorMod(sceneTime / 240L + c, frames.length)];
       }
       Image var10000;
       switch (c) {
-         case 'C' -> var10000 = this.npcCopSprite;
-         case 'G' -> var10000 = this.npcCopSprite;
-         case 'M' -> var10000 = this.npcBoy2Sprite;
-         case 'N' -> var10000 = this.npcTolyaSprite;
-         case 'V' -> var10000 = this.npcEboboSprite;
+         case 'C' -> var10000 = this.assets.npcCopSprite;
+         case 'G' -> var10000 = this.assets.npcCopSprite;
+         case 'M' -> var10000 = this.assets.npcBoy2Sprite;
+         case 'N' -> var10000 = this.assets.npcTolyaSprite;
+         case 'V' -> var10000 = this.assets.npcEboboSprite;
          default -> var10000 = null;
       }
 
       return var10000;
-   }
-
-   private Image[][] getAlkobotImages() {
-      try {
-         BufferedImage[][] atlas = CharacterSpriteAssets.loadGridAtlas("/alkosmen/ui/sprites/alkosmen/walk_atlas_v1.png", 4, 5, 30);
-         return new Image[][]{atlas[2], atlas[1], atlas[0], atlas[4], atlas[3]};
-      } catch (IOException error) {
-         throw new IllegalStateException("Could not load Alkosmen walk atlas", error);
-      }
-   }
-
-   private Image[] loadTrackFrames(String trackName) {
-      Image[] frames = new Image[10];
-
-      for(int i = 0; i < frames.length; ++i) {
-         String framePath = String.format("/alkosmen/images/objects/alkoman/frames/alk_%s_%02d.png", trackName, i);
-         frames[i] = this.loadImageResource(framePath);
-      }
-
-      return frames;
    }
 
    private void loadLevel(int level) throws Exception {
@@ -1726,7 +1536,7 @@ public final class Game extends Canvas implements Runnable {
                throw new RuntimeException("LevelLoader.load returned NULL for: " + path);
             } else if (this.levelMap.length != 0 && this.levelMap[0].length != 0) {
                String backgroundPath = LEVEL_BACKGROUNDS[level - 1];
-               this.levelBackground = backgroundPath == null ? null : this.loadImageResource(backgroundPath);
+               this.levelBackground = backgroundPath == null ? null : GameAssets.loadImageResource(backgroundPath);
                this.currentLevel = level;
                this.score = 0;
                this.bottleGoal = this.countTiles('B');
@@ -1752,16 +1562,11 @@ public final class Game extends Canvas implements Runnable {
                if (this.player == null) {
                   throw new RuntimeException("No 'P' (player start) in map: " + path);
                } else {
-                  this.spectatorMode = false;
                   this.playerDir = 2;
                   this.animFrame = 0;
                   this.playerMotionTick = 0;
                   this.cameraX = 0.0F;
                   this.cameraY = 0.0F;
-                  this.jumpPressed = false;
-                  this.jumpQueued = false;
-                  this.jumpBufferUntil = 0L;
-                  this.lastOnGroundAt = 0L;
                   this.hidePressed = false;
                   this.interactionRequested = false;
                   this.dialogueLine = "";
@@ -1865,17 +1670,11 @@ public final class Game extends Canvas implements Runnable {
       this.rightPressed = false;
       this.upPressed = false;
       this.downPressed = false;
-      this.jumpPressed = false;
-      this.jumpQueued = false;
       this.hidePressed = false;
    }
 
    private boolean isPlayerHidden() {
-      if (this.spectatorMode) {
-         return false;
-      } else {
-         return this.hidePressed && this.player != null && Math.abs(this.player.vx) < 1.0E-4 && this.player.onGround;
-      }
+      return this.hidePressed && this.player != null && Math.abs(this.player.vx) < 1.0E-4 && this.player.onGround;
    }
 
    private void rotateCityLine(long now, boolean firstLine) {
@@ -1899,41 +1698,13 @@ public final class Game extends Canvas implements Runnable {
          this.cityLine = picked;
       }
 
-      this.nextCityLineAt = now + 9000L;
-   }
-
-   private void spawnRandomCops(int targetCount) {
-      int h = this.levelMap.length;
-      int w = this.levelMap[0].length;
-      int added = 0;
-
-      for(int i = 0; i < 800 && added < targetCount; ++i) {
-         int x = ThreadLocalRandom.current().nextInt(1, Math.max(2, w - 1));
-         int y = ThreadLocalRandom.current().nextInt(1, Math.max(2, h - 1));
-         if (this.levelMap[y][x] == '.' && y + 1 < h && this.levelMap[y + 1][x] == '#') {
-            this.copSystem.addCop(x, y);
-            ++added;
-         }
-      }
-
+      this.nextCityLineAt = now + CITY_LINE_REFRESH_MS;
    }
 
    private void drawLevelBackground(Graphics g, int gameplayHeight) {
       int drawW = this.levelMap[0].length * Constants.Size;
       int drawH = this.levelMap.length * Constants.Size;
       g.drawImage(this.levelBackground, -((int)this.cameraX), -((int)this.cameraY), drawW, drawH, (ImageObserver)null);
-   }
-
-   private void drawMazeWall(Graphics g, int x, int y, int cell) {
-      Graphics2D g2 = (Graphics2D)g.create();
-      g2.setColor(new Color(16, 22, 30, 220));
-      g2.fillRoundRect(x + 2, y + 2, cell - 4, cell - 4, 6, 6);
-      g2.setColor(new Color(94, 106, 119));
-      g2.drawRoundRect(x + 2, y + 2, cell - 5, cell - 5, 6, 6);
-      g2.setColor(new Color(42, 50, 62));
-      g2.drawLine(x + 5, y + cell / 2, x + cell - 5, y + cell / 2);
-      g2.drawLine(x + cell / 2, y + 5, x + cell / 2, y + cell - 5);
-      g2.dispose();
    }
 
    private void drawExit(Graphics g, int x, int y, int cell, boolean active) {

@@ -1,42 +1,49 @@
+# VS Code
 .vscode
-*.log
-*.class
-*.lock
-*.class
-.gradle
-*.bin
-# Gradle
-gradle/
-**/.gradle/
-build/
-**/build/
-buildвсе сдедл
-# IntelliJ IDEA
-.idea/
-*.iml
-out/
 
-# Java build artifacts
+# Логи
+*.log
+
+# Java-артефакты сборки
 *.class
 *.class.uniqueid*
 *.bin
-.gradle-user-home
-.android/
-local.properties
-androidApp/.cxx/
-androidApp/build/
-# (опционально) конкретные файлы Gradle-кэша
+*.lock
+
+# Gradle
+.gradle/
+**/.gradle/
+.gradle-user-home/
+build/
+**/.build/
 executionHistory.bin
 fileHashes.bin
 resourceHashesCache.bin
 previous-compilation-data.bin
 
-# Временные папки скачивания и распаковки драйверов.
+# IntelliJ IDEA
+.idea/
+*.iml
+out/
+
+# Android-сборка
+.android/
+.android-home/
+local.properties
+androidApp/.cxx/
+androidApp/build/
+
+# Временные папки скачивания и распаковки драйверов
+.tmp/
 .tmp-driver-downloads/
 .tmp-driver-scan-*/
 .tmp-chipset-extract/
-.android-home/
 .worktrees/
+
+# Черновые/распакованные ассеты (не используются в сборке)
+/changes/
+
+# Секреты и локальные файлы
 *.keystore
 IdeaProjects.lnk
 install_intel_missing_drivers.*
