@@ -31,7 +31,9 @@ public final class AlkosmenWalkAnimation implements Disposable {
     private final WalkCycle cycle = new WalkCycle(FRAME_COUNT);
 
     public AlkosmenWalkAnimation() {
-        String[] folders = {"walk_right_v2", "walk_front", "walk_back"};
+        // Legacy walk frames use the outdated white outfit.
+        // Until the rear walk is redrawn, use matching rear poses from idle_back.
+        String[] folders = {"walk_right_hawaii", "walk_front", "idle_back"};
         try {
             for (int row = 0; row < folders.length; row++) {
                 for (int column = 0; column < FRAME_COUNT; column++) {
