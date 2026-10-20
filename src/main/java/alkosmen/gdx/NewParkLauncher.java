@@ -16,6 +16,6 @@ public final class NewParkLauncher {
         config.useVsync(true);
         config.setForegroundFPS(60);
 
-        new Lwjgl3Application(new NewParkGame(), config);
+        new Lwjgl3Application(new NewParkTileGame(), config);
     }
 }
