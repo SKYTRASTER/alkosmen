@@ -19,13 +19,28 @@ public final class GdxMainMenu implements Disposable {
     private final Texture hoverTexture;
     private final Texture downTexture;
 
-    public GdxMainMenu(Viewport viewport, Runnable onStart, Runnable onSettings, Runnable onExit) {
+    public GdxMainMenu(
+        Viewport viewport,
+        Runnable onStart,
+        Runnable onSceneTests,
+        Runnable onSettings,
+        Runnable onExit
+    ) {
         this.stage = new Stage(viewport);
         this.font = createFont();
 
-        this.normalTexture = createButtonTexture(new Color(0.03f, 0.06f, 0.13f, 0.82f), new Color(0.25f, 0.90f, 1f, 0.80f));
-        this.hoverTexture = createButtonTexture(new Color(0.10f, 0.16f, 0.28f, 0.94f), new Color(0.35f, 0.95f, 1f, 1f));
-        this.downTexture = createButtonTexture(new Color(0.16f, 0.10f, 0.24f, 0.96f), new Color(1f, 0.78f, 0.35f, 1f));
+        this.normalTexture = createButtonTexture(
+            new Color(0.03f, 0.06f, 0.13f, 0.82f),
+            new Color(0.25f, 0.90f, 1f, 0.80f)
+        );
+        this.hoverTexture = createButtonTexture(
+            new Color(0.10f, 0.16f, 0.28f, 0.94f),
+            new Color(0.35f, 0.95f, 1f, 1f)
+        );
+        this.downTexture = createButtonTexture(
+            new Color(0.16f, 0.10f, 0.24f, 0.96f),
+            new Color(1f, 0.78f, 0.35f, 1f)
+        );
 
         TextButton.TextButtonStyle style = new TextButton.TextButtonStyle();
         style.font = font;
@@ -40,17 +55,23 @@ public final class GdxMainMenu implements Disposable {
         float width = 300f;
         float height = 58f;
         float gap = 18f;
-        float startY = 500f;
+        float startY = 535f;
 
         addButton("Старт", x, startY, width, height, style, onStart);
-        addButton("Настройки", x, startY - height - gap, width, height, style, onSettings);
-        addButton("Выход", x, startY - (height + gap) * 2f, width, height, style, onExit);
-
-        Gdx.input.setInputProcessor(stage);
+        addButton("Тесты сцен", x, startY - height - gap, width, height, style, onSceneTests);
+        addButton("Настройки", x, startY - (height + gap) * 2f, width, height, style, onSettings);
+        addButton("Выход", x, startY - (height + gap) * 3f, width, height, style, onExit);
     }
 
-    private void addButton(String text, float x, float y, float width, float height,
-                           TextButton.TextButtonStyle style, Runnable action) {
+    private void addButton(
+        String text,
+        float x,
+        float y,
+        float width,
+        float height,
+        TextButton.TextButtonStyle style,
+        Runnable action
+    ) {
         TextButton button = new TextButton(text, style);
         button.setBounds(x, y, width, height);
         button.addListener(event -> {
@@ -61,6 +82,16 @@ public final class GdxMainMenu implements Disposable {
             return true;
         });
         stage.addActor(button);
+    }
+
+    public void activate() {
+        Gdx.input.setInputProcessor(stage);
+    }
+
+    public void deactivate() {
+        if (Gdx.input.getInputProcessor() == stage) {
+            Gdx.input.setInputProcessor(null);
+        }
     }
 
     public void render(float delta) {
@@ -115,9 +146,7 @@ public final class GdxMainMenu implements Disposable {
 
     @Override
     public void dispose() {
-        if (Gdx.input.getInputProcessor() == stage) {
-            Gdx.input.setInputProcessor(null);
-        }
+        deactivate();
         stage.dispose();
         font.dispose();
         normalTexture.dispose();

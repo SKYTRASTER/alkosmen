@@ -58,6 +58,7 @@ public final class LenyaKultyshevWalkTest extends ApplicationAdapter {
             }
 
             Texture texture = new Texture(Gdx.files.internal(path));
+
             textures.add(texture);
             frames[i] = new TextureRegion(texture);
         }
@@ -88,12 +89,18 @@ public final class LenyaKultyshevWalkTest extends ApplicationAdapter {
             moving = true;
         }
 
-        stateTime += delta;
-        int frameIndex = (int) (stateTime / FRAME_DURATION) % FRAME_COUNT;
+        int frameIndex;
+        if (moving) {
+            stateTime += delta;
+            frameIndex = (int) (stateTime / FRAME_DURATION) % FRAME_COUNT;
+        } else {
+            stateTime = 0f;
+            frameIndex = 0;
+        }
 
         TextureRegion frame;
         if (!moving) {
-            frame = idleFrames[frameIndex];
+            frame = idleFrames[0];
         } else {
             frame = switch (direction) {
                 case LEFT -> leftFrames[frameIndex];
