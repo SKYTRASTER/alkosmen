@@ -171,3 +171,11 @@ tasks.register('runNewPark', JavaExec) {
     mainClass = 'alkosmen.gdx.NewParkLauncher'
     workingDir = projectDir
 }
+
+tasks.register('runNewParkTiles', JavaExec) {
+    group = 'application'
+    description = 'Runs the playable tiled New Park prototype.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'alkosmen.gdx.NewParkTilesLauncher'
+    workingDir = projectDir
+}

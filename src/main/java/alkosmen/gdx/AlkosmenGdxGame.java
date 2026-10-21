@@ -88,6 +88,7 @@ public final class AlkosmenGdxGame extends ApplicationAdapter {
         sceneTestMenu = new SceneTestMenu(
             viewport,
             () -> launchSceneTest(new NewParkGame()),
+            () -> launchSceneTest(new NewParkTileGame()),
             () -> launchSceneTest(new AlkosmenWalkTest()),
             () -> launchSceneTest(new EboboWalkTest()),
             () -> launchSceneTest(new LenyaKultyshevWalkTest()),

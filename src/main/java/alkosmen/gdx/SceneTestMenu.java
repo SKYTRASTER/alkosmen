@@ -26,6 +26,7 @@ public final class SceneTestMenu implements Disposable {
     public SceneTestMenu(
         Viewport viewport,
         Runnable onNewPark,
+        Runnable onNewParkTiles,
         Runnable onAlkosmen,
         Runnable onEbobo,
         Runnable onShurin,
@@ -71,6 +72,8 @@ public final class SceneTestMenu implements Disposable {
         float y = 600f;
 
         addButton("Новый парк", x, y, width, height, buttonStyle, onNewPark);
+        y -= height + gap;
+        addButton("Новый парк - тайлы", x, y, width, height, buttonStyle, onNewParkTiles);
         y -= height + gap;
 
         addButton("Алкосмен", x, y, width, height, buttonStyle, onAlkosmen);
