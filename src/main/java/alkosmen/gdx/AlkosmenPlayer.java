@@ -68,8 +68,9 @@ public final class AlkosmenPlayer implements Disposable {
         }
 
         if (moveX == 0f && moveY == 0f) {
-            // A tap freezes the new frame rather than resetting to idle.
+            // Release keys: use the approved directional idle animation.
             movingLastFrame = false;
+            animation.advanceIdle(delta);
             return;
         }
 
@@ -87,12 +88,19 @@ public final class AlkosmenPlayer implements Disposable {
         float previousY = y;
         moveAlongAxes(moveX, moveY, blocked);
         float actualDistance = (float) Math.hypot(x - previousX, y - previousY);
-        if (!movingLastFrame && actualDistance > 0.0001f) {
-            animation.step();
+        if (actualDistance > 0.0001f) {
+            if (!movingLastFrame) {
+                animation.step();
+            } else {
+                animation.advance(actualDistance, visibleHeight);
+            }
+            animation.resetIdle();
+            movingLastFrame = true;
         } else {
-            animation.advance(actualDistance, visibleHeight);
+            // Blocked by a wall: the feet must stop walking.
+            animation.advanceIdle(delta);
+            movingLastFrame = false;
         }
-        movingLastFrame = true;
     }
 
     /**
@@ -124,7 +132,7 @@ public final class AlkosmenPlayer implements Disposable {
             case UP -> AlkosmenWalkAnimation.Facing.UP;
             case DOWN, IDLE -> AlkosmenWalkAnimation.Facing.DOWN;
         };
-        placement = animation.draw(batch, facing, x, y, visibleHeight);
+        placement = animation.draw(batch, facing, movingLastFrame, x, y, visibleHeight);
         return placement;
     }
 

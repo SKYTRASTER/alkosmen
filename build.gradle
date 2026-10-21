@@ -179,3 +179,16 @@ tasks.register('runNewParkTiles', JavaExec) {
     mainClass = 'alkosmen.gdx.NewParkTilesLauncher'
     workingDir = projectDir
 }
+
+tasks.register('verifySideWalkGait', JavaExec) {
+    group = 'verification'
+    description = 'Checks approved-Alkosmen side-step offsets without a graphics context.'
+    dependsOn tasks.testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'alkosmen.gdx.render.SideWalkGaitTest'
+    enableAssertions = true
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifySideWalkGait')
+}

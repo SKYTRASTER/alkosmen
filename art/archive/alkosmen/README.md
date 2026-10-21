@@ -11,3 +11,7 @@
 Утверждённый исходник: [`art/source/alkosmen/alkosmen_front_master.png`](../../source/alkosmen/alkosmen_front_master.png).
 
 Никакие игровые ресурсы и Java-код этим архивированием не заменяются.
+
+## Архив игровых кадров в белой одежде
+
+Папка `white-outfit-walk-right/` содержит 6 прежних PNG `walk_right_v2`. Это изображения персонажа в белой одежде, которые ранее ошибочно загружались для обеих сторон. Перенесены из `src/main/resources/alkosmen/ui/alkosmen/walk_right_v2/`, чтобы исключить их из игровых ресурсов.
