@@ -5,10 +5,12 @@ import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.EarClippingTriangulator;
 import java.util.ArrayDeque;
+import javax.imageio.ImageIO;
+import java.io.File;
 
 /** Tests authored geometry in image coordinates, without a graphics context. */
 public final class ZuevkaSectorMapTest {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         ZuevkaSectorMap map = new ZuevkaSectorMap(new FileHandle(
             "src/main/resources/" + ZuevkaSectorMap.BASE + "objects.json"));
         assert map.width == 1672 && map.height == 941;
@@ -48,6 +50,25 @@ public final class ZuevkaSectorMapTest {
             assert flower.bounds().x + flower.bounds().width <= map.width;
             assert flower.bounds().y + flower.bounds().height <= map.height;
             assert flower.bounds().contains(flower.x(), flower.y()) : "Flower anchor outside its bounds";
+        }
+        assert map.cleanedRegions().size() == 2 : "Expected local flower and bottle cleanups";
+        assert map.sprites().size() == 2 : "Expected two separate bottle sprites";
+        var cleaned = ImageIO.read(new File("src/main/resources/" + ZuevkaSectorMap.BASE
+            + "yard_cleaned_reference.png"));
+        var bottles = ImageIO.read(new File("src/main/resources/" + ZuevkaSectorMap.BASE
+            + "bottle_sprites.png"));
+        assert Math.abs(cleaned.getWidth() - map.width) <= 1 && cleaned.getHeight() == map.height;
+        assert bottles.getColorModel().hasAlpha() : "Bottle atlas needs transparency";
+        for (ZuevkaSectorMap.SceneSprite sprite : map.sprites()) {
+            assert sprite.width() > 0 && sprite.height() > 0;
+            assert sprite.sourceX() >= 0 && sprite.sourceY() >= 0;
+            assert sprite.sourceX() + sprite.sourceWidth() <= bottles.getWidth();
+            assert sprite.sourceY() + sprite.sourceHeight() <= bottles.getHeight();
+            assert sprite.inFrontOf(sprite.y() + 1f);
+            assert !sprite.inFrontOf(sprite.y() - 1f);
+            assert sprite.x() >= 0 && sprite.y() >= 0;
+            assert sprite.x() + sprite.width() <= map.width;
+            assert sprite.y() + sprite.height() <= map.height;
         }
         assert map.interactions().size() == 4;
         for (ZuevkaSectorMap.Interaction interaction : map.interactions()) {

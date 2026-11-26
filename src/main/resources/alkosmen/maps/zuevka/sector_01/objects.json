@@ -900,5 +900,61 @@
         469
       ]
     }
+  ],
+  "cleaned_regions": [
+    {
+      "id": "hydrangea_bush",
+      "bounds": [
+        916,
+        368,
+        164,
+        122
+      ]
+    },
+    {
+      "id": "table_bottles",
+      "bounds": [
+        790,
+        395,
+        92,
+        88
+      ]
+    }
+  ],
+  "sprites": [
+    {
+      "id": "table_bottle_left",
+      "image_rect": [
+        658,
+        290,
+        128,
+        361
+      ],
+      "position": [
+        809,
+        416
+      ],
+      "size": [
+        16,
+        47
+      ]
+    },
+    {
+      "id": "table_bottle_right",
+      "image_rect": [
+        884,
+        290,
+        128,
+        361
+      ],
+      "position": [
+        839,
+        414
+      ],
+      "size": [
+        16,
+        49
+      ]
+    }
   ]
 }

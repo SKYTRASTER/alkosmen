@@ -22,6 +22,8 @@ final class ZuevkaSectorMap {
     private final List<Interaction> interactions = new ArrayList<>();
     private final List<Occluder> occluders = new ArrayList<>();
     private final List<Flower> yardFlowers = new ArrayList<>();
+    private final List<Rectangle> cleanedRegions = new ArrayList<>();
+    private final List<SceneSprite> sprites = new ArrayList<>();
     private final Polygon footprint = new Polygon(new float[8]);
 
     ZuevkaSectorMap(FileHandle file) {
@@ -67,6 +69,20 @@ final class ZuevkaSectorMap {
                     bounds.getFloat(2), boxHeight),
                 anchor.getFloat(0), height - anchor.getFloat(1)));
         }
+        for (JsonValue object : data.get("cleaned_regions")) {
+            JsonValue bounds = object.get("bounds");
+            cleanedRegions.add(new Rectangle(bounds.getFloat(0), bounds.getFloat(1),
+                bounds.getFloat(2), bounds.getFloat(3)));
+        }
+        for (JsonValue object : data.get("sprites")) {
+            JsonValue rect = object.get("image_rect");
+            JsonValue position = object.get("position");
+            JsonValue size = object.get("size");
+            sprites.add(new SceneSprite(object.getString("id"),
+                rect.getInt(0), rect.getInt(1), rect.getInt(2), rect.getInt(3),
+                position.getFloat(0), height - position.getFloat(1) - size.getFloat(1),
+                size.getFloat(0), size.getFloat(1)));
+        }
     }
 
     boolean blocks(Rectangle feet) {
@@ -101,7 +117,22 @@ final class ZuevkaSectorMap {
         return Collections.unmodifiableList(yardFlowers);
     }
 
+    List<Rectangle> cleanedRegions() {
+        return Collections.unmodifiableList(cleanedRegions);
+    }
+
+    List<SceneSprite> sprites() {
+        return Collections.unmodifiableList(sprites);
+    }
+
     record Flower(String id, Rectangle bounds, float x, float y) { }
+
+    record SceneSprite(String id, int sourceX, int sourceY, int sourceWidth, int sourceHeight,
+                       float x, float y, float width, float height) {
+        boolean inFrontOf(float footY) {
+            return footY > y;
+        }
+    }
 
     record Occluder(String id, float x, float y, float[] vertices) {
         boolean inFrontOf(float footY) {

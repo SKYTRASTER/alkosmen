@@ -13,9 +13,11 @@ import com.badlogic.gdx.graphics.g2d.PolygonSpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.EarClippingTriangulator;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import java.util.ArrayList;
@@ -33,6 +35,10 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     private ShapeRenderer shapes;
     private BitmapFont debugFont;
     private Texture background;
+    private Texture cleanedReference;
+    private Texture bottleAtlas;
+    private ShaderProgram cleanupShader;
+    private final List<TextureRegion> spriteRegions = new ArrayList<>();
     private AlkosmenPlayer hero;
     private ZuevkaSectorMap map;
     private boolean showDebug;
@@ -44,6 +50,15 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
             throw new IllegalStateException("Sector geometry does not match background dimensions");
         }
         background.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        cleanedReference = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "yard_cleaned_reference.png"));
+        cleanedReference.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        bottleAtlas = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "bottle_sprites.png"));
+        bottleAtlas.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        for (ZuevkaSectorMap.SceneSprite sprite : map.sprites()) {
+            spriteRegions.add(new TextureRegion(bottleAtlas, sprite.sourceX(), sprite.sourceY(),
+                sprite.sourceWidth(), sprite.sourceHeight()));
+        }
+        cleanupShader = createCleanupShader();
         batch = new SpriteBatch();
         foregroundBatch = new PolygonSpriteBatch();
         TextureRegion source = new TextureRegion(background);
@@ -81,8 +96,21 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         viewport.apply();
         camera.update();
         batch.setProjectionMatrix(camera.combined);
+        batch.setShader(cleanupShader);
+        cleanedReference.bind(1);
+        background.bind(0);
         batch.begin();
+        cleanupShader.setUniformi("u_cleaned", 1);
+        cleanupShader.setUniformf("u_imageSize", map.width, map.height);
+        setCleanupBounds("u_flowerBounds", map.cleanedRegions().get(0));
+        setCleanupBounds("u_tableBounds", map.cleanedRegions().get(1));
         batch.draw(background, 0, 0, map.width, map.height);
+        batch.end();
+        batch.setShader(null);
+        batch.begin();
+        for (int i = 0; i < map.sprites().size(); i++) {
+            if (!map.sprites().get(i).inFrontOf(hero.y())) drawSprite(i);
+        }
         hero.render(batch);
         batch.end();
         foregroundBatch.setProjectionMatrix(camera.combined);
@@ -93,7 +121,69 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
             }
         }
         foregroundBatch.end();
+        batch.begin();
+        for (int i = 0; i < map.sprites().size(); i++) {
+            if (map.sprites().get(i).inFrontOf(hero.y())) drawSprite(i);
+        }
+        batch.end();
         if (showDebug) drawDebug();
+    }
+
+    private void setCleanupBounds(String name, Rectangle box) {
+        cleanupShader.setUniformf(name, box.x, box.y, box.x + box.width, box.y + box.height);
+    }
+
+    private void drawSprite(int index) {
+        ZuevkaSectorMap.SceneSprite sprite = map.sprites().get(index);
+        batch.draw(spriteRegions.get(index), sprite.x(), sprite.y(), sprite.width(), sprite.height());
+    }
+
+    private static ShaderProgram createCleanupShader() {
+        String vertex = """
+            attribute vec4 a_position;
+            attribute vec4 a_color;
+            attribute vec2 a_texCoord0;
+            uniform mat4 u_projTrans;
+            varying vec4 v_color;
+            varying vec2 v_texCoords;
+            void main() {
+                v_color = a_color;
+                v_color.a = v_color.a * (255.0 / 254.0);
+                v_texCoords = a_texCoord0;
+                gl_Position = u_projTrans * a_position;
+            }
+            """;
+        String fragment = """
+            #ifdef GL_ES
+            precision mediump float;
+            #endif
+            varying vec4 v_color;
+            varying vec2 v_texCoords;
+            uniform sampler2D u_texture;
+            uniform sampler2D u_cleaned;
+            uniform vec2 u_imageSize;
+            uniform vec4 u_flowerBounds;
+            uniform vec4 u_tableBounds;
+            float regionOpacity(vec2 point, vec4 bounds) {
+                vec2 inside = min(point - bounds.xy, bounds.zw - point);
+                return smoothstep(0.0, 12.0, min(inside.x, inside.y));
+            }
+            void main() {
+                vec2 point = v_texCoords * u_imageSize;
+                float opacity = max(regionOpacity(point, u_flowerBounds),
+                                    regionOpacity(point, u_tableBounds));
+                vec4 original = texture2D(u_texture, v_texCoords);
+                vec4 cleaned = texture2D(u_cleaned, v_texCoords);
+                gl_FragColor = v_color * mix(original, cleaned, opacity);
+            }
+            """;
+        ShaderProgram shader = new ShaderProgram(vertex, fragment);
+        if (!shader.isCompiled()) {
+            String error = shader.getLog();
+            shader.dispose();
+            throw new IllegalStateException("Cannot compile sector background shader: " + error);
+        }
+        return shader;
     }
 
     private void drawDebug() {
@@ -113,6 +203,10 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
             shapes.line(flower.x() - 6, flower.y(), flower.x() + 6, flower.y());
             shapes.line(flower.x(), flower.y() - 6, flower.x(), flower.y() + 6);
         }
+        shapes.setColor(Color.ORANGE);
+        for (ZuevkaSectorMap.SceneSprite sprite : map.sprites()) {
+            shapes.rect(sprite.x(), sprite.y(), sprite.width(), sprite.height());
+        }
         hero.drawDebug(shapes);
         shapes.end();
         batch.setProjectionMatrix(camera.combined);
@@ -130,6 +224,10 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         debugFont.setColor(Color.MAGENTA);
         for (ZuevkaSectorMap.Flower flower : map.yardFlowers()) {
             debugFont.draw(batch, flower.id(), flower.bounds().x, flower.bounds().y + flower.bounds().height);
+        }
+        debugFont.setColor(Color.ORANGE);
+        for (ZuevkaSectorMap.SceneSprite sprite : map.sprites()) {
+            debugFont.draw(batch, sprite.id(), sprite.x(), sprite.y() + sprite.height());
         }
         batch.end();
     }
@@ -149,6 +247,9 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     @Override public void dispose() {
         if (hero != null) hero.dispose();
         if (background != null) background.dispose();
+        if (cleanedReference != null) cleanedReference.dispose();
+        if (bottleAtlas != null) bottleAtlas.dispose();
+        if (cleanupShader != null) cleanupShader.dispose();
         if (batch != null) batch.dispose();
         if (foregroundBatch != null) foregroundBatch.dispose();
         if (shapes != null) shapes.dispose();
