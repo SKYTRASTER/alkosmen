@@ -23,6 +23,10 @@ public final class ZuevkaSectorMapTest {
         assert !at(map, 720, 495) : "Porch steps blocked";
         assert canReach(map, 660, 745, 720, 495) : "No route from spawn to porch";
         assert canReach(map, 660, 745, 1140, 440) : "No route from spawn to the garden gnome";
+        assert canReach(map, 800, 590, 1140, 440) : "No route from the yard entrance to the garden gnome";
+        assert !at(map, 720, 560) : "Removed entrance bucket still blocks the path";
+        assert !at(map, 830, 580) : "Fence post blocks the passage above its base";
+        assert canReach(map, 800, 590, 830, 580) : "Cannot pass the fence post from the entrance";
         assert at(map, 850, 490) : "Yard table should block";
         assert at(map, 570, 480) : "Porch woodpile should block";
         assert at(map, 650, 310) : "Porch roof should not be walkable";
@@ -51,12 +55,15 @@ public final class ZuevkaSectorMapTest {
             assert flower.bounds().y + flower.bounds().height <= map.height;
             assert flower.bounds().contains(flower.x(), flower.y()) : "Flower anchor outside its bounds";
         }
-        assert map.cleanedRegions().size() == 2 : "Expected local flower and bottle cleanups";
+        assert map.cleanedRegions().size() == 3 : "Expected local flower, bottle and bucket cleanups";
         assert map.sprites().size() == 2 : "Expected two separate bottle sprites";
         var cleaned = ImageIO.read(new File("src/main/resources/" + ZuevkaSectorMap.BASE
             + "yard_cleaned_reference.png"));
         var bottles = ImageIO.read(new File("src/main/resources/alkosmen/images/objects/bottle/bottle_tich_table.png"));
+        var noBucket = ImageIO.read(new File("src/main/resources/" + ZuevkaSectorMap.BASE
+            + "yard_no_bucket_reference.png"));
         assert Math.abs(cleaned.getWidth() - map.width) <= 1 && cleaned.getHeight() == map.height;
+        assert noBucket.getWidth() == map.width && noBucket.getHeight() == map.height;
         assert bottles.getColorModel().hasAlpha() : "Bottle atlas needs transparency";
         for (ZuevkaSectorMap.SceneBottle sprite : map.sprites()) {
             assert sprite.width() > 0 && sprite.height() > 0;
