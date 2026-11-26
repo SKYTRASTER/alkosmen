@@ -40,13 +40,13 @@ public final class AlkosmenWalkAnimation implements Disposable {
                 int row = facing.ordinal();
                 for (int frame = 0; frame < FRAME_COUNT; frame++) {
                     Pixmap idle = new Pixmap(Gdx.files.internal(idlePath(facing, frame)));
-                    if (facing == Facing.DOWN) {
-                        register(new Pixmap(Gdx.files.internal(walkPath(facing, frame))),
+                    String walkingPath = walkPath(facing, frame);
+                    if (walkingPath != null) {
+                        register(new Pixmap(Gdx.files.internal(walkingPath)),
                             walkFrames, walkMetrics, row, frame);
                     }
                     register(idle, idleFrames, idleMetrics, row, frame);
-                    if (facing != Facing.DOWN) {
-                        // Use intact approved poses until directional walk artwork is available.
+                    if (walkingPath == null) {
                         walkFrames[row][frame] = idleFrames[row][frame];
                         walkMetrics[row][frame] = idleMetrics[row][frame];
                     }
@@ -69,10 +69,17 @@ public final class AlkosmenWalkAnimation implements Disposable {
     }
 
     private static String walkPath(Facing facing, int frame) {
-        return switch (facing) {
-            case DOWN -> BASE_PATH + "/" + FRONT_WALK_SEQUENCE[frame];
-            case UP, LEFT, RIGHT -> throw new IllegalArgumentException(
-                "Directional steps use approved idle artwork");
+        if (facing == Facing.DOWN) {
+            return BASE_PATH + "/" + FRONT_WALK_SEQUENCE[frame];
+        }
+        if (frame != 1 && frame != 4) {
+            return null;
+        }
+        return BASE_PATH + switch (facing) {
+            case LEFT -> "/walk_generated_left/step.png";
+            case RIGHT -> "/walk_generated_right/step.png";
+            case UP -> frame == 1 ? "/walk_generated_back/step1.png" : "/walk_generated_back/step2.png";
+            case DOWN -> throw new IllegalStateException("Front walk already handled");
         };
     }
 
