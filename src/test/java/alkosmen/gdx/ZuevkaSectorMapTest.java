@@ -55,8 +55,7 @@ public final class ZuevkaSectorMapTest {
         assert map.sprites().size() == 2 : "Expected two separate bottle sprites";
         var cleaned = ImageIO.read(new File("src/main/resources/" + ZuevkaSectorMap.BASE
             + "yard_cleaned_reference.png"));
-        var bottles = ImageIO.read(new File("src/main/resources/" + ZuevkaSectorMap.BASE
-            + "bottle_sprites.png"));
+        var bottles = ImageIO.read(new File("src/main/resources/alkosmen/images/objects/bottle/bottle_table_detailed.png"));
         assert Math.abs(cleaned.getWidth() - map.width) <= 1 && cleaned.getHeight() == map.height;
         assert bottles.getColorModel().hasAlpha() : "Bottle atlas needs transparency";
         for (ZuevkaSectorMap.SceneSprite sprite : map.sprites()) {

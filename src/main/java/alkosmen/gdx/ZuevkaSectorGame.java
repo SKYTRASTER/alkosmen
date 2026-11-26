@@ -52,7 +52,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         background.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         cleanedReference = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "yard_cleaned_reference.png"));
         cleanedReference.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        bottleAtlas = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "bottle_sprites.png"));
+        bottleAtlas = new Texture(Gdx.files.internal("alkosmen/images/objects/bottle/bottle_table_detailed.png"));
         bottleAtlas.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         for (ZuevkaSectorMap.SceneSprite sprite : map.sprites()) {
             spriteRegions.add(new TextureRegion(bottleAtlas, sprite.sourceX(), sprite.sourceY(),
