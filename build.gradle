@@ -192,3 +192,24 @@ tasks.register('verifyNewParkTileMap', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('verifyNewParkTileMap')
 }
+
+tasks.register('runZuevkaSector', JavaExec) {
+    group = 'application'
+    description = 'Runs the first Zuevka sector prototype.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'alkosmen.gdx.ZuevkaSectorLauncher'
+    workingDir = projectDir
+}
+
+tasks.register('verifyZuevkaSector', JavaExec) {
+    group = 'verification'
+    dependsOn tasks.testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'alkosmen.gdx.ZuevkaSectorMapTest'
+    workingDir = projectDir
+    enableAssertions = true
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyZuevkaSector')
+}

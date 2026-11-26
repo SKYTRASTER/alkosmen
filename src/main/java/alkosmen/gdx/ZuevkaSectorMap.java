@@ -1,0 +1,73 @@
+package alkosmen.gdx;
+
+import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.math.Intersector;
+import com.badlogic.gdx.math.Polygon;
+import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.utils.JsonReader;
+import com.badlogic.gdx.utils.JsonValue;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/** Geometry in source-image pixels, with Y converted to the libGDX world axis. */
+final class ZuevkaSectorMap {
+    static final String BASE = "alkosmen/maps/zuevka/sector_01/";
+    final float width;
+    final float height;
+    final float spawnX;
+    final float spawnY;
+    private final List<Polygon> colliders = new ArrayList<>();
+    private final List<Interaction> interactions = new ArrayList<>();
+    private final Polygon footprint = new Polygon(new float[8]);
+
+    ZuevkaSectorMap(FileHandle file) {
+        JsonValue data = new JsonReader().parse(file);
+        width = data.getFloat("width");
+        height = data.getFloat("height");
+        spawnX = data.get("spawn").getFloat(0);
+        spawnY = height - data.get("spawn").getFloat(1);
+        for (JsonValue object : data.get("colliders")) {
+            JsonValue points = object.get("points");
+            float[] vertices = new float[points.size * 2];
+            int i = 0;
+            for (JsonValue point : points) {
+                vertices[i++] = point.getFloat(0);
+                vertices[i++] = height - point.getFloat(1);
+            }
+            colliders.add(new Polygon(vertices));
+        }
+        for (JsonValue object : data.get("interactions")) {
+            JsonValue point = object.get("point");
+            interactions.add(new Interaction(object.getString("id"), object.getString("type"),
+                point.getFloat(0), height - point.getFloat(1), object.getFloat("radius")));
+        }
+    }
+
+    boolean blocks(Rectangle feet) {
+        if (feet.x < 0 || feet.y < 0 || feet.x + feet.width > width || feet.y + feet.height > height) {
+            return true;
+        }
+        float x = feet.x, y = feet.y, right = x + feet.width, top = y + feet.height;
+        footprint.setVertices(new float[] {x, y, right, y, right, top, x, top});
+        for (Polygon collider : colliders) {
+            if (Intersector.overlapConvexPolygons(footprint, collider)) return true;
+        }
+        return false;
+    }
+
+    List<Polygon> colliders() {
+        return Collections.unmodifiableList(colliders);
+    }
+
+    List<Interaction> interactions() {
+        return Collections.unmodifiableList(interactions);
+    }
+
+    record Interaction(String id, String type, float x, float y, float radius) {
+        boolean inRange(float playerX, float playerY) {
+            float dx = playerX - x, dy = playerY - y;
+            return dx * dx + dy * dy <= radius * radius;
+        }
+    }
+}
