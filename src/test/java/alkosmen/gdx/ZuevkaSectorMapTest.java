@@ -20,6 +20,8 @@ public final class ZuevkaSectorMapTest {
         assert !at(map, 800, 520) : "Yard blocked";
         assert !at(map, 720, 495) : "Porch steps blocked";
         assert canReach(map, 660, 745, 720, 495) : "No route from spawn to porch";
+        assert at(map, 650, 310) : "Porch roof should not be walkable";
+        assert at(map, 850, 220) : "House roof should not be walkable";
         assert at(map, 246, 690) : "Sign post base should block";
         assert !at(map, 310, 660) : "Space beside the sign should be open";
         assert at(map, 820, 390) : "House should block";

@@ -18,6 +18,7 @@ final class ZuevkaSectorMap {
     final float spawnX;
     final float spawnY;
     private final List<Polygon> colliders = new ArrayList<>();
+    private final List<String> colliderNames = new ArrayList<>();
     private final List<Interaction> interactions = new ArrayList<>();
     private final List<Occluder> occluders = new ArrayList<>();
     private final Polygon footprint = new Polygon(new float[8]);
@@ -37,6 +38,7 @@ final class ZuevkaSectorMap {
                 vertices[i++] = height - point.getFloat(1);
             }
             colliders.add(new Polygon(vertices));
+            colliderNames.add(object.getString("id"));
         }
         for (JsonValue object : data.get("interactions")) {
             JsonValue point = object.get("point");
@@ -71,6 +73,10 @@ final class ZuevkaSectorMap {
 
     List<Polygon> colliders() {
         return Collections.unmodifiableList(colliders);
+    }
+
+    String colliderName(int index) {
+        return colliderNames.get(index);
     }
 
     List<Interaction> interactions() {

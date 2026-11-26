@@ -11,6 +11,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.PolygonRegion;
 import com.badlogic.gdx.graphics.g2d.PolygonSpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Polygon;
@@ -30,6 +31,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     private PolygonSpriteBatch foregroundBatch;
     private final List<PolygonRegion> foreground = new ArrayList<>();
     private ShapeRenderer shapes;
+    private BitmapFont debugFont;
     private Texture background;
     private AlkosmenPlayer hero;
     private ZuevkaSectorMap map;
@@ -52,6 +54,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
             foreground.add(new PolygonRegion(source, vertices, triangles));
         }
         shapes = new ShapeRenderer();
+        debugFont = new BitmapFont();
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIEW_WIDTH, VIEW_HEIGHT, camera);
         hero = new AlkosmenPlayer(map.spawnX, map.spawnY);
@@ -104,12 +107,21 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
             shapes.line(object.x() - 6, object.y(), object.x() + 6, object.y());
             shapes.line(object.x(), object.y() - 6, object.x(), object.y() + 6);
         }
-        shapes.setColor(Color.CYAN);
-        for (ZuevkaSectorMap.Interaction object : map.interactions()) {
-            shapes.circle(object.x(), object.y(), object.radius(), 40);
-        }
         hero.drawDebug(shapes);
         shapes.end();
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        debugFont.setColor(Color.RED);
+        for (int i = 0; i < map.colliders().size(); i++) {
+            Polygon collider = map.colliders().get(i);
+            float[] vertices = collider.getTransformedVertices();
+            debugFont.draw(batch, map.colliderName(i), vertices[0], vertices[1]);
+        }
+        debugFont.setColor(Color.GREEN);
+        for (ZuevkaSectorMap.Occluder object : map.occluders()) {
+            debugFont.draw(batch, object.id(), object.x() + 8, object.y() + 12);
+        }
+        batch.end();
     }
 
     private void follow() {
@@ -130,5 +142,6 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         if (batch != null) batch.dispose();
         if (foregroundBatch != null) foregroundBatch.dispose();
         if (shapes != null) shapes.dispose();
+        if (debugFont != null) debugFont.dispose();
     }
 }
