@@ -78,4 +78,5 @@ public final class SoundEffectPlayer {
         }
         clip.setFramePosition(0);
     }
+
 }
