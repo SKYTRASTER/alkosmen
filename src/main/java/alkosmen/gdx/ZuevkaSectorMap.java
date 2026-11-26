@@ -55,6 +55,7 @@ final class ZuevkaSectorMap {
                 point.getFloat(0), height - point.getFloat(1), object.getFloat("radius")));
         }
         for (JsonValue object : data.get("occluders")) {
+            if (!object.getBoolean("enabled", true)) continue;
             JsonValue points = object.get("points");
             float[] vertices = new float[points.size * 2];
             int i = 0;

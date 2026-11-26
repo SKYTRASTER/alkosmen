@@ -36,10 +36,13 @@ public final class ZuevkaSectorMapTest {
                 : "Removed yard object still blocks";
         }
         assert at(map, 650, 310) : "Porch roof should not be walkable";
+        assert map.occluders().stream().noneMatch(o -> o.id().equals("porch_roof") || o.id().equals("house_roof"))
+            : "Outdated roof masks obscure the player on the cleaned porch";
         assert at(map, 850, 220) : "House roof should not be walkable";
         assert at(map, 246, 690) : "Sign post base should block";
         assert !at(map, 310, 660) : "Space beside the sign should be open";
         assert at(map, 820, 390) : "House should block";
+        assert at(map, 1120, 365) : "Woodpile should block";
         assert at(map, 1000, 580) : "Fence should block";
         assert at(map, 300, 160) : "Trees should block";
         assert at(map, 1500, 150) : "Pond should block";

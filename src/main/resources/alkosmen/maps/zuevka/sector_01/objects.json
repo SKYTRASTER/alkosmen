@@ -456,6 +456,10 @@
       ]
     },
     {
+      "id": "east_woodpile",
+      "points": [[1085, 320], [1144, 320], [1144, 412], [1085, 412]]
+    },
+    {
       "id": "porch_woodpile",
       "points": [
         [
@@ -805,6 +809,7 @@
     },
     {
       "id": "house_roof",
+      "enabled": false,
       "anchor": [
         900,
         480
@@ -834,6 +839,7 @@
     },
     {
       "id": "porch_roof",
+      "enabled": false,
       "anchor": [
         720,
         495
@@ -980,9 +986,9 @@
       "id": "flower_bush",
       "bounds": [
         916,
-        365,
-        164,
-        125
+        320,
+        199,
+        170
       ]
     },
     {

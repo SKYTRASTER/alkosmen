@@ -1,5 +1,6 @@
 package alkosmen.gdx;
 
+import alkosmen.audio.SoundEffectPlayer;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -29,6 +30,11 @@ import alkosmen.gdx.ui.ObjectiveHud;
 public final class ZuevkaSectorGame extends ApplicationAdapter {
     private static final float VIEW_WIDTH = 1000f;
     private static final float VIEW_HEIGHT = 562.5f;
+    private static final float STEP_INTERVAL = .36f;
+    private static final float GNOME_X = 1160f;
+    private static final float GNOME_IMAGE_Y = 420f;
+    private static final float GNOME_VOICE_RADIUS = 95f;
+    private static final float SIGN_SCALE = .82f;
     private OrthographicCamera camera;
     private Viewport viewport;
     private SpriteBatch batch;
@@ -38,14 +44,19 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     private BitmapFont debugFont;
     private BitmapFont hudFont;
     private Sound bottleSound;
+    private Sound gnomeVoice;
+    private boolean nearGnome;
     private Texture background;
     private Texture cleanedReference;
     private Texture bucketRemovalReference;
     private Texture emptyYardReference;
+    private Texture signBackground;
     private Texture bottleAtlas;
     private ShaderProgram cleanupShader;
     private final List<TextureRegion> spriteRegions = new ArrayList<>();
     private AlkosmenPlayer hero;
+    private SoundEffectPlayer stepSound;
+    private float stepTimer;
     private ZuevkaSectorMap map;
     private boolean showDebug;
 
@@ -65,6 +76,8 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         bucketRemovalReference.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         emptyYardReference = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "yard_empty_reference.png"));
         emptyYardReference.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        signBackground = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "sign_background_reference.png"));
+        signBackground.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         bottleAtlas = new Texture(Gdx.files.internal("alkosmen/images/objects/bottle/bottle_tich_table.png"));
         bottleAtlas.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         for (ZuevkaSectorMap.SceneBottle sprite : map.sprites()) {
@@ -85,10 +98,16 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         debugFont = new BitmapFont();
         hudFont = ObjectiveHud.createRussianFont();
         bottleSound = Gdx.audio.newSound(Gdx.files.internal("alkosmen/sounds/scratch_bottle.wav"));
+        gnomeVoice = Gdx.audio.newSound(Gdx.files.internal("alkosmen/sounds/zuevka/gnome_phrase.ogg"));
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIEW_WIDTH, VIEW_HEIGHT, camera);
         hero = new AlkosmenPlayer(map.spawnX, map.spawnY);
         hero.setVisibleHeight(120f);
+        try {
+            stepSound = new SoundEffectPlayer("/alkosmen/sounds/step.wav");
+        } catch (RuntimeException e) {
+            Gdx.app.error("Zuevka", "Не удалось загрузить звук шагов", e);
+        }
         if (map.blocks(hero.collisionBody())) throw new IllegalStateException("Sector spawn is blocked");
         follow();
     }
@@ -96,7 +115,26 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     @Override public void render() {
         float delta = Math.min(Gdx.graphics.getDeltaTime(), .05f);
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) showDebug = !showDebug;
+        float previousX = hero.x(), previousY = hero.y();
         hero.update(delta, map::blocks);
+        float gnomeDx = hero.x() - GNOME_X;
+        float gnomeDy = hero.y() - (map.height - GNOME_IMAGE_Y);
+        boolean isNearGnome = gnomeDx * gnomeDx + gnomeDy * gnomeDy
+            <= GNOME_VOICE_RADIUS * GNOME_VOICE_RADIUS;
+        if (isNearGnome && !nearGnome) gnomeVoice.play();
+        nearGnome = isNearGnome;
+        if (stepSound != null) {
+            if (hero.x() != previousX || hero.y() != previousY) {
+                stepTimer -= delta;
+                if (stepTimer <= 0f) {
+                    stepSound.play();
+                    stepTimer = STEP_INTERVAL;
+                }
+            } else {
+                stepSound.stop();
+                stepTimer = 0f;
+            }
+        }
         if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
             ZuevkaSectorMap.SceneBottle bottle = map.collectNearestBottle(hero.x(), hero.y());
             if (bottle != null) {
@@ -120,11 +158,13 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         cleanedReference.bind(1);
         bucketRemovalReference.bind(2);
         emptyYardReference.bind(3);
+        signBackground.bind(4);
         background.bind(0);
         batch.begin();
         cleanupShader.setUniformi("u_cleaned", 1);
         cleanupShader.setUniformi("u_noBucket", 2);
         cleanupShader.setUniformi("u_emptyYard", 3);
+        cleanupShader.setUniformi("u_signBackground", 4);
         cleanupShader.setUniformf("u_imageSize", map.width, map.height);
         setCleanupBounds("u_flowerBounds", map.cleanedRegions().get(0));
         setCleanupBounds("u_tableBounds", map.cleanedRegions().get(1));
@@ -135,6 +175,13 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         batch.draw(background, 0, 0, map.width, map.height);
         batch.end();
         batch.setShader(null);
+        foregroundBatch.setProjectionMatrix(camera.combined);
+        foregroundBatch.begin();
+        for (int i = 0; i < map.occluders().size(); i++) {
+            ZuevkaSectorMap.Occluder object = map.occluders().get(i);
+            if (isSign(object) && !object.inFrontOf(hero.y())) drawSignPart(i, object);
+        }
+        foregroundBatch.end();
         batch.begin();
         for (int i = 0; i < map.sprites().size(); i++) {
             if (!map.sprites().get(i).inFrontOf(hero.y())) drawSprite(i);
@@ -144,8 +191,10 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         foregroundBatch.setProjectionMatrix(camera.combined);
         foregroundBatch.begin();
         for (int i = 0; i < map.occluders().size(); i++) {
-            if (map.occluders().get(i).inFrontOf(hero.y())) {
-                foregroundBatch.draw(foreground.get(i), 0, 0);
+            ZuevkaSectorMap.Occluder object = map.occluders().get(i);
+            if (object.inFrontOf(hero.y())) {
+                if (isSign(object)) drawSignPart(i, object);
+                else foregroundBatch.draw(foreground.get(i), 0, 0);
             }
         }
         foregroundBatch.end();
@@ -160,6 +209,15 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
 
     private void setCleanupBounds(String name, Rectangle box) {
         cleanupShader.setUniformf(name, box.x, box.y, box.x + box.width, box.y + box.height);
+    }
+
+    private boolean isSign(ZuevkaSectorMap.Occluder object) {
+        return object.id().equals("street_sign_board") || object.id().equals("street_sign_post");
+    }
+
+    private void drawSignPart(int index, ZuevkaSectorMap.Occluder object) {
+        foregroundBatch.draw(foreground.get(index), object.x() * (1f - SIGN_SCALE),
+            object.y() * (1f - SIGN_SCALE), 0f, 0f, map.width, map.height, SIGN_SCALE, SIGN_SCALE, 0f);
     }
 
     private void drawSprite(int index) {
@@ -205,6 +263,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
             uniform sampler2D u_cleaned;
             uniform sampler2D u_noBucket;
             uniform sampler2D u_emptyYard;
+            uniform sampler2D u_signBackground;
             uniform vec2 u_imageSize;
             uniform vec4 u_flowerBounds;
             uniform vec4 u_tableBounds;
@@ -235,6 +294,9 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
                                      regionOpacity(point, u_yard6)));
                 float gnome = regionOpacity(point, vec4(1135.0, 354.0, 1191.0, 458.0));
                 result = mix(result, texture2D(u_emptyYard, v_texCoords), yard * (1.0 - gnome));
+                float sign = max(regionOpacity(point, vec4(32.0, 277.0, 495.0, 490.0)),
+                                 regionOpacity(point, vec4(200.0, 400.0, 298.0, 721.0)));
+                result = mix(result, texture2D(u_signBackground, v_texCoords), sign);
                 gl_FragColor = v_color * result;
             }
             """;
@@ -308,11 +370,14 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     }
 
     @Override public void dispose() {
+        if (gnomeVoice != null) gnomeVoice.dispose();
+        if (stepSound != null) stepSound.dispose();
         if (hero != null) hero.dispose();
         if (background != null) background.dispose();
         if (cleanedReference != null) cleanedReference.dispose();
         if (bucketRemovalReference != null) bucketRemovalReference.dispose();
         if (emptyYardReference != null) emptyYardReference.dispose();
+        if (signBackground != null) signBackground.dispose();
         if (bottleAtlas != null) bottleAtlas.dispose();
         if (cleanupShader != null) cleanupShader.dispose();
         if (batch != null) batch.dispose();

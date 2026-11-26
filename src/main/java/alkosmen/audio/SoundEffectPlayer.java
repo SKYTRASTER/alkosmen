@@ -78,4 +78,8 @@ public final class SoundEffectPlayer {
         }
         clip.setFramePosition(0);
     }
+
+    public void dispose() {
+        clip.close();
+    }
 }
