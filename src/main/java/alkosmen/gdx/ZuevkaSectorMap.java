@@ -6,6 +6,7 @@ import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
+import alkosmen.gdx.items.StorageKey;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -23,7 +24,7 @@ final class ZuevkaSectorMap {
     private final List<Occluder> occluders = new ArrayList<>();
     private final List<Flower> yardFlowers = new ArrayList<>();
     private final List<Rectangle> cleanedRegions = new ArrayList<>();
-    private final List<SceneSprite> sprites = new ArrayList<>();
+    private final List<SceneBottle> sprites = new ArrayList<>();
     private final Polygon footprint = new Polygon(new float[8]);
 
     ZuevkaSectorMap(FileHandle file) {
@@ -75,13 +76,18 @@ final class ZuevkaSectorMap {
                 bounds.getFloat(2), bounds.getFloat(3)));
         }
         for (JsonValue object : data.get("sprites")) {
+            if (!"bottle".equals(object.getString("type"))) {
+                throw new IllegalArgumentException("Unsupported sector sprite type");
+            }
             JsonValue rect = object.get("image_rect");
             JsonValue position = object.get("position");
             JsonValue size = object.get("size");
-            sprites.add(new SceneSprite(object.getString("id"),
+            float x = position.getFloat(0);
+            float y = height - position.getFloat(1) - size.getFloat(1);
+            sprites.add(new SceneBottle(object.getString("id"),
                 rect.getInt(0), rect.getInt(1), rect.getInt(2), rect.getInt(3),
-                position.getFloat(0), height - position.getFloat(1) - size.getFloat(1),
-                size.getFloat(0), size.getFloat(1)));
+                x, y, size.getFloat(0), size.getFloat(1),
+                new StorageKey(x + size.getFloat(0) / 2f, y, object.getFloat("pickup_radius"))));
         }
     }
 
@@ -121,14 +127,39 @@ final class ZuevkaSectorMap {
         return Collections.unmodifiableList(cleanedRegions);
     }
 
-    List<SceneSprite> sprites() {
+    List<SceneBottle> sprites() {
         return Collections.unmodifiableList(sprites);
+    }
+
+    SceneBottle collectNearestBottle(float x, float y) {
+        SceneBottle nearest = null;
+        float bestDistance = Float.POSITIVE_INFINITY;
+        for (SceneBottle bottle : sprites) {
+            if (bottle.pickup().collected() || !bottle.pickup().isNear(x, y)) continue;
+            float dx = bottle.pickup().x() - x;
+            float dy = bottle.pickup().y() - y;
+            float distance = dx * dx + dy * dy;
+            if (distance < bestDistance) {
+                nearest = bottle;
+                bestDistance = distance;
+            }
+        }
+        if (nearest != null) nearest.pickup().collect();
+        return nearest;
+    }
+
+    int collectedBottleCount() {
+        int count = 0;
+        for (SceneBottle bottle : sprites) {
+            if (bottle.pickup().collected()) count++;
+        }
+        return count;
     }
 
     record Flower(String id, Rectangle bounds, float x, float y) { }
 
-    record SceneSprite(String id, int sourceX, int sourceY, int sourceWidth, int sourceHeight,
-                       float x, float y, float width, float height) {
+    record SceneBottle(String id, int sourceX, int sourceY, int sourceWidth, int sourceHeight,
+                       float x, float y, float width, float height, StorageKey pickup) {
         boolean inFrontOf(float footY) {
             return footY > y;
         }

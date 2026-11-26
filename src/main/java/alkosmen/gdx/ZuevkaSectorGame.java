@@ -3,6 +3,7 @@ package alkosmen.gdx;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -22,6 +23,7 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import java.util.ArrayList;
 import java.util.List;
+import alkosmen.gdx.ui.ObjectiveHud;
 
 /** Independent prototype for the illustrated first Zuevka sector. */
 public final class ZuevkaSectorGame extends ApplicationAdapter {
@@ -34,6 +36,8 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     private final List<PolygonRegion> foreground = new ArrayList<>();
     private ShapeRenderer shapes;
     private BitmapFont debugFont;
+    private BitmapFont hudFont;
+    private Sound bottleSound;
     private Texture background;
     private Texture cleanedReference;
     private Texture bottleAtlas;
@@ -52,9 +56,9 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         background.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         cleanedReference = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "yard_cleaned_reference.png"));
         cleanedReference.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        bottleAtlas = new Texture(Gdx.files.internal("alkosmen/images/objects/bottle/bottle_table_detailed.png"));
+        bottleAtlas = new Texture(Gdx.files.internal("alkosmen/images/objects/bottle/bottle_tich_table.png"));
         bottleAtlas.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-        for (ZuevkaSectorMap.SceneSprite sprite : map.sprites()) {
+        for (ZuevkaSectorMap.SceneBottle sprite : map.sprites()) {
             spriteRegions.add(new TextureRegion(bottleAtlas, sprite.sourceX(), sprite.sourceY(),
                 sprite.sourceWidth(), sprite.sourceHeight()));
         }
@@ -70,6 +74,8 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         }
         shapes = new ShapeRenderer();
         debugFont = new BitmapFont();
+        hudFont = ObjectiveHud.createRussianFont();
+        bottleSound = Gdx.audio.newSound(Gdx.files.internal("alkosmen/sounds/scratch_bottle.wav"));
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIEW_WIDTH, VIEW_HEIGHT, camera);
         hero = new AlkosmenPlayer(map.spawnX, map.spawnY);
@@ -83,10 +89,15 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) showDebug = !showDebug;
         hero.update(delta, map::blocks);
         if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
-            for (ZuevkaSectorMap.Interaction object : map.interactions()) {
-                if (object.inRange(hero.x(), hero.y())) {
-                    Gdx.app.log("Zuevka", "Точка " + object.id() + " (" + object.type() + "): пока заглушка");
-                    break;
+            ZuevkaSectorMap.SceneBottle bottle = map.collectNearestBottle(hero.x(), hero.y());
+            if (bottle != null) {
+                bottleSound.play();
+            } else {
+                for (ZuevkaSectorMap.Interaction object : map.interactions()) {
+                    if (object.inRange(hero.x(), hero.y())) {
+                        Gdx.app.log("Zuevka", "Точка " + object.id() + " (" + object.type() + "): пока заглушка");
+                        break;
+                    }
                 }
             }
         }
@@ -127,6 +138,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         }
         batch.end();
         if (showDebug) drawDebug();
+        drawBottleCount();
     }
 
     private void setCleanupBounds(String name, Rectangle box) {
@@ -134,8 +146,20 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     }
 
     private void drawSprite(int index) {
-        ZuevkaSectorMap.SceneSprite sprite = map.sprites().get(index);
-        batch.draw(spriteRegions.get(index), sprite.x(), sprite.y(), sprite.width(), sprite.height());
+        ZuevkaSectorMap.SceneBottle sprite = map.sprites().get(index);
+        if (!sprite.pickup().collected()) {
+            batch.draw(spriteRegions.get(index), sprite.x(), sprite.y(), sprite.width(), sprite.height());
+        }
+    }
+
+    private void drawBottleCount() {
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        hudFont.setColor(Color.WHITE);
+        hudFont.draw(batch, "ТиЧ: " + map.collectedBottleCount() + "/" + map.sprites().size(),
+            camera.position.x - viewport.getWorldWidth() / 2f + 18f,
+            camera.position.y + viewport.getWorldHeight() / 2f - 18f);
+        batch.end();
     }
 
     private static ShaderProgram createCleanupShader() {
@@ -204,8 +228,8 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
             shapes.line(flower.x(), flower.y() - 6, flower.x(), flower.y() + 6);
         }
         shapes.setColor(Color.ORANGE);
-        for (ZuevkaSectorMap.SceneSprite sprite : map.sprites()) {
-            shapes.rect(sprite.x(), sprite.y(), sprite.width(), sprite.height());
+        for (ZuevkaSectorMap.SceneBottle sprite : map.sprites()) {
+            if (!sprite.pickup().collected()) shapes.rect(sprite.x(), sprite.y(), sprite.width(), sprite.height());
         }
         hero.drawDebug(shapes);
         shapes.end();
@@ -226,8 +250,10 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
             debugFont.draw(batch, flower.id(), flower.bounds().x, flower.bounds().y + flower.bounds().height);
         }
         debugFont.setColor(Color.ORANGE);
-        for (ZuevkaSectorMap.SceneSprite sprite : map.sprites()) {
-            debugFont.draw(batch, sprite.id(), sprite.x(), sprite.y() + sprite.height());
+        for (ZuevkaSectorMap.SceneBottle sprite : map.sprites()) {
+            if (!sprite.pickup().collected()) {
+                debugFont.draw(batch, sprite.id(), sprite.x(), sprite.y() + sprite.height());
+            }
         }
         batch.end();
     }
@@ -254,5 +280,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         if (foregroundBatch != null) foregroundBatch.dispose();
         if (shapes != null) shapes.dispose();
         if (debugFont != null) debugFont.dispose();
+        if (hudFont != null) hudFont.dispose();
+        if (bottleSound != null) bottleSound.dispose();
     }
 }

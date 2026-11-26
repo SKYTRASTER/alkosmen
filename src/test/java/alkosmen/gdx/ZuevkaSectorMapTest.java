@@ -55,10 +55,10 @@ public final class ZuevkaSectorMapTest {
         assert map.sprites().size() == 2 : "Expected two separate bottle sprites";
         var cleaned = ImageIO.read(new File("src/main/resources/" + ZuevkaSectorMap.BASE
             + "yard_cleaned_reference.png"));
-        var bottles = ImageIO.read(new File("src/main/resources/alkosmen/images/objects/bottle/bottle_table_detailed.png"));
+        var bottles = ImageIO.read(new File("src/main/resources/alkosmen/images/objects/bottle/bottle_tich_table.png"));
         assert Math.abs(cleaned.getWidth() - map.width) <= 1 && cleaned.getHeight() == map.height;
         assert bottles.getColorModel().hasAlpha() : "Bottle atlas needs transparency";
-        for (ZuevkaSectorMap.SceneSprite sprite : map.sprites()) {
+        for (ZuevkaSectorMap.SceneBottle sprite : map.sprites()) {
             assert sprite.width() > 0 && sprite.height() > 0;
             assert sprite.sourceX() >= 0 && sprite.sourceY() >= 0;
             assert sprite.sourceX() + sprite.sourceWidth() <= bottles.getWidth();
@@ -69,6 +69,16 @@ public final class ZuevkaSectorMapTest {
             assert sprite.x() + sprite.width() <= map.width;
             assert sprite.y() + sprite.height() <= map.height;
         }
+        assert map.collectNearestBottle(0, 0) == null : "Cannot pick up remotely";
+        assert canReach(map, 660, 745, 780, 535) : "Cannot reach the bottle pickup area";
+        ZuevkaSectorMap.SceneBottle first = map.collectNearestBottle(780, map.height - 535);
+        assert first != null && first.id().equals("table_bottle_left") : "Nearest bottle should be picked up";
+        assert first.pickup().collected() && map.collectedBottleCount() == 1;
+        ZuevkaSectorMap.SceneBottle second = map.sprites().get(1);
+        assert canReach(map, 660, 745, 805, 525) : "Cannot reach the second bottle";
+        assert map.collectNearestBottle(805, map.height - 525) == second;
+        assert map.collectedBottleCount() == 2;
+        assert map.collectNearestBottle(second.pickup().x(), second.pickup().y()) == null : "Collected twice";
         assert map.interactions().size() == 4;
         for (ZuevkaSectorMap.Interaction interaction : map.interactions()) {
             boolean reachable = false;

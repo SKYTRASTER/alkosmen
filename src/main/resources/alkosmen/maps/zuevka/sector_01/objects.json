@@ -925,36 +925,40 @@
     {
       "id": "table_bottle_left",
       "image_rect": [
-        286,
-        418,
-        222,
-        1008
+        244,
+        80,
+        536,
+        1310
       ],
       "position": [
         809,
         416
       ],
       "size": [
-        12,
+        20,
         47
-      ]
+      ],
+      "type": "bottle",
+      "pickup_radius": 85
     },
     {
       "id": "table_bottle_right",
       "image_rect": [
-        286,
-        418,
-        222,
-        1008
+        244,
+        80,
+        536,
+        1310
       ],
       "position": [
         839,
         414
       ],
       "size": [
-        12,
+        20,
         49
-      ]
+      ],
+      "type": "bottle",
+      "pickup_radius": 85
     }
   ]
 }
