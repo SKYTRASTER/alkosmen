@@ -130,6 +130,7 @@ public final class NewParkGame extends ApplicationAdapter {
 
         if (moveX == 0f && moveY == 0f) {
             movingLastFrame = false;
+            playerAnimation.advanceIdle(delta);
             sprint.update(delta, false, false);
             return;
         }
@@ -147,12 +148,19 @@ public final class NewParkGame extends ApplicationAdapter {
         moveAlongAxes(moveX / length * distance, moveY / length * distance);
         float actualDistance = (float) Math.hypot(playerX - previousX, playerY - previousY);
         sprint.update(delta, sprintRequested, actualDistance > 0.0001f);
-        if (!movingLastFrame && actualDistance > 0.0001f) {
-            playerAnimation.step();
+        if (actualDistance > 0.0001f) {
+            if (!movingLastFrame) {
+                playerAnimation.step();
+            } else {
+                playerAnimation.advance(actualDistance, PLAYER_VISIBLE_HEIGHT);
+            }
+            playerAnimation.resetIdle();
+            movingLastFrame = true;
         } else {
-            playerAnimation.advance(actualDistance, PLAYER_VISIBLE_HEIGHT);
+            // The player is blocked: stop the walk cycle and use the idle animation.
+            playerAnimation.advanceIdle(delta);
+            movingLastFrame = false;
         }
-        movingLastFrame = true;
     }
 
     private void moveAlongAxes(float moveX, float moveY) {
@@ -299,7 +307,7 @@ public final class NewParkGame extends ApplicationAdapter {
         batch.begin();
         playerPlacement = playerAnimation.draw(batch,
             AlkosmenWalkAnimation.Facing.valueOf(playerDirection.name()),
-            playerX, playerY, PLAYER_VISIBLE_HEIGHT);
+            movingLastFrame, playerX, playerY, PLAYER_VISIBLE_HEIGHT);
         batch.end();
     }
 
