@@ -58,7 +58,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIEW_WIDTH, VIEW_HEIGHT, camera);
         hero = new AlkosmenPlayer(map.spawnX, map.spawnY);
-        hero.setVisibleHeight(105f);
+        hero.setVisibleHeight(120f);
         if (map.blocks(hero.collisionBody())) throw new IllegalStateException("Sector spawn is blocked");
         follow();
     }
@@ -70,7 +70,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
             for (ZuevkaSectorMap.Interaction object : map.interactions()) {
                 if (object.inRange(hero.x(), hero.y())) {
-                    Gdx.app.log("Zuevka", "Точка " + object.id() + " (" + object.type() + "): пока заглушка");
+                    Gdx.app.log("Zuevka", "РўРѕС‡РєР° " + object.id() + " (" + object.type() + "): РїРѕРєР° Р·Р°РіР»СѓС€РєР°");
                     break;
                 }
             }
