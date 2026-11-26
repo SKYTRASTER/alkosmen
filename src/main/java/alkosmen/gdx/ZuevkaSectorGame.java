@@ -41,6 +41,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     private Texture background;
     private Texture cleanedReference;
     private Texture bucketRemovalReference;
+    private Texture emptyYardReference;
     private Texture bottleAtlas;
     private ShaderProgram cleanupShader;
     private final List<TextureRegion> spriteRegions = new ArrayList<>();
@@ -50,6 +51,9 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
 
     @Override public void create() {
         map = new ZuevkaSectorMap(Gdx.files.internal(ZuevkaSectorMap.BASE + "objects.json"));
+        if (map.yardClearRegions().size() != 7) {
+            throw new IllegalStateException("Expected seven yard cleanup regions");
+        }
         background = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "background.png"));
         if (background.getWidth() != map.width || background.getHeight() != map.height) {
             throw new IllegalStateException("Sector geometry does not match background dimensions");
@@ -59,6 +63,8 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         cleanedReference.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         bucketRemovalReference = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "yard_no_bucket_reference.png"));
         bucketRemovalReference.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        emptyYardReference = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "yard_empty_reference.png"));
+        emptyYardReference.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         bottleAtlas = new Texture(Gdx.files.internal("alkosmen/images/objects/bottle/bottle_tich_table.png"));
         bottleAtlas.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         for (ZuevkaSectorMap.SceneBottle sprite : map.sprites()) {
@@ -113,14 +119,19 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         batch.setShader(cleanupShader);
         cleanedReference.bind(1);
         bucketRemovalReference.bind(2);
+        emptyYardReference.bind(3);
         background.bind(0);
         batch.begin();
         cleanupShader.setUniformi("u_cleaned", 1);
         cleanupShader.setUniformi("u_noBucket", 2);
+        cleanupShader.setUniformi("u_emptyYard", 3);
         cleanupShader.setUniformf("u_imageSize", map.width, map.height);
         setCleanupBounds("u_flowerBounds", map.cleanedRegions().get(0));
         setCleanupBounds("u_tableBounds", map.cleanedRegions().get(1));
         setCleanupBounds("u_bucketBounds", map.cleanedRegions().get(2));
+        for (int i = 0; i < map.yardClearRegions().size(); i++) {
+            setCleanupBounds("u_yard" + i, map.yardClearRegions().get(i));
+        }
         batch.draw(background, 0, 0, map.width, map.height);
         batch.end();
         batch.setShader(null);
@@ -159,6 +170,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     }
 
     private void drawBottleCount() {
+        if (map.sprites().isEmpty()) return;
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         hudFont.setColor(Color.WHITE);
@@ -192,10 +204,18 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
             uniform sampler2D u_texture;
             uniform sampler2D u_cleaned;
             uniform sampler2D u_noBucket;
+            uniform sampler2D u_emptyYard;
             uniform vec2 u_imageSize;
             uniform vec4 u_flowerBounds;
             uniform vec4 u_tableBounds;
             uniform vec4 u_bucketBounds;
+            uniform vec4 u_yard0;
+            uniform vec4 u_yard1;
+            uniform vec4 u_yard2;
+            uniform vec4 u_yard3;
+            uniform vec4 u_yard4;
+            uniform vec4 u_yard5;
+            uniform vec4 u_yard6;
             float regionOpacity(vec2 point, vec4 bounds) {
                 vec2 inside = min(point - bounds.xy, bounds.zw - point);
                 return smoothstep(0.0, 12.0, min(inside.x, inside.y));
@@ -208,7 +228,14 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
                 vec4 cleaned = texture2D(u_cleaned, v_texCoords);
                 vec4 noBucket = texture2D(u_noBucket, v_texCoords);
                 vec4 result = mix(original, cleaned, opacity);
-                gl_FragColor = v_color * mix(result, noBucket, regionOpacity(point, u_bucketBounds));
+                result = mix(result, noBucket, regionOpacity(point, u_bucketBounds));
+                float yard = max(max(max(regionOpacity(point, u_yard0), regionOpacity(point, u_yard1)),
+                                     max(regionOpacity(point, u_yard2), regionOpacity(point, u_yard3))),
+                                 max(max(regionOpacity(point, u_yard4), regionOpacity(point, u_yard5)),
+                                     regionOpacity(point, u_yard6)));
+                float gnome = regionOpacity(point, vec4(1135.0, 354.0, 1191.0, 458.0));
+                result = mix(result, texture2D(u_emptyYard, v_texCoords), yard * (1.0 - gnome));
+                gl_FragColor = v_color * result;
             }
             """;
         ShaderProgram shader = new ShaderProgram(vertex, fragment);
@@ -285,6 +312,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         if (background != null) background.dispose();
         if (cleanedReference != null) cleanedReference.dispose();
         if (bucketRemovalReference != null) bucketRemovalReference.dispose();
+        if (emptyYardReference != null) emptyYardReference.dispose();
         if (bottleAtlas != null) bottleAtlas.dispose();
         if (cleanupShader != null) cleanupShader.dispose();
         if (batch != null) batch.dispose();

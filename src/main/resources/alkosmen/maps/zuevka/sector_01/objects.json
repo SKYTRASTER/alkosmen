@@ -153,11 +153,11 @@
       "points": [
         [
           841,
-          601
+          625
         ],
         [
           1399,
-          433
+          453
         ],
         [
           1408,
@@ -369,22 +369,23 @@
       "id": "yard_stump",
       "points": [
         [
-          895,
-          557
+          905,
+          570
         ],
         [
-          963,
-          541
+          961,
+          556
         ],
         [
-          980,
-          561
+          972,
+          568
         ],
         [
-          909,
-          578
+          916,
+          583
         ]
-      ]
+      ],
+      "enabled": false
     },
     {
       "id": "barrel_at_porch",
@@ -405,7 +406,8 @@
           632,
           496
         ]
-      ]
+      ],
+      "enabled": false
     },
     {
       "id": "house_roof_projection",
@@ -480,7 +482,8 @@
           524,
           490
         ]
-      ]
+      ],
+      "enabled": false
     },
     {
       "id": "porch_railing",
@@ -522,7 +525,8 @@
           814,
           504
         ]
-      ]
+      ],
+      "enabled": false
     },
     {
       "id": "yard_stool",
@@ -543,7 +547,8 @@
           853,
           519
         ]
-      ]
+      ],
+      "enabled": false
     },
     {
       "id": "yard_planter",
@@ -564,7 +569,8 @@
           1053,
           515
         ]
-      ]
+      ],
+      "enabled": false
     }
   ],
   "interactions": [
@@ -927,7 +933,8 @@
         47
       ],
       "type": "bottle",
-      "pickup_radius": 85
+      "pickup_radius": 85,
+      "enabled": false
     },
     {
       "id": "table_bottle_right",
@@ -946,7 +953,73 @@
         49
       ],
       "type": "bottle",
-      "pickup_radius": 85
+      "pickup_radius": 85,
+      "enabled": false
+    }
+  ],
+  "yard_clear_regions": [
+    {
+      "id": "porch_objects",
+      "bounds": [
+        505,
+        365,
+        190,
+        165
+      ]
+    },
+    {
+      "id": "table_and_stools",
+      "bounds": [
+        775,
+        392,
+        195,
+        145
+      ]
+    },
+    {
+      "id": "flower_bush",
+      "bounds": [
+        916,
+        365,
+        164,
+        125
+      ]
+    },
+    {
+      "id": "stump",
+      "bounds": [
+        868,
+        487,
+        145,
+        130
+      ]
+    },
+    {
+      "id": "garden_beds",
+      "bounds": [
+        1018,
+        425,
+        225,
+        145
+      ]
+    },
+    {
+      "id": "sunflowers",
+      "bounds": [
+        1161,
+        287,
+        140,
+        208
+      ]
+    },
+    {
+      "id": "yard_plants",
+      "bounds": [
+        1190,
+        465,
+        170,
+        100
+      ]
     }
   ]
 }

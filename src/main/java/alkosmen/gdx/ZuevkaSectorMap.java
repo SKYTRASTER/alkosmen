@@ -24,16 +24,21 @@ final class ZuevkaSectorMap {
     private final List<Occluder> occluders = new ArrayList<>();
     private final List<Flower> yardFlowers = new ArrayList<>();
     private final List<Rectangle> cleanedRegions = new ArrayList<>();
+    private final List<Rectangle> yardClearRegions = new ArrayList<>();
     private final List<SceneBottle> sprites = new ArrayList<>();
     private final Polygon footprint = new Polygon(new float[8]);
 
     ZuevkaSectorMap(FileHandle file) {
-        JsonValue data = new JsonReader().parse(file);
+        this(new JsonReader().parse(file));
+    }
+
+    ZuevkaSectorMap(JsonValue data) {
         width = data.getFloat("width");
         height = data.getFloat("height");
         spawnX = data.get("spawn").getFloat(0);
         spawnY = height - data.get("spawn").getFloat(1);
         for (JsonValue object : data.get("colliders")) {
+            if (!object.getBoolean("enabled", true)) continue;
             JsonValue points = object.get("points");
             float[] vertices = new float[points.size * 2];
             int i = 0;
@@ -76,6 +81,7 @@ final class ZuevkaSectorMap {
                 bounds.getFloat(2), bounds.getFloat(3)));
         }
         for (JsonValue object : data.get("sprites")) {
+            if (!object.getBoolean("enabled", true)) continue;
             if (!"bottle".equals(object.getString("type"))) {
                 throw new IllegalArgumentException("Unsupported sector sprite type");
             }
@@ -88,6 +94,11 @@ final class ZuevkaSectorMap {
                 rect.getInt(0), rect.getInt(1), rect.getInt(2), rect.getInt(3),
                 x, y, size.getFloat(0), size.getFloat(1),
                 new StorageKey(x + size.getFloat(0) / 2f, y, object.getFloat("pickup_radius"))));
+        }
+        for (JsonValue object : data.get("yard_clear_regions")) {
+            JsonValue bounds = object.get("bounds");
+            yardClearRegions.add(new Rectangle(bounds.getFloat(0), bounds.getFloat(1),
+                bounds.getFloat(2), bounds.getFloat(3)));
         }
     }
 
@@ -125,6 +136,10 @@ final class ZuevkaSectorMap {
 
     List<Rectangle> cleanedRegions() {
         return Collections.unmodifiableList(cleanedRegions);
+    }
+
+    List<Rectangle> yardClearRegions() {
+        return Collections.unmodifiableList(yardClearRegions);
     }
 
     List<SceneBottle> sprites() {
