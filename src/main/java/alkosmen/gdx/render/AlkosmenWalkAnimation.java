@@ -12,7 +12,7 @@ import java.util.List;
 
 /** Shared approved Alkosmen frames and ground anchor for the player and New Park. */
 public final class AlkosmenWalkAnimation implements Disposable {
-    private static final int FRAME_COUNT = SideWalkGait.FRAME_COUNT;
+    private static final int FRAME_COUNT = 6;
     private static final String BASE_PATH = "alkosmen/ui/alkosmen";
 
     // Neutral frames divide the alternating steps in the frontal walk.
@@ -40,16 +40,16 @@ public final class AlkosmenWalkAnimation implements Disposable {
                 int row = facing.ordinal();
                 for (int frame = 0; frame < FRAME_COUNT; frame++) {
                     Pixmap idle = new Pixmap(Gdx.files.internal(idlePath(facing, frame)));
-                    if (facing == Facing.DOWN) {
-                        register(new Pixmap(Gdx.files.internal(walkPath(facing, frame))),
-                            walkFrames, walkMetrics, row, frame);
-                    } else {
-                        // LEFT / RIGHT / UP come only from the approved red-shirt references.
-                        // Old white-outfit walk animations are never loaded.
-                        register(makeWalkStep(idle, frame, facing),
+                    String walkingPath = walkPath(facing, frame);
+                    if (walkingPath != null) {
+                        register(new Pixmap(Gdx.files.internal(walkingPath)),
                             walkFrames, walkMetrics, row, frame);
                     }
                     register(idle, idleFrames, idleMetrics, row, frame);
+                    if (walkingPath == null) {
+                        walkFrames[row][frame] = idleFrames[row][frame];
+                        walkMetrics[row][frame] = idleMetrics[row][frame];
+                    }
                 }
             }
         } catch (RuntimeException exception) {
@@ -69,48 +69,18 @@ public final class AlkosmenWalkAnimation implements Disposable {
     }
 
     private static String walkPath(Facing facing, int frame) {
-        return switch (facing) {
-            case DOWN -> BASE_PATH + "/" + FRONT_WALK_SEQUENCE[frame];
-            case UP, LEFT, RIGHT -> throw new IllegalArgumentException(
-                "Directional steps use approved idle artwork");
-        };
-    }
-
-    /**
-     * Build a directional walk pose from the approved idle frame.
-     * Only the lower legs shift: the shirt, face, backpack and body size stay fixed.
-     */
-    private static Pixmap makeWalkStep(Pixmap original, int frame, Facing facing) {
-        int width = original.getWidth();
-        int height = original.getHeight();
-        Pixmap result = new Pixmap(width, height, Pixmap.Format.RGBA8888);
-        result.setBlending(Pixmap.Blending.None);
-        result.setColor(0f, 0f, 0f, 0f);
-        result.fill();
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int rgba = original.getPixel(x, y);
-                if ((rgba & 0xff) == 0) {
-                    continue;
-                }
-                int dx;
-                int dy;
-                if (facing == Facing.UP) {
-                    dx = SideWalkGait.backOffsetX(frame, x, y, width, height);
-                    dy = SideWalkGait.backOffsetY(frame, x, y, width, height);
-                } else {
-                    boolean facingLeft = facing == Facing.LEFT;
-                    dx = SideWalkGait.offsetX(frame, x, y, width, height, facingLeft);
-                    dy = SideWalkGait.offsetY(frame, x, y, width, height, facingLeft);
-                }
-                int toX = x + dx;
-                int toY = y + dy;
-                if (toX >= 0 && toX < width && toY >= 0 && toY < height) {
-                    result.drawPixel(toX, toY, rgba);
-                }
-            }
+        if (facing == Facing.DOWN) {
+            return BASE_PATH + "/" + FRONT_WALK_SEQUENCE[frame];
         }
-        return result;
+        if (frame != 1 && frame != 4) {
+            return null;
+        }
+        return BASE_PATH + switch (facing) {
+            case LEFT -> "/walk_generated_left/step.png";
+            case RIGHT -> "/walk_generated_right/step.png";
+            case UP -> frame == 1 ? "/walk_generated_back/step1.png" : "/walk_generated_back/step2.png";
+            case DOWN -> throw new IllegalStateException("Front walk already handled");
+        };
     }
 
     private void register(Pixmap pixels, TextureRegion[][] frames,
