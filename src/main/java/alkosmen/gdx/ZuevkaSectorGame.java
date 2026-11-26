@@ -1,45 +1,113 @@
 package alkosmen.gdx;
 
+import alkosmen.audio.SoundEffectPlayer;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.PolygonRegion;
+import com.badlogic.gdx.graphics.g2d.PolygonSpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Polygon;
+import com.badlogic.gdx.math.EarClippingTriangulator;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import java.util.ArrayList;
+import java.util.List;
+import alkosmen.gdx.ui.ObjectiveHud;
 
 /** Independent prototype for the illustrated first Zuevka sector. */
 public final class ZuevkaSectorGame extends ApplicationAdapter {
     private static final float VIEW_WIDTH = 1000f;
     private static final float VIEW_HEIGHT = 562.5f;
+    private static final float STEP_INTERVAL = .36f;
+    private static final float GNOME_X = 1160f;
+    private static final float GNOME_IMAGE_Y = 420f;
+    private static final float GNOME_VOICE_RADIUS = 95f;
+    private static final float SIGN_SCALE = .82f;
     private OrthographicCamera camera;
     private Viewport viewport;
     private SpriteBatch batch;
+    private PolygonSpriteBatch foregroundBatch;
+    private final List<PolygonRegion> foreground = new ArrayList<>();
     private ShapeRenderer shapes;
+    private BitmapFont debugFont;
+    private BitmapFont hudFont;
+    private Sound bottleSound;
+    private Sound gnomeVoice;
+    private boolean nearGnome;
     private Texture background;
+    private Texture cleanedReference;
+    private Texture bucketRemovalReference;
+    private Texture emptyYardReference;
+    private Texture signBackground;
+    private Texture bottleAtlas;
+    private ShaderProgram cleanupShader;
+    private final List<TextureRegion> spriteRegions = new ArrayList<>();
     private AlkosmenPlayer hero;
+    private SoundEffectPlayer stepSound;
+    private float stepTimer;
     private ZuevkaSectorMap map;
     private boolean showDebug;
 
     @Override public void create() {
         map = new ZuevkaSectorMap(Gdx.files.internal(ZuevkaSectorMap.BASE + "objects.json"));
+        if (map.yardClearRegions().size() != 7) {
+            throw new IllegalStateException("Expected seven yard cleanup regions");
+        }
         background = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "background.png"));
         if (background.getWidth() != map.width || background.getHeight() != map.height) {
             throw new IllegalStateException("Sector geometry does not match background dimensions");
         }
         background.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        cleanedReference = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "yard_cleaned_reference.png"));
+        cleanedReference.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        bucketRemovalReference = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "yard_no_bucket_reference.png"));
+        bucketRemovalReference.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        emptyYardReference = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "yard_empty_reference.png"));
+        emptyYardReference.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        signBackground = new Texture(Gdx.files.internal(ZuevkaSectorMap.BASE + "sign_background_reference.png"));
+        signBackground.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        bottleAtlas = new Texture(Gdx.files.internal("alkosmen/images/objects/bottle/bottle_tich_table.png"));
+        bottleAtlas.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        for (ZuevkaSectorMap.SceneBottle sprite : map.sprites()) {
+            spriteRegions.add(new TextureRegion(bottleAtlas, sprite.sourceX(), sprite.sourceY(),
+                sprite.sourceWidth(), sprite.sourceHeight()));
+        }
+        cleanupShader = createCleanupShader();
         batch = new SpriteBatch();
+        foregroundBatch = new PolygonSpriteBatch();
+        TextureRegion source = new TextureRegion(background);
+        EarClippingTriangulator triangulator = new EarClippingTriangulator();
+        for (ZuevkaSectorMap.Occluder occluder : map.occluders()) {
+            float[] vertices = occluder.vertices();
+            short[] triangles = triangulator.computeTriangles(vertices).toArray();
+            foreground.add(new PolygonRegion(source, vertices, triangles));
+        }
         shapes = new ShapeRenderer();
+        debugFont = new BitmapFont();
+        hudFont = ObjectiveHud.createRussianFont();
+        bottleSound = Gdx.audio.newSound(Gdx.files.internal("alkosmen/sounds/scratch_bottle.wav"));
+        gnomeVoice = Gdx.audio.newSound(Gdx.files.internal("alkosmen/sounds/zuevka/gnome_phrase.ogg"));
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIEW_WIDTH, VIEW_HEIGHT, camera);
         hero = new AlkosmenPlayer(map.spawnX, map.spawnY);
-        hero.setVisibleHeight(105f);
+        hero.setVisibleHeight(120f);
+        try {
+            stepSound = new SoundEffectPlayer("/alkosmen/sounds/step.wav");
+        } catch (RuntimeException e) {
+            Gdx.app.error("Zuevka", "Не удалось загрузить звук шагов", e);
+        }
         if (map.blocks(hero.collisionBody())) throw new IllegalStateException("Sector spawn is blocked");
         follow();
     }
@@ -47,12 +115,36 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     @Override public void render() {
         float delta = Math.min(Gdx.graphics.getDeltaTime(), .05f);
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) showDebug = !showDebug;
+        float previousX = hero.x(), previousY = hero.y();
         hero.update(delta, map::blocks);
+        float gnomeDx = hero.x() - GNOME_X;
+        float gnomeDy = hero.y() - (map.height - GNOME_IMAGE_Y);
+        boolean isNearGnome = gnomeDx * gnomeDx + gnomeDy * gnomeDy
+            <= GNOME_VOICE_RADIUS * GNOME_VOICE_RADIUS;
+        if (isNearGnome && !nearGnome) gnomeVoice.play();
+        nearGnome = isNearGnome;
+        if (stepSound != null) {
+            if (hero.x() != previousX || hero.y() != previousY) {
+                stepTimer -= delta;
+                if (stepTimer <= 0f) {
+                    stepSound.play();
+                    stepTimer = STEP_INTERVAL;
+                }
+            } else {
+                stepSound.stop();
+                stepTimer = 0f;
+            }
+        }
         if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
-            for (ZuevkaSectorMap.Interaction object : map.interactions()) {
-                if (object.inRange(hero.x(), hero.y())) {
-                    Gdx.app.log("Zuevka", "Точка " + object.id() + " (" + object.type() + "): пока заглушка");
-                    break;
+            ZuevkaSectorMap.SceneBottle bottle = map.collectNearestBottle(hero.x(), hero.y());
+            if (bottle != null) {
+                bottleSound.play();
+            } else {
+                for (ZuevkaSectorMap.Interaction object : map.interactions()) {
+                    if (object.inRange(hero.x(), hero.y())) {
+                        Gdx.app.log("Zuevka", "Точка " + object.id() + " (" + object.type() + "): пока заглушка");
+                        break;
+                    }
                 }
             }
         }
@@ -62,11 +154,159 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         viewport.apply();
         camera.update();
         batch.setProjectionMatrix(camera.combined);
+        batch.setShader(cleanupShader);
+        cleanedReference.bind(1);
+        bucketRemovalReference.bind(2);
+        emptyYardReference.bind(3);
+        signBackground.bind(4);
+        background.bind(0);
         batch.begin();
+        cleanupShader.setUniformi("u_cleaned", 1);
+        cleanupShader.setUniformi("u_noBucket", 2);
+        cleanupShader.setUniformi("u_emptyYard", 3);
+        cleanupShader.setUniformi("u_signBackground", 4);
+        cleanupShader.setUniformf("u_imageSize", map.width, map.height);
+        setCleanupBounds("u_flowerBounds", map.cleanedRegions().get(0));
+        setCleanupBounds("u_tableBounds", map.cleanedRegions().get(1));
+        setCleanupBounds("u_bucketBounds", map.cleanedRegions().get(2));
+        for (int i = 0; i < map.yardClearRegions().size(); i++) {
+            setCleanupBounds("u_yard" + i, map.yardClearRegions().get(i));
+        }
         batch.draw(background, 0, 0, map.width, map.height);
+        batch.end();
+        batch.setShader(null);
+        foregroundBatch.setProjectionMatrix(camera.combined);
+        foregroundBatch.begin();
+        for (int i = 0; i < map.occluders().size(); i++) {
+            ZuevkaSectorMap.Occluder object = map.occluders().get(i);
+            if (isSign(object) && !object.inFrontOf(hero.y())) drawSignPart(i, object);
+        }
+        foregroundBatch.end();
+        batch.begin();
+        for (int i = 0; i < map.sprites().size(); i++) {
+            if (!map.sprites().get(i).inFrontOf(hero.y())) drawSprite(i);
+        }
         hero.render(batch);
         batch.end();
+        foregroundBatch.setProjectionMatrix(camera.combined);
+        foregroundBatch.begin();
+        for (int i = 0; i < map.occluders().size(); i++) {
+            ZuevkaSectorMap.Occluder object = map.occluders().get(i);
+            if (object.inFrontOf(hero.y())) {
+                if (isSign(object)) drawSignPart(i, object);
+                else foregroundBatch.draw(foreground.get(i), 0, 0);
+            }
+        }
+        foregroundBatch.end();
+        batch.begin();
+        for (int i = 0; i < map.sprites().size(); i++) {
+            if (map.sprites().get(i).inFrontOf(hero.y())) drawSprite(i);
+        }
+        batch.end();
         if (showDebug) drawDebug();
+        drawBottleCount();
+    }
+
+    private void setCleanupBounds(String name, Rectangle box) {
+        cleanupShader.setUniformf(name, box.x, box.y, box.x + box.width, box.y + box.height);
+    }
+
+    private boolean isSign(ZuevkaSectorMap.Occluder object) {
+        return object.id().equals("street_sign_board") || object.id().equals("street_sign_post");
+    }
+
+    private void drawSignPart(int index, ZuevkaSectorMap.Occluder object) {
+        foregroundBatch.draw(foreground.get(index), object.x() * (1f - SIGN_SCALE),
+            object.y() * (1f - SIGN_SCALE), 0f, 0f, map.width, map.height, SIGN_SCALE, SIGN_SCALE, 0f);
+    }
+
+    private void drawSprite(int index) {
+        ZuevkaSectorMap.SceneBottle sprite = map.sprites().get(index);
+        if (!sprite.pickup().collected()) {
+            batch.draw(spriteRegions.get(index), sprite.x(), sprite.y(), sprite.width(), sprite.height());
+        }
+    }
+
+    private void drawBottleCount() {
+        if (map.sprites().isEmpty()) return;
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        hudFont.setColor(Color.WHITE);
+        hudFont.draw(batch, "ТиЧ: " + map.collectedBottleCount() + "/" + map.sprites().size(),
+            camera.position.x - viewport.getWorldWidth() / 2f + 18f,
+            camera.position.y + viewport.getWorldHeight() / 2f - 18f);
+        batch.end();
+    }
+
+    private static ShaderProgram createCleanupShader() {
+        String vertex = """
+            attribute vec4 a_position;
+            attribute vec4 a_color;
+            attribute vec2 a_texCoord0;
+            uniform mat4 u_projTrans;
+            varying vec4 v_color;
+            varying vec2 v_texCoords;
+            void main() {
+                v_color = a_color;
+                v_color.a = v_color.a * (255.0 / 254.0);
+                v_texCoords = a_texCoord0;
+                gl_Position = u_projTrans * a_position;
+            }
+            """;
+        String fragment = """
+            #ifdef GL_ES
+            precision mediump float;
+            #endif
+            varying vec4 v_color;
+            varying vec2 v_texCoords;
+            uniform sampler2D u_texture;
+            uniform sampler2D u_cleaned;
+            uniform sampler2D u_noBucket;
+            uniform sampler2D u_emptyYard;
+            uniform sampler2D u_signBackground;
+            uniform vec2 u_imageSize;
+            uniform vec4 u_flowerBounds;
+            uniform vec4 u_tableBounds;
+            uniform vec4 u_bucketBounds;
+            uniform vec4 u_yard0;
+            uniform vec4 u_yard1;
+            uniform vec4 u_yard2;
+            uniform vec4 u_yard3;
+            uniform vec4 u_yard4;
+            uniform vec4 u_yard5;
+            uniform vec4 u_yard6;
+            float regionOpacity(vec2 point, vec4 bounds) {
+                vec2 inside = min(point - bounds.xy, bounds.zw - point);
+                return smoothstep(0.0, 12.0, min(inside.x, inside.y));
+            }
+            void main() {
+                vec2 point = v_texCoords * u_imageSize;
+                float opacity = max(regionOpacity(point, u_flowerBounds),
+                                    regionOpacity(point, u_tableBounds));
+                vec4 original = texture2D(u_texture, v_texCoords);
+                vec4 cleaned = texture2D(u_cleaned, v_texCoords);
+                vec4 noBucket = texture2D(u_noBucket, v_texCoords);
+                vec4 result = mix(original, cleaned, opacity);
+                result = mix(result, noBucket, regionOpacity(point, u_bucketBounds));
+                float yard = max(max(max(regionOpacity(point, u_yard0), regionOpacity(point, u_yard1)),
+                                     max(regionOpacity(point, u_yard2), regionOpacity(point, u_yard3))),
+                                 max(max(regionOpacity(point, u_yard4), regionOpacity(point, u_yard5)),
+                                     regionOpacity(point, u_yard6)));
+                float gnome = regionOpacity(point, vec4(1135.0, 354.0, 1191.0, 458.0));
+                result = mix(result, texture2D(u_emptyYard, v_texCoords), yard * (1.0 - gnome));
+                float sign = max(regionOpacity(point, vec4(32.0, 277.0, 495.0, 490.0)),
+                                 regionOpacity(point, vec4(200.0, 400.0, 298.0, 721.0)));
+                result = mix(result, texture2D(u_signBackground, v_texCoords), sign);
+                gl_FragColor = v_color * result;
+            }
+            """;
+        ShaderProgram shader = new ShaderProgram(vertex, fragment);
+        if (!shader.isCompiled()) {
+            String error = shader.getLog();
+            shader.dispose();
+            throw new IllegalStateException("Cannot compile sector background shader: " + error);
+        }
+        return shader;
     }
 
     private void drawDebug() {
@@ -74,12 +314,47 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         shapes.begin(ShapeRenderer.ShapeType.Line);
         shapes.setColor(Color.RED);
         for (Polygon collider : map.colliders()) shapes.polygon(collider.getTransformedVertices());
-        shapes.setColor(Color.CYAN);
-        for (ZuevkaSectorMap.Interaction object : map.interactions()) {
-            shapes.circle(object.x(), object.y(), object.radius(), 40);
+        shapes.setColor(Color.GREEN);
+        for (ZuevkaSectorMap.Occluder object : map.occluders()) {
+            shapes.polygon(object.vertices());
+            shapes.line(object.x() - 6, object.y(), object.x() + 6, object.y());
+            shapes.line(object.x(), object.y() - 6, object.x(), object.y() + 6);
+        }
+        shapes.setColor(Color.MAGENTA);
+        for (ZuevkaSectorMap.Flower flower : map.yardFlowers()) {
+            shapes.rect(flower.bounds().x, flower.bounds().y, flower.bounds().width, flower.bounds().height);
+            shapes.line(flower.x() - 6, flower.y(), flower.x() + 6, flower.y());
+            shapes.line(flower.x(), flower.y() - 6, flower.x(), flower.y() + 6);
+        }
+        shapes.setColor(Color.ORANGE);
+        for (ZuevkaSectorMap.SceneBottle sprite : map.sprites()) {
+            if (!sprite.pickup().collected()) shapes.rect(sprite.x(), sprite.y(), sprite.width(), sprite.height());
         }
         hero.drawDebug(shapes);
         shapes.end();
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        debugFont.setColor(Color.RED);
+        for (int i = 0; i < map.colliders().size(); i++) {
+            Polygon collider = map.colliders().get(i);
+            float[] vertices = collider.getTransformedVertices();
+            debugFont.draw(batch, map.colliderName(i), vertices[0], vertices[1]);
+        }
+        debugFont.setColor(Color.GREEN);
+        for (ZuevkaSectorMap.Occluder object : map.occluders()) {
+            debugFont.draw(batch, object.id(), object.x() + 8, object.y() + 12);
+        }
+        debugFont.setColor(Color.MAGENTA);
+        for (ZuevkaSectorMap.Flower flower : map.yardFlowers()) {
+            debugFont.draw(batch, flower.id(), flower.bounds().x, flower.bounds().y + flower.bounds().height);
+        }
+        debugFont.setColor(Color.ORANGE);
+        for (ZuevkaSectorMap.SceneBottle sprite : map.sprites()) {
+            if (!sprite.pickup().collected()) {
+                debugFont.draw(batch, sprite.id(), sprite.x(), sprite.y() + sprite.height());
+            }
+        }
+        batch.end();
     }
 
     private void follow() {
@@ -95,9 +370,21 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     }
 
     @Override public void dispose() {
+        if (gnomeVoice != null) gnomeVoice.dispose();
+        if (stepSound != null) stepSound.dispose();
         if (hero != null) hero.dispose();
         if (background != null) background.dispose();
+        if (cleanedReference != null) cleanedReference.dispose();
+        if (bucketRemovalReference != null) bucketRemovalReference.dispose();
+        if (emptyYardReference != null) emptyYardReference.dispose();
+        if (signBackground != null) signBackground.dispose();
+        if (bottleAtlas != null) bottleAtlas.dispose();
+        if (cleanupShader != null) cleanupShader.dispose();
         if (batch != null) batch.dispose();
+        if (foregroundBatch != null) foregroundBatch.dispose();
         if (shapes != null) shapes.dispose();
+        if (debugFont != null) debugFont.dispose();
+        if (hudFont != null) hudFont.dispose();
+        if (bottleSound != null) bottleSound.dispose();
     }
 }
