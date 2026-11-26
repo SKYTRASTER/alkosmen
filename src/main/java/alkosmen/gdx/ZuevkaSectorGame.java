@@ -70,7 +70,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
             for (ZuevkaSectorMap.Interaction object : map.interactions()) {
                 if (object.inRange(hero.x(), hero.y())) {
-                    Gdx.app.log("Zuevka", "РўРѕС‡РєР° " + object.id() + " (" + object.type() + "): РїРѕРєР° Р·Р°РіР»СѓС€РєР°");
+                    Gdx.app.log("Zuevka", "Точка " + object.id() + " (" + object.type() + "): пока заглушка");
                     break;
                 }
             }
@@ -107,6 +107,12 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
             shapes.line(object.x() - 6, object.y(), object.x() + 6, object.y());
             shapes.line(object.x(), object.y() - 6, object.x(), object.y() + 6);
         }
+        shapes.setColor(Color.MAGENTA);
+        for (ZuevkaSectorMap.Flower flower : map.yardFlowers()) {
+            shapes.rect(flower.bounds().x, flower.bounds().y, flower.bounds().width, flower.bounds().height);
+            shapes.line(flower.x() - 6, flower.y(), flower.x() + 6, flower.y());
+            shapes.line(flower.x(), flower.y() - 6, flower.x(), flower.y() + 6);
+        }
         hero.drawDebug(shapes);
         shapes.end();
         batch.setProjectionMatrix(camera.combined);
@@ -120,6 +126,10 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         debugFont.setColor(Color.GREEN);
         for (ZuevkaSectorMap.Occluder object : map.occluders()) {
             debugFont.draw(batch, object.id(), object.x() + 8, object.y() + 12);
+        }
+        debugFont.setColor(Color.MAGENTA);
+        for (ZuevkaSectorMap.Flower flower : map.yardFlowers()) {
+            debugFont.draw(batch, flower.id(), flower.bounds().x, flower.bounds().y + flower.bounds().height);
         }
         batch.end();
     }

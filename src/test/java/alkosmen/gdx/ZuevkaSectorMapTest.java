@@ -42,6 +42,13 @@ public final class ZuevkaSectorMapTest {
             assert new EarClippingTriangulator().computeTriangles(occluder.vertices()).size
                 == (occluder.vertices().length / 2 - 2) * 3 : "Invalid foreground polygon";
         }
+        assert map.yardFlowers().size() == 2 : "Missing yard flower locations";
+        for (ZuevkaSectorMap.Flower flower : map.yardFlowers()) {
+            assert flower.bounds().x >= 0 && flower.bounds().y >= 0;
+            assert flower.bounds().x + flower.bounds().width <= map.width;
+            assert flower.bounds().y + flower.bounds().height <= map.height;
+            assert flower.bounds().contains(flower.x(), flower.y()) : "Flower anchor outside its bounds";
+        }
         assert map.interactions().size() == 4;
         for (ZuevkaSectorMap.Interaction interaction : map.interactions()) {
             boolean reachable = false;

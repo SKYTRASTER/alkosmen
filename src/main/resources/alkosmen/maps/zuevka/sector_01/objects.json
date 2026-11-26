@@ -872,5 +872,33 @@
         ]
       ]
     }
+  ],
+  "yard_flowers": [
+    {
+      "id": "hydrangea_bush",
+      "bounds": [
+        930,
+        382,
+        139,
+        93
+      ],
+      "anchor": [
+        1000,
+        475
+      ]
+    },
+    {
+      "id": "sunflowers",
+      "bounds": [
+        1166,
+        304,
+        126,
+        165
+      ],
+      "anchor": [
+        1229,
+        469
+      ]
+    }
   ]
 }
