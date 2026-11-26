@@ -57,7 +57,6 @@ public final class NewParkGame extends ApplicationAdapter {
     private boolean debugCollisions;
     private boolean debugPlayerAnchor;
     private Direction playerDirection = Direction.DOWN;
-    private boolean movingLastFrame;
 
     private enum Direction {
         LEFT, RIGHT, UP, DOWN
@@ -129,47 +128,30 @@ public final class NewParkGame extends ApplicationAdapter {
         if (Gdx.input.isKeyPressed(Input.Keys.DOWN) || Gdx.input.isKeyPressed(Input.Keys.S)) moveY -= 1f;
 
         if (moveX == 0f && moveY == 0f) {
-            movingLastFrame = false;
-            playerAnimation.advanceIdle(delta);
+            playerAnimation.update(delta, 0f, PLAYER_VISIBLE_HEIGHT);
             sprint.update(delta, false, false);
             return;
         }
-        if (Math.abs(moveX) >= Math.abs(moveY)) {
+        if (moveX != 0f) {
             playerDirection = moveX < 0f ? Direction.LEFT : Direction.RIGHT;
+            moveY = 0f;
         } else {
             playerDirection = moveY < 0f ? Direction.DOWN : Direction.UP;
         }
-        float length = (float) Math.hypot(moveX, moveY);
         boolean sprintRequested = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)
             || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
         float distance = PLAYER_SPEED * delta * sprint.speedMultiplier(delta, sprintRequested);
         float previousX = playerX;
         float previousY = playerY;
-        moveAlongAxes(moveX / length * distance, moveY / length * distance);
+        float nextX = playerX + moveX * distance;
+        float nextY = playerY + moveY * distance;
+        if (canStandAt(nextX, nextY)) {
+            playerX = nextX;
+            playerY = nextY;
+        }
         float actualDistance = (float) Math.hypot(playerX - previousX, playerY - previousY);
         sprint.update(delta, sprintRequested, actualDistance > 0.0001f);
-        if (actualDistance > 0.0001f) {
-            if (!movingLastFrame) {
-                playerAnimation.step();
-            } else {
-                playerAnimation.advance(actualDistance, PLAYER_VISIBLE_HEIGHT);
-            }
-            playerAnimation.resetIdle();
-            movingLastFrame = true;
-        } else {
-            // The player is blocked: stop the walk cycle and use the idle animation.
-            playerAnimation.advanceIdle(delta);
-            movingLastFrame = false;
-        }
-    }
-
-    private void moveAlongAxes(float moveX, float moveY) {
-        if (canStandAt(playerX + moveX, playerY)) {
-            playerX += moveX;
-        }
-        if (canStandAt(playerX, playerY + moveY)) {
-            playerY += moveY;
-        }
+        playerAnimation.update(delta, actualDistance, PLAYER_VISIBLE_HEIGHT);
     }
 
     private boolean canStandAt(float x, float y) {
@@ -307,7 +289,7 @@ public final class NewParkGame extends ApplicationAdapter {
         batch.begin();
         playerPlacement = playerAnimation.draw(batch,
             AlkosmenWalkAnimation.Facing.valueOf(playerDirection.name()),
-            movingLastFrame, playerX, playerY, PLAYER_VISIBLE_HEIGHT);
+            playerAnimation.moving(), playerX, playerY, PLAYER_VISIBLE_HEIGHT);
         batch.end();
     }
 

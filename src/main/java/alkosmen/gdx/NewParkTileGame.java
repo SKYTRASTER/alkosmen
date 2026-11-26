@@ -17,6 +17,8 @@ import alkosmen.gdx.ui.SprintHud;
 /** Small playable map prototype without changing the original road-reference renderer. */
 public final class NewParkTileGame extends ApplicationAdapter {
     private static final float VIEW_W = 1600f, VIEW_H = 900f;
+    static final float SPAWN_X = 32.5f * NewParkTileMap.TILE_WORLD;
+    static final float SPAWN_Y = (NewParkTileMap.TILES_Y - 27.5f) * NewParkTileMap.TILE_WORLD;
     private final SprintState sprint = new SprintState();
     private OrthographicCamera camera;
     private Viewport viewport;
@@ -30,13 +32,12 @@ public final class NewParkTileGame extends ApplicationAdapter {
     @Override public void create() {
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIEW_W, VIEW_H, camera);
-        map = new NewParkTileMap();
         batch = new SpriteBatch();
+        map = new NewParkTileMap(batch);
         shapes = new ShapeRenderer();
         hud = new SprintHud();
         hud.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        hero = new AlkosmenPlayer(32.5f * NewParkTileMap.TILE_WORLD,
-            (NewParkTileMap.TILES_Y - 27.5f) * NewParkTileMap.TILE_WORLD);
+        hero = new AlkosmenPlayer(SPAWN_X, SPAWN_Y);
         if (map.blocks(hero.collisionBody())) throw new IllegalStateException("Park spawn is blocked");
         follow();
     }
@@ -59,14 +60,14 @@ public final class NewParkTileGame extends ApplicationAdapter {
         map.renderGround(camera);
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        hero.render(batch);
+        map.renderScenery(batch, hero);
         batch.end();
-        map.renderForeground(camera);
         if (showCollisions) {
             shapes.setProjectionMatrix(camera.combined);
             shapes.begin(ShapeRenderer.ShapeType.Line);
             shapes.setColor(Color.YELLOW);
             for (Rectangle r : map.colliders()) shapes.rect(r.x,r.y,r.width,r.height);
+            hero.drawDebug(shapes);
             shapes.end();
         }
         hud.render(shapes, batch, sprint);

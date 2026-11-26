@@ -192,3 +192,16 @@ tasks.register('verifySideWalkGait', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('verifySideWalkGait')
 }
+
+tasks.register('verifyNewParkTileMap', JavaExec) {
+    group = 'verification'
+    description = 'Checks the real New Park spawn, surfaces and obstacles without graphics.'
+    dependsOn tasks.testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'alkosmen.gdx.NewParkTileMapTest'
+    enableAssertions = true
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyNewParkTileMap')
+}

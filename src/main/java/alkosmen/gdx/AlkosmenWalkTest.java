@@ -30,7 +30,7 @@ public final class AlkosmenWalkTest extends ApplicationAdapter {
         float margin = player.visibleHeight() * 0.5f;
         player.update(delta, body -> {
             float footX = body.x + AlkosmenPlayer.BODY_WIDTH / 2f;
-            float footY = body.y - 8f;
+            float footY = body.y + AlkosmenPlayer.BODY_HEIGHT / 2f;
             return footX < margin || footX > camera.viewportWidth - margin
                 || footY < 20f || footY + player.visibleHeight() > camera.viewportHeight;
         });

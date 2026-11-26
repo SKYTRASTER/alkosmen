@@ -14,7 +14,6 @@ import java.util.List;
 public final class AlkosmenWalkAnimation implements Disposable {
     private static final int FRAME_COUNT = SideWalkGait.FRAME_COUNT;
     private static final String BASE_PATH = "alkosmen/ui/alkosmen";
-    private static final float IDLE_FRAME_SECONDS = 0.2f;
 
     // Neutral frames divide the alternating steps in the frontal walk.
     private static final String[] FRONT_WALK_SEQUENCE = {
@@ -34,7 +33,6 @@ public final class AlkosmenWalkAnimation implements Disposable {
     private final CharacterRenderMetrics.FrameMetrics[][] idleMetrics =
         new CharacterRenderMetrics.FrameMetrics[Facing.values().length][FRAME_COUNT];
     private final WalkCycle cycle = new WalkCycle(FRAME_COUNT);
-    private float idleTime;
 
     public AlkosmenWalkAnimation() {
         try {
@@ -131,28 +129,16 @@ public final class AlkosmenWalkAnimation implements Disposable {
     }
 
     /** One complete six-frame step cycle corresponds to 0.72 character heights. */
-    public void advance(float actualDistance, float visibleHeight) {
-        cycle.advance(actualDistance, visibleHeight * 0.72f);
+    public void update(float delta, float actualDistance, float visibleHeight) {
+        cycle.update(delta, actualDistance, visibleHeight * 0.72f);
     }
 
-    public void step() {
-        cycle.step();
-    }
-
-    public void advanceIdle(float delta) {
-        idleTime += Math.max(0f, delta);
-        if (idleTime >= FRAME_COUNT * IDLE_FRAME_SECONDS) {
-            idleTime %= FRAME_COUNT * IDLE_FRAME_SECONDS;
-        }
-    }
-
-    public void resetIdle() {
-        idleTime = 0f;
+    public boolean moving() {
+        return cycle.moving();
     }
 
     public void reset() {
         cycle.reset();
-        resetIdle();
     }
 
     public CharacterRenderMetrics.Placement draw(
@@ -160,8 +146,7 @@ public final class AlkosmenWalkAnimation implements Disposable {
         float footX, float footY, float visibleHeight
     ) {
         int row = facing.ordinal();
-        int column = moving ? cycle.frameIndex()
-            : Math.min(FRAME_COUNT - 1, (int) (idleTime / IDLE_FRAME_SECONDS));
+        int column = moving ? cycle.frameIndex() : cycle.idleFrameIndex();
         TextureRegion[][] frames = moving ? walkFrames : idleFrames;
         CharacterRenderMetrics.FrameMetrics[][] metrics = moving ? walkMetrics : idleMetrics;
         // Normalize the opaque silhouette instead of the PNG canvas.

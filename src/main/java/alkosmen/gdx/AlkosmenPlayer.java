@@ -24,7 +24,6 @@ public final class AlkosmenPlayer implements Disposable {
     public static final float BODY_WIDTH = 36f;
     public static final float BODY_HEIGHT = 26f;
 
-    private static final float BODY_Y_OFFSET = 8f;
     private final AlkosmenWalkAnimation animation;
     private final Rectangle collisionBody = new Rectangle();
 
@@ -33,7 +32,6 @@ public final class AlkosmenPlayer implements Disposable {
     private float speed = DEFAULT_SPEED;
     private float visibleHeight = DEFAULT_VISIBLE_HEIGHT;
     private Direction direction = Direction.DOWN;
-    private boolean movingLastFrame;
     private CharacterRenderMetrics.Placement placement;
 
     public AlkosmenPlayer(float spawnX, float spawnY) {
@@ -68,61 +66,28 @@ public final class AlkosmenPlayer implements Disposable {
         }
 
         if (moveX == 0f && moveY == 0f) {
-            // Release keys: use the approved directional idle animation.
-            movingLastFrame = false;
-            animation.advanceIdle(delta);
+            animation.update(delta, 0f, visibleHeight);
             return;
         }
 
-        if (Math.abs(moveX) >= Math.abs(moveY)) {
+        // Horizontal input takes precedence when both axes are pressed.
+        if (moveX != 0f) {
             direction = moveX < 0f ? Direction.LEFT : Direction.RIGHT;
+            moveY = 0f;
         } else {
             direction = moveY < 0f ? Direction.DOWN : Direction.UP;
         }
 
-        float length = (float) Math.sqrt(moveX * moveX + moveY * moveY);
-        moveX = moveX / length * speed * delta;
-        moveY = moveY / length * speed * delta;
-
-        float previousX = x;
-        float previousY = y;
-        moveAlongAxes(moveX, moveY, blocked);
-        float actualDistance = (float) Math.hypot(x - previousX, y - previousY);
-        if (actualDistance > 0.0001f) {
-            if (!movingLastFrame) {
-                animation.step();
-            } else {
-                animation.advance(actualDistance, visibleHeight);
-            }
-            animation.resetIdle();
-            movingLastFrame = true;
-        } else {
-            // Blocked by a wall: the feet must stop walking.
-            animation.advanceIdle(delta);
-            movingLastFrame = false;
+        float nextX = x + moveX * speed * delta;
+        float nextY = y + moveY * speed * delta;
+        float actualDistance = 0f;
+        if (!blocked.test(footprint(nextX, nextY))) {
+            actualDistance = (float) Math.hypot(nextX - x, nextY - y);
+            x = nextX;
+            y = nextY;
+            updateCollisionBody();
         }
-    }
-
-    /**
-     * Axis-separated movement lets the player slide along walls instead of
-     * getting stuck on diagonal input.
-     */
-    public void moveAlongAxes(float moveX, float moveY, Predicate<Rectangle> blocked) {
-        if (moveX != 0f) {
-            Rectangle proposed = bodyAt(x + moveX, y);
-            if (!blocked.test(proposed)) {
-                x += moveX;
-            }
-        }
-
-        if (moveY != 0f) {
-            Rectangle proposed = bodyAt(x, y + moveY);
-            if (!blocked.test(proposed)) {
-                y += moveY;
-            }
-        }
-
-        updateCollisionBody();
+        animation.update(delta, actualDistance, visibleHeight);
     }
 
     public CharacterRenderMetrics.Placement render(SpriteBatch batch) {
@@ -132,7 +97,7 @@ public final class AlkosmenPlayer implements Disposable {
             case UP -> AlkosmenWalkAnimation.Facing.UP;
             case DOWN, IDLE -> AlkosmenWalkAnimation.Facing.DOWN;
         };
-        placement = animation.draw(batch, facing, movingLastFrame, x, y, visibleHeight);
+        placement = animation.draw(batch, facing, animation.moving(), x, y, visibleHeight);
         return placement;
     }
 
@@ -145,7 +110,6 @@ public final class AlkosmenPlayer implements Disposable {
         x = spawnX;
         y = spawnY;
         animation.reset();
-        movingLastFrame = false;
         direction = Direction.DOWN;
         updateCollisionBody();
     }
@@ -186,22 +150,13 @@ public final class AlkosmenPlayer implements Disposable {
         return direction;
     }
 
-    private Rectangle bodyAt(float footX, float footY) {
-        return new Rectangle(
-            footX - BODY_WIDTH / 2f,
-            footY + BODY_Y_OFFSET,
-            BODY_WIDTH,
-            BODY_HEIGHT
-        );
+    static Rectangle footprint(float footX, float footY) {
+        return new Rectangle(footX - BODY_WIDTH / 2f, footY - BODY_HEIGHT / 2f,
+            BODY_WIDTH, BODY_HEIGHT);
     }
 
     private void updateCollisionBody() {
-        collisionBody.set(
-            x - BODY_WIDTH / 2f,
-            y + BODY_Y_OFFSET,
-            BODY_WIDTH,
-            BODY_HEIGHT
-        );
+        collisionBody.set(x - BODY_WIDTH / 2f, y - BODY_HEIGHT / 2f, BODY_WIDTH, BODY_HEIGHT);
     }
 
     @Override

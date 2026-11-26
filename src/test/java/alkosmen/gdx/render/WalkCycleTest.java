@@ -24,6 +24,20 @@ public final class WalkCycleTest {
         assert wrapped.frameIndex() == 1 : "Multi-cycle wrap failed";
         wrapped.reset();
         assert wrapped.frameIndex() == 0;
+
+        WalkCycle playback = new WalkCycle(6);
+        playback.update(0.21f, 0f, 122.4f);
+        assert !playback.moving() && playback.idleFrameIndex() == 1;
+        playback.update(0.01f, 1f, 122.4f);
+        assert playback.moving() && playback.frameIndex() == 1;
+        playback.update(0.15f, 122.4f / 2f, 122.4f);
+        assert playback.moving() && playback.frameIndex() == 4 : "The opposite leg did not advance";
+        playback.update(0.25f, 0f, 122.4f);
+        assert !playback.moving() && playback.idleFrameIndex() == 0 : "Stop must select neutral idle";
+        playback.update(0.21f, 0f, 122.4f);
+        assert playback.idleFrameIndex() == 1 && playback.frameIndex() == 4;
+        playback.reset();
+        assert !playback.moving() && playback.idleFrameIndex() == 0 && playback.frameIndex() == 0;
         try {
             wrapped.advance(1f, 0f);
             throw new AssertionError("Invalid cycle distance accepted");
