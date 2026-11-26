@@ -1,37 +1,61 @@
 package alkosmen.gdx.render;
 
 /**
- * Restrained six-frame side step built from the approved idle artwork.
- * The upper body stays intact; only the two lower-leg areas swing in opposite directions.
- * All offsets are in source pixels and scale with the original PNG canvas.
+ * Six walking poses derived from approved red-shirt idle art.
+ * Procedural fallback until hand-drawn directional cycles are available.
  */
 public final class SideWalkGait {
     public static final int FRAME_COUNT = 6;
-    private static final float[] STEP = {0f, 0.55f, 0.85f, 0f, -0.55f, -0.85f};
+    private static final float[] STEP = {0f, .65f, 1f, 0f, -.65f, -1f};
 
-    private SideWalkGait() {
+    private SideWalkGait() { }
+
+    private static float progress(int y, int height) {
+        final float hip = height * .68f;
+        return Math.max(0f, Math.min(1f, (y - hip) / (height * .96f - hip)));
     }
 
-    public static int offsetX(int frame, int x, int y, int width, int height, boolean facingLeft) {
+    private static int leg(int x, int width, boolean facingLeft) {
+        int split = Math.round(width * (facingLeft ? .45f : .55f));
+        return x < split ? -1 : 1;
+    }
+
+    private static void validate(int frame, int width, int height) {
         if (frame < 0 || frame >= FRAME_COUNT || width <= 0 || height <= 0) {
-            throw new IllegalArgumentException("Invalid side-walk frame or canvas size");
+            throw new IllegalArgumentException("Invalid walk frame or canvas size");
         }
+    }
 
-        // The shorts end at roughly 71% of the approved 384x752 side reference.
-        int hipY = Math.round(height * 0.71f);
-        if (y <= hipY) {
-            return 0;
-        }
+    /** Swing the shoes forward/back while keeping the shoulders and waist stable. */
+    public static int offsetX(int frame, int x, int y, int width, int height, boolean facingLeft) {
+        validate(frame, width, height);
+        float t = progress(y, height);
+        return Math.round(leg(x, width, facingLeft) * STEP[frame]
+            * height * .048f * t * t);
+    }
 
-        float legLength = Math.max(1f, height * 0.96f - hipY);
-        float progress = Math.min(1f, (y - hipY) / legLength);
-        int splitX = Math.round(width * 0.55f);
-        int nearLeg = x < splitX ? -1 : 1;
-        if (facingLeft) {
-            nearLeg = -nearLeg;
-        }
+    /** Lift the advancing shoe; the support shoe stays on the ground. */
+    public static int offsetY(int frame, int x, int y, int width, int height, boolean facingLeft) {
+        validate(frame, width, height);
+        float t = progress(y, height);
+        float forward = leg(x, width, facingLeft) * STEP[frame];
+        return forward > 0f ? -Math.round(height * .016f * t * forward) : 0;
+    }
 
-        int maxStride = Math.max(1, Math.round(height * 0.024f));
-        return Math.round(STEP[frame] * maxStride * progress * nearLeg);
+    /** A smaller side-to-side swing when the character is seen from behind. */
+    public static int backOffsetX(int frame, int x, int y, int width, int height) {
+        validate(frame, width, height);
+        float t = progress(y, height);
+        int leg = x < width / 2 ? -1 : 1;
+        return Math.round(leg * STEP[frame] * height * .013f * t * t);
+    }
+
+    /** Alternate raised shoes in the back view, without changing the ABIBAS backpack. */
+    public static int backOffsetY(int frame, int x, int y, int width, int height) {
+        validate(frame, width, height);
+        float t = progress(y, height);
+        int leg = x < width / 2 ? -1 : 1;
+        float recovering = leg * STEP[frame];
+        return recovering > 0f ? -Math.round(height * .020f * recovering * t * t) : 0;
     }
 }

@@ -42,13 +42,13 @@ public final class AlkosmenWalkAnimation implements Disposable {
                 int row = facing.ordinal();
                 for (int frame = 0; frame < FRAME_COUNT; frame++) {
                     Pixmap idle = new Pixmap(Gdx.files.internal(idlePath(facing, frame)));
-                    if (facing == Facing.LEFT || facing == Facing.RIGHT) {
-                        // Do not load the rejected white-outfit walk_right_v2.
-                        // Generate each side-walk phase from the APPROVED red-shirt side view.
-                        Pixmap sideWalk = makeSideStep(idle, frame, facing == Facing.LEFT);
-                        register(sideWalk, walkFrames, walkMetrics, row, frame);
-                    } else {
+                    if (facing == Facing.DOWN) {
                         register(new Pixmap(Gdx.files.internal(walkPath(facing, frame))),
+                            walkFrames, walkMetrics, row, frame);
+                    } else {
+                        // LEFT / RIGHT / UP come only from the approved red-shirt references.
+                        // Old white-outfit walk animations are never loaded.
+                        register(makeWalkStep(idle, frame, facing),
                             walkFrames, walkMetrics, row, frame);
                     }
                     register(idle, idleFrames, idleMetrics, row, frame);
@@ -72,14 +72,17 @@ public final class AlkosmenWalkAnimation implements Disposable {
 
     private static String walkPath(Facing facing, int frame) {
         return switch (facing) {
-            case UP -> String.format("%s/walk_back/%02d.png", BASE_PATH, frame);
             case DOWN -> BASE_PATH + "/" + FRONT_WALK_SEQUENCE[frame];
-            case LEFT, RIGHT -> throw new IllegalArgumentException("Side steps use approved idle artwork");
+            case UP, LEFT, RIGHT -> throw new IllegalArgumentException(
+                "Directional steps use approved idle artwork");
         };
     }
 
-    /** Generate a restrained leg stride without modifying hair, face, shirt or backpack. */
-    private static Pixmap makeSideStep(Pixmap original, int frame, boolean facingLeft) {
+    /**
+     * Build a directional walk pose from the approved idle frame.
+     * Only the lower legs shift: the shirt, face, backpack and body size stay fixed.
+     */
+    private static Pixmap makeWalkStep(Pixmap original, int frame, Facing facing) {
         int width = original.getWidth();
         int height = original.getHeight();
         Pixmap result = new Pixmap(width, height, Pixmap.Format.RGBA8888);
@@ -92,9 +95,20 @@ public final class AlkosmenWalkAnimation implements Disposable {
                 if ((rgba & 0xff) == 0) {
                     continue;
                 }
-                int shiftedX = x + SideWalkGait.offsetX(frame, x, y, width, height, facingLeft);
-                if (shiftedX >= 0 && shiftedX < width) {
-                    result.drawPixel(shiftedX, y, rgba);
+                int dx;
+                int dy;
+                if (facing == Facing.UP) {
+                    dx = SideWalkGait.backOffsetX(frame, x, y, width, height);
+                    dy = SideWalkGait.backOffsetY(frame, x, y, width, height);
+                } else {
+                    boolean facingLeft = facing == Facing.LEFT;
+                    dx = SideWalkGait.offsetX(frame, x, y, width, height, facingLeft);
+                    dy = SideWalkGait.offsetY(frame, x, y, width, height, facingLeft);
+                }
+                int toX = x + dx;
+                int toY = y + dy;
+                if (toX >= 0 && toX < width && toY >= 0 && toY < height) {
+                    result.drawPixel(toX, toY, rgba);
                 }
             }
         }
