@@ -19,6 +19,7 @@ final class ZuevkaSectorMap {
     final float spawnY;
     private final List<Polygon> colliders = new ArrayList<>();
     private final List<Interaction> interactions = new ArrayList<>();
+    private final List<Occluder> occluders = new ArrayList<>();
     private final Polygon footprint = new Polygon(new float[8]);
 
     ZuevkaSectorMap(FileHandle file) {
@@ -42,6 +43,18 @@ final class ZuevkaSectorMap {
             interactions.add(new Interaction(object.getString("id"), object.getString("type"),
                 point.getFloat(0), height - point.getFloat(1), object.getFloat("radius")));
         }
+        for (JsonValue object : data.get("occluders")) {
+            JsonValue points = object.get("points");
+            float[] vertices = new float[points.size * 2];
+            int i = 0;
+            for (JsonValue point : points) {
+                vertices[i++] = point.getFloat(0);
+                vertices[i++] = height - point.getFloat(1);
+            }
+            JsonValue anchor = object.get("anchor");
+            occluders.add(new Occluder(object.getString("id"), anchor.getFloat(0),
+                height - anchor.getFloat(1), vertices));
+        }
     }
 
     boolean blocks(Rectangle feet) {
@@ -62,6 +75,16 @@ final class ZuevkaSectorMap {
 
     List<Interaction> interactions() {
         return Collections.unmodifiableList(interactions);
+    }
+
+    List<Occluder> occluders() {
+        return Collections.unmodifiableList(occluders);
+    }
+
+    record Occluder(String id, float x, float y, float[] vertices) {
+        boolean inFrontOf(float footY) {
+            return footY > y;
+        }
     }
 
     record Interaction(String id, String type, float x, float y, float radius) {

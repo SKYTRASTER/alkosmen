@@ -8,11 +8,17 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.PolygonRegion;
+import com.badlogic.gdx.graphics.g2d.PolygonSpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Polygon;
+import com.badlogic.gdx.math.EarClippingTriangulator;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Independent prototype for the illustrated first Zuevka sector. */
 public final class ZuevkaSectorGame extends ApplicationAdapter {
@@ -21,6 +27,8 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
     private OrthographicCamera camera;
     private Viewport viewport;
     private SpriteBatch batch;
+    private PolygonSpriteBatch foregroundBatch;
+    private final List<PolygonRegion> foreground = new ArrayList<>();
     private ShapeRenderer shapes;
     private Texture background;
     private AlkosmenPlayer hero;
@@ -35,6 +43,14 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         }
         background.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         batch = new SpriteBatch();
+        foregroundBatch = new PolygonSpriteBatch();
+        TextureRegion source = new TextureRegion(background);
+        EarClippingTriangulator triangulator = new EarClippingTriangulator();
+        for (ZuevkaSectorMap.Occluder occluder : map.occluders()) {
+            float[] vertices = occluder.vertices();
+            short[] triangles = triangulator.computeTriangles(vertices).toArray();
+            foreground.add(new PolygonRegion(source, vertices, triangles));
+        }
         shapes = new ShapeRenderer();
         camera = new OrthographicCamera();
         viewport = new FitViewport(VIEW_WIDTH, VIEW_HEIGHT, camera);
@@ -66,6 +82,14 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         batch.draw(background, 0, 0, map.width, map.height);
         hero.render(batch);
         batch.end();
+        foregroundBatch.setProjectionMatrix(camera.combined);
+        foregroundBatch.begin();
+        for (int i = 0; i < map.occluders().size(); i++) {
+            if (map.occluders().get(i).inFrontOf(hero.y())) {
+                foregroundBatch.draw(foreground.get(i), 0, 0);
+            }
+        }
+        foregroundBatch.end();
         if (showDebug) drawDebug();
     }
 
@@ -74,6 +98,12 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         shapes.begin(ShapeRenderer.ShapeType.Line);
         shapes.setColor(Color.RED);
         for (Polygon collider : map.colliders()) shapes.polygon(collider.getTransformedVertices());
+        shapes.setColor(Color.GREEN);
+        for (ZuevkaSectorMap.Occluder object : map.occluders()) {
+            shapes.polygon(object.vertices());
+            shapes.line(object.x() - 6, object.y(), object.x() + 6, object.y());
+            shapes.line(object.x(), object.y() - 6, object.x(), object.y() + 6);
+        }
         shapes.setColor(Color.CYAN);
         for (ZuevkaSectorMap.Interaction object : map.interactions()) {
             shapes.circle(object.x(), object.y(), object.radius(), 40);
@@ -98,6 +128,7 @@ public final class ZuevkaSectorGame extends ApplicationAdapter {
         if (hero != null) hero.dispose();
         if (background != null) background.dispose();
         if (batch != null) batch.dispose();
+        if (foregroundBatch != null) foregroundBatch.dispose();
         if (shapes != null) shapes.dispose();
     }
 }

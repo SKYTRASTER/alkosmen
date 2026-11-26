@@ -3,6 +3,8 @@ package alkosmen.gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.EarClippingTriangulator;
+import java.util.ArrayDeque;
 
 /** Tests authored geometry in image coordinates, without a graphics context. */
 public final class ZuevkaSectorMapTest {
@@ -14,16 +16,27 @@ public final class ZuevkaSectorMapTest {
         for (int x = 650; x <= 1550; x += 10) {
             assert !at(map, x, 900) : "Road blocked at " + x;
         }
-        assert !at(map, 720, 570) : "Entrance to courtyard blocked";
+        assert !at(map, 750, 570) : "Entrance to courtyard blocked";
         assert !at(map, 800, 520) : "Yard blocked";
+        assert !at(map, 720, 495) : "Porch steps blocked";
+        assert canReach(map, 660, 745, 720, 495) : "No route from spawn to porch";
+        assert at(map, 246, 690) : "Sign post base should block";
+        assert !at(map, 310, 660) : "Space beside the sign should be open";
         assert at(map, 820, 390) : "House should block";
         assert at(map, 1000, 580) : "Fence should block";
         assert at(map, 300, 160) : "Trees should block";
         assert at(map, 1500, 150) : "Pond should block";
         assert at(map, 1280, 730) : "Rocks should block";
-        assert at(map, 560, 830) : "Lamp should block";
+        assert at(map, 560, 870) : "Lamp should block";
         assert at(map, 5, 900) : "Map edge should block";
         for (Polygon polygon : map.colliders()) assert convex(polygon.getVertices()) : "Nonconvex obstacle";
+        for (ZuevkaSectorMap.Occluder occluder : map.occluders()) {
+            assert occluder.inFrontOf(occluder.y() + 1f);
+            assert !occluder.inFrontOf(occluder.y() - 1f);
+            assert occluder.vertices().length >= 6;
+            assert new EarClippingTriangulator().computeTriangles(occluder.vertices()).size
+                == (occluder.vertices().length / 2 - 2) * 3 : "Invalid foreground polygon";
+        }
         assert map.interactions().size() == 4;
         for (ZuevkaSectorMap.Interaction interaction : map.interactions()) {
             boolean reachable = false;
@@ -42,6 +55,31 @@ public final class ZuevkaSectorMapTest {
     private static boolean at(ZuevkaSectorMap map, float imageX, float imageY) {
         Rectangle feet = AlkosmenPlayer.footprint(imageX, map.height - imageY);
         return map.blocks(feet);
+    }
+
+    private static boolean canReach(ZuevkaSectorMap map, int startX, int startY, int targetX, int targetY) {
+        int step = 5;
+        int width = (int) map.width / step + 1;
+        int height = (int) map.height / step + 1;
+        boolean[][] visited = new boolean[width][height];
+        ArrayDeque<Integer> queue = new ArrayDeque<>();
+        int start = startY / step * width + startX / step;
+        queue.add(start);
+        visited[startX / step][startY / step] = true;
+        int[] dx = {1, -1, 0, 0}, dy = {0, 0, 1, -1};
+        while (!queue.isEmpty()) {
+            int cell = queue.removeFirst(), x = cell % width, y = cell / width;
+            if (x == targetX / step && y == targetY / step) return true;
+            for (int i = 0; i < dx.length; i++) {
+                int nextX = x + dx[i], nextY = y + dy[i];
+                if (nextX >= 0 && nextY >= 0 && nextX < width && nextY < height
+                    && !visited[nextX][nextY] && !at(map, nextX * step, nextY * step)) {
+                    visited[nextX][nextY] = true;
+                    queue.add(nextY * width + nextX);
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean convex(float[] v) {
